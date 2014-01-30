@@ -8,43 +8,8 @@ import subprocess
 import uuid
 
 from .utils import *
+from .structs import *
 from .contrib import efi_decompressor
-
-EFI_FILE_TYPES = {
-    # http://wiki.phoenix.com/wiki/index.php/EFI_FV_FILETYPE
-    0x00: ("unknown", "none"),
-    0x01: ("raw", "raw"),
-    0x02: ("freeform", "freeform"),
-    0x03: ("security core", "sec"),
-    0x04: ("pei core", "pei"),
-    0x05: ("dxe core", "dxe"),
-    0x06: ("pei module", "peim"),
-    0x07: ("driver", "driver"),
-    0x08: ("combined pei module/driver", "peim.driver"),
-    0x09: ("application", "app"),
-    0x0b: ("firmware volume image", "vol"),
-    0xf0: ("ffs padding", "pad")
-}
-
-EFI_SECTION_TYPES = {
-    0x01: ("Compression", "compressed"),
-    0x02: ("GUID defined", "guiddef"),
-    0x03: ("Disposable", "disposable"),
-    0x10: ("PE32 image", "pe"),
-    0x11: ("PE32+ PIC image", "pic.pe"),
-    0x12: ("Terse executable (TE)", "te"),
-    0x13: ("DXE dependency expression", "dxe.depex"),
-    0x16: ("IA-32 16-bit image", "ia32.16bit"),
-    0x17: ("Firmware volume image", "fv"),
-    0x18: ("Free-form GUID", "freeform.guidsec"),
-    0x19: ("Raw", "raw"),
-    0x1b: ("PEI dependency expression", "pie.depex"),
-    
-    # Added from previous code (not in Phoenix spec
-    0x14: ("Version section", "version"),
-    0x15: ("User interface name", "name"),
-    0x1b: ("SMM dependency expression", "smm.depex")
-}
 
 def _get_file_type(file_type):
     return EFI_FILE_TYPES[file_type] if file_type in EFI_FILE_TYPES else ("unknown", "unknown")
@@ -156,6 +121,9 @@ class EfiSection(FirmwareObject):
             #print subsection.type, subsection.size
             subsection_offset += subsection.size
 
+    def process(self): pass
+    def showinfo(self, ts= '', index=-1): pass
+
 
 class CompressedSection(EfiSection):
     #parsed_objects = None
@@ -211,25 +179,6 @@ class CompressedSection(EfiSection):
             return
         
         self.process_subsections()
-        """
-        offset = 0
-        while offset < self.decompressed_size:
-            '''Iterate through the decompressed data for appended FirmwareFileSystemSection objects.'''
-            if offset >= len(self.data): break
-            if len(self.data[offset:]) < 4: break
-
-            object = FirmwareFileSystemSection(self.data[offset:], self.guid)
-
-            '''Bug: there may be a nibble-aligned error in FFSS size.'''
-            if object.type == 0x00 or object.type not in EFI_SECTION_TYPES:
-                if len(self.data[offset+2:]) < 4: break
-                object = self._try_again(self.data, offset)
-            if object.size == 0: break
-
-            object.process()
-            self.parsed_objects.append(object)
-            offset += object.size
-        """
         pass
 
     def showinfo(self, ts):
@@ -241,18 +190,33 @@ class CompressedSection(EfiSection):
         
         pass
 
-class FreeformGuidSection(FirmwareObject):
+class FreeformGuidSection(EfiSection):
     """
     A firmware file section type (free-form GUID)
 
     struct { UCHAR GUID[16]; }
     """
+    _CHAR_GUID = uuid.UUID("{059ef06e-c652-4a45-be9f-5975e369461c}")
+    name = None
+
     def __init__(self, data):
-        self.guid = struct.unpack("<16s", data[:16])
+        self.guid = struct.unpack("<16s", data[:16])[0]
+        #print "FFGS", len(data), len(self.guid), fguid(self.guid)
         self.data = data[16:]
 
-    def process(self): pass
-    def showinfo(self, ts='', index=-1): pass
+    def process(self):
+        #print "FFGS %s" % fguid(self.guid), uuid.UUID(fguid(self.guid)) == self._CHAR_GUID
+        if uuid.UUID(fguid(self.guid)) == self._CHAR_GUID:
+            self.guid_header = self.data[:12]
+            self.name = uefi_name(self.data[12:])
+        pass
+
+    def showinfo(self, ts='', index=-1): 
+        #print fguid(self.guid)
+        #hex_dump(self.data)
+        if self.name is not None:
+            print "%sGUID Description: %s" % (ts, purple(self.name))
+        pass
 
     pass
 
@@ -276,15 +240,11 @@ class GuidDefinedSection(EfiSection):
         return self.subsections
 
     def process(self):
-        if self.guid == self.LZMA_COMPRESSED_GUID:
+        if uuid.UUID(fguid(self.guid)) == self.LZMA_COMPRESSED_GUID:
             print "Debug: Found LZMA GUID-defined section"
 
         elif self.guid == self._STATIC_GUID:
             self.process_subsections()
-        pass
-
-    def showinfo(self, ts='', index=-1):
-
         pass
 
     pass
