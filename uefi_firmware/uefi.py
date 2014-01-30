@@ -6,7 +6,7 @@ import sys, struct
 import tempfile
 import subprocess
 
-from utils import *
+from .utils import *
 
 
 EFI_FILE_TYPES = {
@@ -78,8 +78,6 @@ def search_firmware_volumes(data):
     for aligned_start in xrange(32, len(data), 16):
         if data[aligned_start : aligned_start + 4] == '_FVH':
             potential_volumes.append(aligned_start)
-            #print "Found potential firmware volume (offset 0x%08x)" % (aligned_start)
-            #volumes.append(parse_firmware_volume(data[aligned_start-40:], aligned_start))
     return potential_volumes
     pass
 
@@ -109,7 +107,6 @@ class FirmwareObject(object):
         if hasattr(self, "attrs"): return self.attrs
         return {}
 
-
     def info(self, include_content= False):
         return {
             "label": self.label,
@@ -122,7 +119,6 @@ class FirmwareObject(object):
     def iterate_objects(self, include_content= False):
         objects = []
         for _object in self.objects:
-            #print _object
             _info = _object.info(include_content)
             _info["objects"] = _object.iterate_objects(include_content)
             objects.append(_info)
@@ -168,6 +164,7 @@ class CompressedSection(FirmwareObject):
         pass
     
     def _p7zip(self, data):
+        '''Use 7z to decompress an LZMA-compressed section.'''
         uncompressed_data = None
         with tempfile.NamedTemporaryFile(delete=False) as temp:
             temp.write(data)
@@ -179,6 +176,7 @@ class CompressedSection(FirmwareObject):
             self.data= uncompressed_data[:]
     
     def _try_again(self, data, offset):
+        '''Warning: this is a massive hack.'''
         object = FirmwareFileSystemSection(self.data[offset+2:], self.guid)
         return object
     
@@ -200,32 +198,28 @@ class CompressedSection(FirmwareObject):
             return
         
         offset = 0
-        #count = 0
         while offset < self.decompressed_size:
+            '''Iterate through the decompressed data for appended FirmwareFileSystemSection objects.'''
             if offset >= len(self.data): break
             if len(self.data[offset:]) < 4: break
+
             object = FirmwareFileSystemSection(self.data[offset:], self.guid)
+
+            '''Bug: there may be a nibble-aligned error in FFSS size.'''
             if object.type == 0x00 or object.type not in EFI_SECTION_TYPES:
                 if len(self.data[offset+2:]) < 4: break
                 object = self._try_again(self.data, offset)
             if object.size == 0: break
+
             object.process()
-            #print fguid(self.guid)
-            #print offset, object.size
             self.parsed_objects.append(object)
             offset += object.size
-            #count += 1
-            
-            #if count >= 2: offset += 2
-            #if object.type == 0x18: offset += 2
-            #if object.type == 0x19: offset -= 2
-            
+        pass
+
     def showinfo(self, ts):
         if self.name is not None:
             print "%s %s" % (blue("%sCompressed Name:" % ts), purple(self.name))
         
-        #if self.parsed_object is not None:
-        #    self.parsed_object.showinfo(ts + "  ")
         for i, _object in enumerate(self.parsed_objects):
             _object.showinfo(ts + "  ", i)
         
@@ -245,15 +239,13 @@ class FirmwareFileSystemSection(FirmwareObject):
         self.guid= guid
         
         hdr = data[:0x4]
-        print ["0x%x" % ord(c) for c in hdr]
+        #print ["0x%x" % ord(c) for c in hdr]
         try:
             self.size, self.type = struct.unpack("<3sB", hdr)
         except Exception, e:
-            print len(hdr)
+            print "Error: invalid FirmwareFileSystemSection header, expected size 4, got (%d)." % len(hdr)
             raise e
         self.size = struct.unpack("<I", self.size + "\x00")[0]
-        
-        #print "Debug: found section (%s) with size (%d)." % (self.type, self.size)
         
         self.data = data[0x4:self.size]
         self.subsections = None
@@ -276,7 +268,6 @@ class FirmwareFileSystemSection(FirmwareObject):
                 print "Error: cannot decode section name for type (0x15) (%s)." % str(e)
         elif self.type == 0x01:
             compressed_section = CompressedSection(self.data, self.guid)
-            #print "compressed"
             compressed_section.process()
             
             self.parsed_object = compressed_section
@@ -365,8 +356,6 @@ class FirmwareFile(FirmwareObject):
 
     @property
     def objects(self):
-        #objects = self.raw_blobs
-        #objects += self.sections
         return self.sections
 
     def process(self):
@@ -400,17 +389,12 @@ class FirmwareFile(FirmwareObject):
             green(fguid(self.guid)), self.type, self.attributes, self.state ^ 0xFF, 
             self.size, self.size, _get_file_type(self.type)[0]
         )
-        #print "%sGUID: %s" % (ts, fguid(self.guid))
-        #print "%sSize: 0x%x (%d bytes) (data 0x%x)" % (ts, self.size, self.size, len(self.data))
-        #print "%sType: 0x%02x (%s)" % (ts, self.type, str(_get_file_type(self.type)))
-        #print "%sAttributes: 0x%02x" % (ts, self.attributes)
-        #print "%sState: 0x%02x" % (ts, self.state ^0xFF)
         
         for i, blob in enumerate(self.raw_blobs):
             self._guessinfo(ts+"  ", blob, index=i)
         
         if self.sections is None:
-            #print "%sThis is a padding file." % (ts)
+            # padding file, skip for now
             return
         
         for i, section in enumerate(self.sections):
