@@ -38,9 +38,9 @@ def _parse_firmware_filesystem(data):
 
         
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', "--firmware", action="store_true", help='This is a firmware volume')
-    parser.add_argument('-o', "--output", default=".", help="Dump files to this folder")
+    parser = argparse.ArgumentParser(description= "Search a file for UEFI firmware volumes, parse and output.")
+    parser.add_argument('-f', "--firmware", action="store_true", help='The input file is a firmware volume, do not search.')
+    parser.add_argument('-o', "--output", default=".", help="Dump EFI Files to this folder.")
     parser.add_argument('-e', "--extract", action="store_true", help="Extract all files/sections/volumes.")
     parser.add_argument("file", help="The file to work on")
     args = parser.parse_args()

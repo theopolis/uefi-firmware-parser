@@ -20,6 +20,9 @@ def _get_section_type(section_type):
 
 def _dump_data(name, data):
     try:
+        if os.path.dirname(name) is not '': 
+            if not os.path.exists(os.path.dirname(name)):
+                os.makedirs(os.path.dirname(name))
         with open(name, 'wb') as fh: fh.write(data)
         print "Wrote: %s" % (red(name))
     except Exception, e:
@@ -113,29 +116,22 @@ class EfiSection(FirmwareObject):
             if subsection_offset % 4: subsection_offset += 4 - (subsection_offset % 4)
             if subsection_offset >= len(self.data): break
 
-            #print "GUID %s offset %d" % (fguid(self.guid), subsection_offset)
             subsection = FirmwareFileSystemSection(self.data[subsection_offset:], self.guid)
             if subsection.size == 0: break
             subsection.process()
             self.subsections.append(subsection)
 
-            #print subsection.type, subsection.size
             subsection_offset += subsection.size
 
     def process(self): pass
     def showinfo(self, ts= '', index=-1): pass
 
     def dump(self, parent= "", index=0):
-    #    #print "Dumping: " % os.path.join(parent, "subsection%d" % index)
-        #name = os.path.join(parent, "subsection.%s" % )
-
-    #    _dump_data("%s.%s" % (name, 99), self.data)
         for i, subsection in enumerate(self.subsections):
             subsection.dump(parent, i)
 
 
 class CompressedSection(EfiSection):
-    #parsed_objects = None
     name = None
     
     def __init__(self, data, guid):
@@ -161,6 +157,7 @@ class CompressedSection(EfiSection):
             temp.flush()
             subprocess.call(["7zr", "-o/tmp", "e", temp.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             with open("%s~" % temp.name, 'r') as fh: uncompressed_data = fh.read()
+            os.unlink(temp.name)
         
         if uncompressed_data is not None:
             self.data= uncompressed_data[:]
@@ -214,15 +211,12 @@ class FreeformGuidSection(EfiSection):
         self.data = data[16:]
 
     def process(self):
-        #print "FFGS %s" % fguid(self.guid), uuid.UUID(fguid(self.guid)) == self._CHAR_GUID
         if uuid.UUID(fguid(self.guid)) == self._CHAR_GUID:
             self.guid_header = self.data[:12]
             self.name = uefi_name(self.data[12:])
         pass
 
     def showinfo(self, ts='', index=-1): 
-        #print fguid(self.guid)
-        #hex_dump(self.data)
         if self.name is not None:
             print "%sGUID Description: %s" % (ts, purple(self.name))
         pass
@@ -272,8 +266,6 @@ class FirmwareFileSystemSection(FirmwareObject):
         self.guid= guid
         
         header = data[:0x4]
-        #print ["0x%x" % ord(c) for c in hdr]
-
         try:
             self.size, self.type = struct.unpack("<3sB", header)
             self.size = struct.unpack("<I", self.size + "\x00")[0]
@@ -294,12 +286,10 @@ class FirmwareFileSystemSection(FirmwareObject):
 
         if self.type == 0x01: # compression
             compressed_section = CompressedSection(self.data, self.guid)
-            #compressed_section.process()
             self.parsed_object = compressed_section
 
         elif self.type == 0x02: # GUID-defined
             guid_defined = GuidDefinedSection(self.data)
-            #guid_defined.process()
             self.parsed_object = guid_defined
             
         elif self.type == 0x15: # user interface name
@@ -307,12 +297,10 @@ class FirmwareFileSystemSection(FirmwareObject):
         
         elif self.type == 0x17: # firmware-volume
             fv = FirmwareVolume(self.data, self.guid)
-            #fv.process()    
             self.parsed_object = fv
         
         elif self.type == 0x18: # freeform GUID
             freeform_guid = FreeformGuidSection(self.data)
-            #freeform_guid.process()
             self.parsed_object = freeform_guid
 
         self.attrs = {"type": self.type, "size": self.size}
@@ -330,14 +318,6 @@ class FirmwareFileSystemSection(FirmwareObject):
         if self.parsed_object is not None:
             '''If this is a specific object, show that object's info.'''
             self.parsed_object.showinfo(ts + '  ')
-        
-        #for i, section in enumerate(self.subsections):
-        #    section.showinfo(ts + '  ', i)
-        #if self.type == 0x02 and self.subsections is not None:
-        #    print ts+" CRC32 subsection container:"
-        #    for i, s in enumerate(self.subsections):
-        #        print "%s type 0x%02x, size 0x%x" % (blue("%s Subsection %d:" % (ts, i)), s.type, s.size)
-        #        s.showinfo(ts+"   ")
                 
     def dump(self, parent= "", index= 0):
         _dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self.data)
@@ -345,8 +325,6 @@ class FirmwareFileSystemSection(FirmwareObject):
         if self.parsed_object is None: return
 
         self.parsed_object.dump(os.path.join(parent, "section%d" % index))
-        #for i, section in enumerate(self.parsed_object.subsections):
-        #    section.dump(os.path.join(parent, "section%d.%d" % (index, i)))
 
 
 class FirmwareFile(FirmwareObject):
