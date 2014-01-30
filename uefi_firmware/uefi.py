@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import sys, struct
 #from backports import lzma
 #import pylzma
@@ -123,6 +124,14 @@ class EfiSection(FirmwareObject):
 
     def process(self): pass
     def showinfo(self, ts= '', index=-1): pass
+
+    def dump(self, parent= "", index=0):
+    #    #print "Dumping: " % os.path.join(parent, "subsection%d" % index)
+        #name = os.path.join(parent, "subsection.%s" % )
+
+    #    _dump_data("%s.%s" % (name, 99), self.data)
+        for i, subsection in enumerate(self.subsections):
+            subsection.dump(parent, i)
 
 
 class CompressedSection(EfiSection):
@@ -330,14 +339,15 @@ class FirmwareFileSystemSection(FirmwareObject):
         #        print "%s type 0x%02x, size 0x%x" % (blue("%s Subsection %d:" % (ts, i)), s.type, s.size)
         #        s.showinfo(ts+"   ")
                 
-    def dump(self, base):
-        if self.subsections is not None:
-            for i,s in enumerate(self.subsections):
-                s.dump("%s.sub%d"%(base, i))
-            return
-        
-        name = "%s.%s" % (base, _get_section_type(self.type)[1])
-        _dump_data(name, self.data)
+    def dump(self, parent= "", index= 0):
+        _dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self.data)
+
+        if self.parsed_object is None: return
+
+        self.parsed_object.dump(os.path.join(parent, "section%d" % index))
+        #for i, section in enumerate(self.parsed_object.subsections):
+        #    section.dump(os.path.join(parent, "section%d.%d" % (index, i)))
+
 
 class FirmwareFile(FirmwareObject):
     """
@@ -425,13 +435,16 @@ class FirmwareFile(FirmwareObject):
         if data[:4] == "\x01\x00\x00\x00" and data[20:24] == "\x01\x00\x00\x00":
             print "%s Might contain CPU microcodes" % (blue("%sBlob %d:" % (ts, index)))
     
-    def dump(self):
+    def dump(self, parent= ""):
+        parent = os.path.join(parent, "file-%s" % fguid(self.guid))
+
         if self.raw_blobs is not None:
             for i, blob in enumerate(self.raw_blobs):
-                _dump_data("%s.raw%d" % (fguid(self.guid), i), blob)
+                _dump_data(os.path.join(parent, "blob-%s.raw" % i), blob)
+
         if self.sections is not None:
             for i, section in enumerate(self.sections):
-                section.dump("%s.sec%d" % (fguid(self.guid), i))
+                section.dump(parent, index= i)
 
 class FirmwareFileSystem(FirmwareObject):
     """
@@ -468,9 +481,9 @@ class FirmwareFileSystem(FirmwareObject):
             #print ts + "File %d:" % i
             firmware_file.showinfo(ts + ' ', index=i)
     
-    def dump(self):
-        for firmware_file in self.files:
-            firmware_file.dump()
+    def dump(self, parent= ""):
+        for _file in self.files:
+            _file.dump(parent)
 
 class FirmwareVolume(FirmwareObject):
     """
@@ -571,12 +584,16 @@ class FirmwareVolume(FirmwareObject):
             print "(%d, 0x%x)" % (block_size, block_length),
         print ""
         
-        for ffs in self.firmware_filesystems:
-            ffs.showinfo(ts + " ")
+        for _ffs in self.firmware_filesystems:
+            _ffs.showinfo(ts + " ")
     
-    def dump(self):
+    def dump(self, parent= ""):
         if len(self.data) == 0:
             return 
         
-        _dump_data("%s-%s.fv" % (self.name, fguid(self.guid)), self.data)
+        path = os.path.join(parent, "volume-%s.fv" % fguid(self.guid))
+        _dump_data(path, self.data)
+
+        for _ffs in self.firmware_filesystems:
+            _ffs.dump(os.path.join(parent, "volume-%s" % fguid(self.guid)))
 
