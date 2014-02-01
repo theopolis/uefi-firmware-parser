@@ -157,7 +157,7 @@ class CompressedSection(EfiSection):
             temp.flush()
             subprocess.call(["7zr", "-o/tmp", "e", temp.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             with open("%s~" % temp.name, 'r') as fh: uncompressed_data = fh.read()
-            os.unlink(temp.name)
+            os.unlink("%s~" % temp.name)
         
         if uncompressed_data is not None:
             self.data= uncompressed_data[:]
