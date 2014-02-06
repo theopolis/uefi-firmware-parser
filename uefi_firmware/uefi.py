@@ -79,6 +79,7 @@ class FirmwareObject(object):
 
     def info(self, include_content= False):
         return {
+            "_self": self,
             "label": self.label,
             "guid": self.guid_label,
             "type": self.type_label,
@@ -89,6 +90,7 @@ class FirmwareObject(object):
     def iterate_objects(self, include_content= False):
         objects = []
         for _object in self.objects:
+            if _object is None: continue
             _info = _object.info(include_content)
             _info["objects"] = _object.iterate_objects(include_content)
             objects.append(_info)
@@ -252,7 +254,7 @@ class GuidDefinedSection(EfiSection):
 
     pass
 
-class FirmwareFileSystemSection(FirmwareObject):
+class FirmwareFileSystemSection(EfiSection):
     """
     A firmware file section
     
