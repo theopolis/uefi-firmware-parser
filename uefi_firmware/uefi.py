@@ -298,7 +298,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.name = uefi_name(self.data)
         
         elif self.type == 0x17: # firmware-volume
-            fv = FirmwareVolume(self.data, self.guid)
+            fv = FirmwareVolume(self.data, fguid(self.guid))
             self.parsed_object = fv
         
         elif self.type == 0x18: # freeform GUID
@@ -500,7 +500,7 @@ class FirmwareVolume(FirmwareObject):
     firmware_filesystems = None
     
     def __init__(self, data, name= "volume"):
-        self.name = ""
+        self.name = name
         self.data = ""
         
         header = data[:self._HEADER_SIZE]
@@ -571,9 +571,9 @@ class FirmwareVolume(FirmwareObject):
         if len(self.data) == 0:
             return 
         
-        path = os.path.join(parent, "volume-%s.fv" % fguid(self.guid))
+        path = os.path.join(parent, "volume-%s.fv" % self.name)
         _dump_data(path, self.data)
 
         for _ffs in self.firmware_filesystems:
-            _ffs.dump(os.path.join(parent, "volume-%s" % fguid(self.guid)))
+            _ffs.dump(os.path.join(parent, "volume-%s" % self.name))
 
