@@ -52,6 +52,8 @@ def search_firmware_volumes(data):
     pass
 
 class FirmwareObject(object):
+    data = None
+
     @property
     def content(self):
         if hasattr(self, "data"): return self.data
@@ -275,6 +277,7 @@ class FirmwareFileSystemSection(EfiSection):
             print "Error: invalid FirmwareFileSystemSection header, expected size 4, got (%d)." % len(header)
             raise e
         
+        self._data = data[:0x4 + self.size]
         self.data = data[0x4:self.size]
         self.name = None
 
@@ -322,7 +325,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.parsed_object.showinfo(ts + '  ')
                 
     def dump(self, parent= "", index= 0):
-        _dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self.data)
+        _dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self._data)
 
         if self.parsed_object is None: return
 
@@ -360,6 +363,7 @@ class FirmwareFile(FirmwareObject):
         self.attrs["type_name"] = _get_file_type(self.type)[0]
         
         '''The size includes the header bytes.'''
+        self._data = data[:self._HEADER_SIZE + self.size]
         self.data = data[self._HEADER_SIZE:self.size]
         self.raw_blobs = []
         self.sections = []
@@ -437,6 +441,7 @@ class FirmwareFileSystem(FirmwareObject):
     
     def __init__(self, data):
         self.files = []
+        self._data = data
         self.data = data
     
     @property
@@ -462,6 +467,8 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file.showinfo(ts + ' ', index=i)
     
     def dump(self, parent= ""):
+        _dump_data(os.path.join(parent, "%s.ffs" % fguid(self.guid)), self._data)
+
         for _file in self.files:
             _file.dump(parent)
 
@@ -490,6 +497,7 @@ class FirmwareVolume(FirmwareObject):
     
     """
     _HEADER_SIZE = 0x38
+    _VALID_GUIDS = ['7a9354d9-0468-444a-ce81-0bf617d890df', '8c8ce578-8a3d-4f1c-9935-896185c32dd3']
     
     name = None
     '''An optional name or offset of the firmware volume.'''
@@ -501,23 +509,20 @@ class FirmwareVolume(FirmwareObject):
     
     def __init__(self, data, name= "volume"):
         self.name = name
-        self.data = ""
-        
-        header = data[:self._HEADER_SIZE]
 
+        header = data[:self._HEADER_SIZE]
         self.rsvd, self.guid, self.size, self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
         
+        if uuid.UUID(fguid(self.guid)) not in [uuid.UUID(guid) for guid in self._VALID_GUIDS]:
+            print "Error: invalid FV guid."
+            return
+
         self.blocks = []
         self.block_map = ""
-        if self.magic != '_FVH':
-            print "Error: this is not a firmware volume, bad magic."
-            return 
 
-        if len([ord(c) for c in self.rsvd if ord(c) == 0]) < 8:
-            print "Error: this may not be a firmware volume, reserved is not 0?"
-            return
-        
         data = data[:self.size]
+
+        self._data = data
         self.data = data[self.hdrlen:]
         self.block_map = data[self._HEADER_SIZE:self.hdrlen]
     
@@ -572,7 +577,7 @@ class FirmwareVolume(FirmwareObject):
             return 
         
         path = os.path.join(parent, "volume-%s.fv" % self.name)
-        _dump_data(path, self.data)
+        _dump_data(path, self._data)
 
         for _ffs in self.firmware_filesystems:
             _ffs.dump(os.path.join(parent, "volume-%s" % self.name))
