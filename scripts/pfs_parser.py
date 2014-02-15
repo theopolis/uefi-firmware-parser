@@ -1,8 +1,33 @@
 # -*- coding: utf-8 -*-
 
+# Dell PFS Firmware Update Parser
+# Copyright Teddy Reed (teddy@prosauce.org)
+#
+# This script attempts to parse a DELL HDR file (BIOS/UEFI update).
+# Newer versions of the DELL HDR format (see contrib script for extracting 
+# from an update executable) use a PFS.HDR. magic value. The data seems to 
+# have packed sections, the first of which contains a UEFI Firmware Volume. 
+# By analyzing update sets, latter updates contain details/binary following
+# each chunk. 
+
 import argparse
 import struct
+import os
 
+from uefi_firmware import fguid, red
+
+# This will be removed soon
+def _dump_data(name, data):
+    try:
+        if os.path.dirname(name) is not '': 
+            if not os.path.exists(os.path.dirname(name)):
+                os.makedirs(os.path.dirname(name))
+        with open(name, 'wb') as fh: fh.write(data)
+        print "Wrote: %s" % (red(name))
+    except Exception, e:
+        print "Error: could not write (%s), (%s)." % (name, str(e))
+
+# The following two functions are provided for debugging aide
 def ascii_char(c):
     if ord(c) >= 32 and ord(c) <= 126: return c
     return '.'
@@ -18,6 +43,62 @@ def hex_dump(data, size= 16):
     if not len(data) % size == 0:
         print_line(data[(len(data) % size) * -1:])
 
+class PFSSection(object):
+    def __init__(self, data):
+        self.data = data
+        self.size = -1
+
+    def parse(self):
+        self.uuid = self.data[:16]
+
+        # Spec seems to be a consistent 1, what I thought was a timestamp is not.
+        # Version is static except for the first section in a PFS
+        spec, ts, ctype, version, _u1 = struct.unpack("<IIhh4s", self.data[16:32])
+        # U1, U2 might be flag containers
+        _u2, csize, size1, size2, size3 = struct.unpack("<8sIIII", self.data[32:32+24])
+
+        self.spec = spec
+        self.ts = ts
+        self.type = ctype
+        self.version = version
+
+        # This seems to be a set of 8byte CRCs for each chunk (4 total)
+        self.crcs = self.data[32+24:32+24+16]
+        self.chunk_data = self.data[64:64+csize]
+
+        # Not yet sure what the following three partitions are
+        self.chunk1 = self.data[64+csize:64+csize+size1]
+        self.chunk2 = self.data[64+csize+size1:64+csize+size1+size2]
+        self.chunk3 = self.data[64+csize+size1+size2:64+csize+size1+size2+size3]
+        
+        total_chunk_size = csize+size1+size2+size3
+
+        # Unknown 8byte variable
+        _u3 = self.data[64+total_chunk_size:64+total_chunk_size+8]
+        self.unknowns = [_u1, _u2, _u3]
+
+        # Size of header, data, and footer
+        self.section_size = 64+ total_chunk_size+8
+        self.data = None
+
+        pass
+
+    def showinfo(self):
+        print "UUID: (%s)" % fguid(self.uuid)
+        print "Spec (%d), TS (%d), Type (%d), Version (%d)" % (self.spec, self.ts, self.type, self.version)
+        print "Size (%d) S1 (%d) S2 (%d) S3 (%d)" % (len(self.chunk_data), len(self.chunk1), len(self.chunk2), len(self.chunk3))
+        print "CRCs (0x%s)" % self.crcs.encode("hex")
+        print "Unknowns (%s)" % ", ".join([u.encode("hex") for u in self.unknowns])
+        pass
+
+    def dump(self):
+        _dump_data("%s.data" % fguid(self.uuid), self.chunk_data)
+        _dump_data("%s.c1" % fguid(self.uuid), self.chunk1)
+        _dump_data("%s.c2" % fguid(self.uuid), self.chunk2)
+        _dump_data("%s.c3" % fguid(self.uuid), self.chunk3)
+        pass
+
+
 class PFSFile(object):
     PFS_HEADER = "PFS.HDR."
     PFS_FOOTER = "PFS.FTR."
@@ -29,51 +110,39 @@ class PFSFile(object):
         if len(self.data) < 32:
             return False
 
-        hdr = self.data[:32]
-        magic, spec, size = struct.unpack("<8sII16s", hdr)
+        hdr = self.data[:16]
+        magic, spec, size = struct.unpack("<8sII", hdr)
 
         if magic != self.PFS_HEADER:
             return False
+        
+        ftr = self.data[len(self.data)-16:]
+        # U1 and U2 might be the same variable, a total CRC?
+        _u1, _u2, ftr_magic = struct.unpack("<II8s", ftr)
+        if ftr_magic != self.PFS_FOOTER:
+            return False
+
         return True
 
     def parse_chunks(self):
         """Chunks are assumed to contain a chunk header."""
-        data = self.data[32:]
+        data = self.data[16:-16]
 
+        chunk_num = 0
         while True:
-            spec, ts, ctype, version, _u1 = struct.unpack("<IIhhI", data[:16])
-            _u2, csize, size1, size2, size3 = struct.unpack("<8sIIII", data[16:16+24])
-            crc = data[16+24:16+24+16]
+            print "Chunk: %d, Remaining length: %d" % (chunk_num, len(data))
 
-            print "Spec (%d), TS (%d), Type (%d), Version (%d), U1 (%d)" % (spec, ts, ctype, version, _u1)
-            print "U2 (0x%s)" % _u2.encode("hex")
-            print "Size (%d) S1 (%d) S2 (%d) S3 (%d)" % (csize, size1, size2, size3)
-            print "CRC (0x%s)" % crc.encode("hex")
+            section = PFSSection(data)
+            section.parse()
+            section.showinfo()
+            #section.dump()
 
-            chunk_data = data[56:56+csize]
+            chunk_num += 1
+            data = data[section.section_size:]
+            print ""
 
-            # Not yet sure what the following three partitions are
-            chunk1 = data[56+csize:56+csize+size1]
-            chunk2 = data[56+csize+size1:56+csize+size1+size2]
-            chunk3 = data[56+csize+size1+size2:56+csize+size1+size2+size3]
-            
-            total_chunk_size = csize+size1+size2+size3
-            chunk_ftr = data[56+total_chunk_size:56+total_chunk_size+16]
-
-            hex_dump(chunk_ftr)
-
-            _u3, _u4 = struct.unpack("<12sI", chunk_ftr)
-            print "U3 (0x%s) U4 (%d)" % (_u3.encode("hex"), _u4)
-
-            data = data[56+16+total_chunk_size:]
-
-            break
-
-        t_chunk = data[:56]
-
-        hex_dump(t_chunk)
-
-
+            if len(data) < 64:
+              break
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Parse a Dell PFS update.")
