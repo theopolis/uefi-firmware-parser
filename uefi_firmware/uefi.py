@@ -33,12 +33,17 @@ def uefi_name(s):
     except Exception, e:
         return None
 
-def search_firmware_volumes(data):
-    potential_volumes = []
-    for aligned_start in xrange(32, len(data), 16):
-        if data[aligned_start : aligned_start + 4] == '_FVH':
-            potential_volumes.append(aligned_start)
-    return potential_volumes
+def p7z_extract(data):
+    '''Use 7z to decompress an LZMA-compressed section.'''
+    uncompressed_data = None
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        temp.write(data)
+        temp.flush()
+        subprocess.call(["7zr", "-o/tmp", "e", temp.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        with open("%s~" % temp.name, 'r') as fh: uncompressed_data = fh.read()
+        os.unlink("%s~" % temp.name)
+    
+    return uncompressed_data
     pass
 
 class FirmwareObject(object):
@@ -143,19 +148,6 @@ class CompressedSection(EfiSection):
         
         pass
     
-    def _p7zip(self, data):
-        '''Use 7z to decompress an LZMA-compressed section.'''
-        uncompressed_data = None
-        with tempfile.NamedTemporaryFile(delete=False) as temp:
-            temp.write(data)
-            temp.flush()
-            subprocess.call(["7zr", "-o/tmp", "e", temp.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            with open("%s~" % temp.name, 'r') as fh: uncompressed_data = fh.read()
-            os.unlink("%s~" % temp.name)
-        
-        if uncompressed_data is not None:
-            self.data= uncompressed_data[:]
-    
     def _try_again(self, data, offset):
         '''Warning: this is a massive hack.'''
         object = FirmwareFileSystemSection(self.data[offset+2:], self.guid)
@@ -172,7 +164,8 @@ class CompressedSection(EfiSection):
             self.data = efi_decompressor.Decompress(self.uncompressed_data)
             
         if self.type == 0x02:
-            self._p7zip(self.uncompressed_data)
+            self.data = p7z_extract(self.uncompressed_data)
+            #self._p7zip(self.uncompressed_data)
         
         if self.data is None:
             '''No data was uncompressed.'''
@@ -223,12 +216,12 @@ class GuidDefinedSection(EfiSection):
 
     struct { UCHAR GUID[16]; short offset; short attrs; }
     """
-    LZMA_COMPRESSED_GUID = uuid.UUID("{ee4e5898-3914-4259-9d6e-dc7bd79403cf}")
-    _STATIC_GUID = "\xb0\xcd\x1b\xfc\x31\x7d\xaa\x49\x93\x6a\xa4\x60\x0d\x9d\xd0\x83"
+    LZMA_COMPRESSED_GUID = "ee4e5898-3914-4259-6e9d-dc7bd79403cf"
+    STATIC_GUID = "fc1bcdb0-7d31-49aa-6a93-a4600d9dd083"
 
     def __init__(self, data):
-        self.guid, self.offset, self.attrs = struct.unpack("<16sHH", data[:0x18])
-        self.data = data[0x18:]
+        self.guid, self.offset, self.attrs = struct.unpack("<16sHH", data[:20])
+        self.data = data[20:]
 
         self.subsections = []
 
@@ -237,12 +230,18 @@ class GuidDefinedSection(EfiSection):
         return self.subsections
 
     def process(self):
-        if uuid.UUID(fguid(self.guid)) == self.LZMA_COMPRESSED_GUID:
-            print "Debug: Found LZMA GUID-defined section"
+        if fguid(self.guid) == self.LZMA_COMPRESSED_GUID:
+            self.data = p7z_extract(self.data)
+            self.process_subsections()
 
-        elif self.guid == self._STATIC_GUID:
+        elif fguid(self.guid) == self.STATIC_GUID:
             self.process_subsections()
         pass
+
+    def showinfo(self, ts='', index= 0):
+        if len(self.subsections) > 0:
+            for i, section in enumerate(self.subsections):
+                section.showinfo(ts, index= i)
 
     pass
 
@@ -427,7 +426,7 @@ class FirmwareFileSystem(FirmwareObject):
     
     FFS GUID: D9 54 93 7A 68 04 4A 44 81 CE 0B F6 17 D8 90 DF
     """
-    guid = "D954937A68044A4481CE0BF617D890DF".decode("hex")
+    FFS_GUID = "7a9354d9-0468-444a-ce81-0bf617d890df"
     
     def __init__(self, data):
         self.files = []
@@ -439,10 +438,11 @@ class FirmwareFileSystem(FirmwareObject):
         return self.files or []
     
     def process(self):
-        '''Search for a 16-byte header that does not contain all 0xFF.'''
-        while len(self.data) >= 16 and self.data[:16] != ("\xff"*16):
+        '''Search for a 24-byte header that does not contain all 0xFF.'''
+        while len(self.data) >= 24 and self.data[:24] != ("\xff"*24):
             firmware_file = FirmwareFile(self.data)
-            if firmware_file.size < 16:
+
+            if firmware_file.size < 24:
                 '''This is a problem, the file was corrupted.'''
                 break
             
@@ -450,6 +450,7 @@ class FirmwareFileSystem(FirmwareObject):
             self.files.append(firmware_file)
             
             self.data = self.data[(firmware_file.size + 7) & (~7):]
+        pass
     
     def showinfo(self, ts= ''):
         for i, firmware_file in enumerate(self.files):
@@ -457,7 +458,7 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file.showinfo(ts + ' ', index=i)
     
     def dump(self, parent= ""):
-        dump_data(os.path.join(parent, "%s.ffs" % fguid(self.guid)), self._data)
+        dump_data(os.path.join(parent, "%s.ffs" % self.FFS_GUID), self._data)
 
         for _file in self.files:
             _file.dump(parent)
@@ -487,7 +488,7 @@ class FirmwareVolume(FirmwareObject):
     
     """
     _HEADER_SIZE = 0x38
-    _VALID_GUIDS = ['7a9354d9-0468-444a-ce81-0bf617d890df', '8c8ce578-8a3d-4f1c-9935-896185c32dd3']
+    _VALID_GUIDS = ['7a9354d9-0468-444a-ce81-0bf617d890df', '8c8ce578-8a3d-4f1c-3599-896185c32dd3', 'fff12b8d-7696-4c8b-85a9-2747075b4f50']
     
     name = None
     '''An optional name or offset of the firmware volume.'''
@@ -499,23 +500,35 @@ class FirmwareVolume(FirmwareObject):
     
     def __init__(self, data, name= "volume"):
         self.name = name
+        self.valid_header = False
 
-        header = data[:self._HEADER_SIZE]
-        self.rsvd, self.guid, self.size, self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
-        
-        if uuid.UUID(fguid(self.guid)) not in [uuid.UUID(guid) for guid in self._VALID_GUIDS]:
-            print "Error: invalid FV guid."
+        try:
+            header = data[:self._HEADER_SIZE]
+            self.rsvd, self.guid, self.size, self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
+        except Exception, e:
+            print "Error: cannot parse FV header (%s)." % str(e)
+            return
+
+        if fguid(self.guid) not in self._VALID_GUIDS:
+            print "Error: invalid FV guid (%s)." % fguid(self.guid)
             return
 
         self.blocks = []
         self.block_map = ""
 
-        data = data[:self.size]
+        try:
+            data = data[:self.size]
 
-        self._data = data
-        self.data = data[self.hdrlen:]
-        self.block_map = data[self._HEADER_SIZE:self.hdrlen]
-    
+            self._data = data
+            self.data = data[self.hdrlen:]
+            self.block_map = data[self._HEADER_SIZE:self.hdrlen]
+        except Exception, e:
+            print "Error invalid FV header data (%s)." % str(e)
+            return
+
+        self.valid_header = True
+        pass
+
     @property
     def objects(self):
         return self.firmware_filesystems or []
