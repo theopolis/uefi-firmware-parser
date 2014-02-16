@@ -18,16 +18,6 @@ def _get_file_type(file_type):
 def _get_section_type(section_type):
     return EFI_SECTION_TYPES[section_type] if section_type in EFI_SECTION_TYPES else ("unknown", "unknown.bin")
 
-def _dump_data(name, data):
-    try:
-        if os.path.dirname(name) is not '': 
-            if not os.path.exists(os.path.dirname(name)):
-                os.makedirs(os.path.dirname(name))
-        with open(name, 'wb') as fh: fh.write(data)
-        print "Wrote: %s" % (red(name))
-    except Exception, e:
-        print "Error: could not write (%s), (%s)." % (name, str(e))
-
 def fguid(s):
     a, b, c, d, e = struct.unpack("<IHHH6s", s)
     return "%08x-%04x-%04x-%04x-%s" % (a,b,c,d,''.join('%02x'%ord(c) for c in e))
@@ -325,7 +315,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.parsed_object.showinfo(ts + '  ')
                 
     def dump(self, parent= "", index= 0):
-        _dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self._data)
+        dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self._data)
 
         if self.parsed_object is None: return
 
@@ -424,7 +414,7 @@ class FirmwareFile(FirmwareObject):
 
         if self.raw_blobs is not None:
             for i, blob in enumerate(self.raw_blobs):
-                _dump_data(os.path.join(parent, "blob-%s.raw" % i), blob)
+                dump_data(os.path.join(parent, "blob-%s.raw" % i), blob)
 
         if self.sections is not None:
             for i, section in enumerate(self.sections):
@@ -467,7 +457,7 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file.showinfo(ts + ' ', index=i)
     
     def dump(self, parent= ""):
-        _dump_data(os.path.join(parent, "%s.ffs" % fguid(self.guid)), self._data)
+        dump_data(os.path.join(parent, "%s.ffs" % fguid(self.guid)), self._data)
 
         for _file in self.files:
             _file.dump(parent)
@@ -577,7 +567,7 @@ class FirmwareVolume(FirmwareObject):
             return 
         
         path = os.path.join(parent, "volume-%s.fv" % self.name)
-        _dump_data(path, self._data)
+        dump_data(path, self._data)
 
         for _ffs in self.firmware_filesystems:
             _ffs.dump(os.path.join(parent, "volume-%s" % self.name))

@@ -11,37 +11,13 @@
 # each chunk. 
 
 import argparse
+import hashlib
+
 import struct
+import sys
 import os
 
-from uefi_firmware import fguid, red
-
-# This will be removed soon
-def _dump_data(name, data):
-    try:
-        if os.path.dirname(name) is not '': 
-            if not os.path.exists(os.path.dirname(name)):
-                os.makedirs(os.path.dirname(name))
-        with open(name, 'wb') as fh: fh.write(data)
-        print "Wrote: %s" % (red(name))
-    except Exception, e:
-        print "Error: could not write (%s), (%s)." % (name, str(e))
-
-# The following two functions are provided for debugging aide
-def ascii_char(c):
-    if ord(c) >= 32 and ord(c) <= 126: return c
-    return '.'
-
-def hex_dump(data, size= 16):
-    def print_line(line):
-        print "%s | %s" % (line.encode("hex"), "".join([ascii_char(c) for c in line]))
-
-    for i in xrange(0, len(data)/size):
-        data_line = data[i*size:i*size + size]
-        print_line(data_line)
-    
-    if not len(data) % size == 0:
-        print_line(data[(len(data) % size) * -1:])
+from uefi_firmware import fguid, dump_data
 
 class PFSSection(object):
     def __init__(self, data):
@@ -88,14 +64,16 @@ class PFSSection(object):
         print "Spec (%d), TS (%d), Type (%d), Version (%d)" % (self.spec, self.ts, self.type, self.version)
         print "Size (%d) S1 (%d) S2 (%d) S3 (%d)" % (len(self.chunk_data), len(self.chunk1), len(self.chunk2), len(self.chunk3))
         print "CRCs (0x%s)" % self.crcs.encode("hex")
+        print "MD5 (%s)" % hashlib.md5(self.chunk_data).hexdigest()
+
         print "Unknowns (%s)" % ", ".join([u.encode("hex") for u in self.unknowns])
         pass
 
     def dump(self):
-        _dump_data("%s.data" % fguid(self.uuid), self.chunk_data)
-        _dump_data("%s.c1" % fguid(self.uuid), self.chunk1)
-        _dump_data("%s.c2" % fguid(self.uuid), self.chunk2)
-        _dump_data("%s.c3" % fguid(self.uuid), self.chunk3)
+        dump_data("%s.data" % fguid(self.uuid), self.chunk_data)
+        if len(self.chunk1) > 0: dump_data("%s.c1" % fguid(self.uuid), self.chunk1)
+        if len(self.chunk2) > 0: dump_data("%s.c2" % fguid(self.uuid), self.chunk2)
+        if len(self.chunk3) > 0: dump_data("%s.c3" % fguid(self.uuid), self.chunk3)
         pass
 
 
@@ -104,27 +82,31 @@ class PFSFile(object):
     PFS_FOOTER = "PFS.FTR."
 
     def __init__(self, data):
+        self.sections = []
         self.data = data
 
     def check_header(self):
         if len(self.data) < 32:
+            print "Data does not contain a header."
             return False
 
         hdr = self.data[:16]
         magic, spec, size = struct.unpack("<8sII", hdr)
 
         if magic != self.PFS_HEADER:
+            print "Data does not contain the header magic (%s)." % self.PFS_HEADER
             return False
         
         ftr = self.data[len(self.data)-16:]
         # U1 and U2 might be the same variable, a total CRC?
         _u1, _u2, ftr_magic = struct.unpack("<II8s", ftr)
         if ftr_magic != self.PFS_FOOTER:
+            print "Data does not container the footer magic (%s)." % self.PFS_FOOTER
             return False
 
         return True
 
-    def parse_chunks(self):
+    def parse(self):
         """Chunks are assumed to contain a chunk header."""
         data = self.data[16:-16]
 
@@ -134,8 +116,9 @@ class PFSFile(object):
 
             section = PFSSection(data)
             section.parse()
-            section.showinfo()
+            #section.showinfo()
             #section.dump()
+            self.sections.append(section)
 
             chunk_num += 1
             data = data[section.section_size:]
@@ -143,9 +126,18 @@ class PFSFile(object):
 
             if len(data) < 64:
               break
-        
+
+    def showinfo(self):
+        for section in self.sections:
+            section.showinfo()
+    
+    def dump(self):
+        for section in self.sections:
+            section.dump()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Parse a Dell PFS update.")
+    parser.add_argument("-e", "--extract", action="store_true", default=False, help="Dump all PFS sections.")
     parser.add_argument("file", help="The file to work on")
     args = parser.parse_args()
     
@@ -156,6 +148,11 @@ if __name__ == "__main__":
         sys.exit(1)
         
     pfs = PFSFile(input_data)
-    if not pfs.check_header(): sys.exit(1)
+    if not pfs.check_header():
+      sys.exit(1)
 
-    pfs.parse_chunks()
+    pfs.parse()
+    pfs.showinfo()
+
+    if args.extract:
+      pfs.dump()

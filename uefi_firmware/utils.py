@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 def blue(msg):
     return "\033[1;36m%s\033[1;m" % msg
 def red(msg):
@@ -24,3 +26,14 @@ def hex_dump(data, size= 16):
         
     if not len(data) % size == 0:
         print_line(data[(len(data) % size) * -1:])
+
+# This will be removed soon
+def dump_data(name, data):
+    try:
+        if os.path.dirname(name) is not '': 
+            if not os.path.exists(os.path.dirname(name)):
+                os.makedirs(os.path.dirname(name))
+        with open(name, 'wb') as fh: fh.write(data)
+        print "Wrote: %s" % (red(name))
+    except Exception, e:
+        print "Error: could not write (%s), (%s)." % (name, str(e))
