@@ -372,6 +372,10 @@ class FirmwareFile(FirmwareObject):
             '''File is raw, no sections.'''
             self.raw_blobs.append(self.data)
             return
+
+        if self.type == 0x00: # unknown
+            self.raw_blobs.append(self.data)
+            return
         
         section_data = self.data
         self.sections = []
@@ -439,6 +443,7 @@ class FirmwareFileSystem(FirmwareObject):
     
     def process(self):
         '''Search for a 24-byte header that does not contain all 0xFF.'''
+        
         while len(self.data) >= 24 and self.data[:24] != ("\xff"*24):
             firmware_file = FirmwareFile(self.data)
 
