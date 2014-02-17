@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import struct
 
 def blue(msg):
     return "\033[1;36m%s\033[1;m" % msg
@@ -27,7 +28,10 @@ def hex_dump(data, size= 16):
     if not len(data) % size == 0:
         print_line(data[(len(data) % size) * -1:])
 
-# This will be removed soon
+def fguid(s):
+    a, b, c, d, e = struct.unpack("<IHHH6s", s)
+    return "%08x-%04x-%04x-%04x-%s" % (a,b,c,d,''.join('%02x'%ord(c) for c in e))
+
 def dump_data(name, data):
     try:
         if os.path.dirname(name) is not '': 
@@ -37,3 +41,13 @@ def dump_data(name, data):
         print "Wrote: %s" % (red(name))
     except Exception, e:
         print "Error: could not write (%s), (%s)." % (name, str(e))
+
+def search_firmware_volumes(data):
+    potential_volumes = []
+    for aligned_start in xrange(32, len(data), 16):
+        if data[aligned_start : aligned_start + 4] == '_FVH':
+            potential_volumes.append(aligned_start)
+        if data[aligned_start+8 : aligned_start+8+4] == '_FVH':
+            potential_volumes.append(aligned_start+8)
+    return potential_volumes
+    pass

@@ -2,25 +2,18 @@
 
 import os
 import sys, struct
-#from backports import lzma
-#import pylzma
-import tempfile
-import subprocess
 import uuid
 
 from .utils import *
 from .structs import *
 from .contrib import efi_decompressor
+from .lzma import p7z_extract
 
 def _get_file_type(file_type):
     return EFI_FILE_TYPES[file_type] if file_type in EFI_FILE_TYPES else ("unknown", "unknown")
 
 def _get_section_type(section_type):
     return EFI_SECTION_TYPES[section_type] if section_type in EFI_SECTION_TYPES else ("unknown", "unknown.bin")
-
-def fguid(s):
-    a, b, c, d, e = struct.unpack("<IHHH6s", s)
-    return "%08x-%04x-%04x-%04x-%s" % (a,b,c,d,''.join('%02x'%ord(c) for c in e))
 
 def uefi_name(s):
     try:
@@ -32,19 +25,6 @@ def uefi_name(s):
         return name
     except Exception, e:
         return None
-
-def p7z_extract(data):
-    '''Use 7z to decompress an LZMA-compressed section.'''
-    uncompressed_data = None
-    with tempfile.NamedTemporaryFile(delete=False) as temp:
-        temp.write(data)
-        temp.flush()
-        subprocess.call(["7zr", "-o/tmp", "e", temp.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        with open("%s~" % temp.name, 'r') as fh: uncompressed_data = fh.read()
-        os.unlink("%s~" % temp.name)
-    
-    return uncompressed_data
-    pass
 
 class FirmwareObject(object):
     data = None

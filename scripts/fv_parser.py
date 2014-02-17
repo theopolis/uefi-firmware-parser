@@ -40,16 +40,6 @@ def _parse_firmware_filesystem(data):
         print "Dumping..."
         firmware_fs.dump()
     pass
-
-def search_firmware_volumes(data):
-    potential_volumes = []
-    for aligned_start in xrange(32, len(data), 16):
-        if data[aligned_start : aligned_start + 4] == '_FVH':
-            potential_volumes.append(aligned_start)
-        if data[aligned_start+8 : aligned_start+8+4] == '_FVH':
-            potential_volumes.append(aligned_start+8)
-    return potential_volumes
-    pass
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Search a file for UEFI firmware volumes, parse and output.")
