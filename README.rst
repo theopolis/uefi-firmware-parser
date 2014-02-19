@@ -1,6 +1,8 @@
 UEFI Firmware Parser
 ====================
 The UEFI firmware parser is a simple module and set of scripts for parsing, extracting, and recreating UEFI firmware volumes.
+This includes parsing modules for BIOS, OptionROM, Intel ME and other formats too. 
+Please use the example scripts for parsing tutorials.
 
 Installation
 ------------
