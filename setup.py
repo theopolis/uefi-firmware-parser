@@ -9,7 +9,7 @@ with open('LICENSE') as f:
     license = f.read()
 
 setup(name='UEFI Firmware Parser',
-      version='0.1',
+      version='0.2',
       description='Various data structures and parsing tools for UEFI firmware.',
       long_description=readme,
       author='Teddy Reed',
