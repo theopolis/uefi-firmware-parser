@@ -23,6 +23,7 @@
 #    distribution.
 #
 # Modified version 2013-12-29 Damien Zammit
+# Modified version 2014-01-10 Teddy Reed
 
 import ctypes
 import struct
@@ -62,7 +63,30 @@ def get_struct(str_, off, struct):
 def DwordAt(f, off):
     return struct.unpack("<I", f[off:off+4])[0]
 
-class MeModuleHeader1(ctypes.LittleEndianStructure):
+class MeObject(object):
+    """
+    An ME Object is a combination of a parsing/extraction class and a ctype
+    definding structure object. 
+
+    This follows the same ctor, process, showinfo, dump calling convention.
+    """
+
+    def parse_structure(self, data, structure):
+        '''Construct an instance object of the provided structure.'''
+        struct_instance = structure()
+        struct_size = ctypes.sizeof(struct_instance)
+
+        struct_data = data[:struct_size]
+        struct_length = min(len(struct_data), struct_size)
+        ctypes.memmove(ctypes.addressof(struct_instance), struct_data, struct_length)
+        self.structure = struct_instance
+        self.fields = [field[0] for field in structure._fields_]
+
+    def show_structure(self):
+        for field in self.fields:
+            print "%s: %s" % (field, getattr(self.structure, field, None))
+
+class MeModuleHeader1Type(ctypes.LittleEndianStructure):
     _fields_ = [
         ("Tag",            char*4),   # $MME
         ("Guid",           uint8_t*16), #
@@ -78,6 +102,7 @@ class MeModuleHeader1(ctypes.LittleEndianStructure):
         ("Unk4C",          uint32_t), #
     ]
 
+class MeModuleHeader1(MeObject):
     def __init__(self):
         self.Offset = None
 
@@ -163,7 +188,7 @@ class HuffmanLUTHeader(ctypes.LittleEndianStructure):
         ("Chipset",        char*8),   # PCH
     ]
 
-class MeModuleHeader2(ctypes.LittleEndianStructure):
+class MeModuleHeader2Type(ctypes.LittleEndianStructure):
     _fields_ = [
         ("Tag",            char*4),   # $MME
         ("Name",           char*16),  #
@@ -181,6 +206,7 @@ class MeModuleHeader2(ctypes.LittleEndianStructure):
         ("Unk5C",          uint32_t), #
     ]
 
+class MeModuleHeader2(MeObject):
     def comptype(self):
         return (self.Flags>>4)&7
 
@@ -252,7 +278,7 @@ class HuffmanOffsets(ctypes.Union):
         ("asword", uint32_t),
     ]
 
-class MeManifestHeader(ctypes.LittleEndianStructure):
+class MeManifestHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
         ("ModuleType",     uint16_t), # 00
         ("ModuleSubType",  uint16_t), # 02
@@ -278,6 +304,111 @@ class MeManifestHeader(ctypes.LittleEndianStructure):
         # 290
     ]
 
+class MeModule(MeObject):
+    def __init__(self, data, structure_type):
+        self.attrs = {}
+        self.parse_structure(data, structure_type)
+        self.structure_type = structure_type
+        
+        if structure_type == MeModuleHeader2Type:
+            self.structure.Guid = "(none)"
+            self.attrs["version"] = "0.0.0.0"
+        elif structure_type == MeModuleHeader1Type:
+            self.attrs["version"] = "%d.%d.%d.%d" % (self.structure.MajorVersion, self.structure.MinorVersion, self.structure.HotfixVersion, self.structure.BuildVersion)
+
+        self.attrs["guid"] = self.structure.Guid
+        self.attrs["name"] = self.structure.Name
+        self.attrs["load_base"] = self.structure.LoadBase
+        self.attrs["size"] = self.structure.Size
+        self.attrs["tag"] = self.structure.Tag
+
+        '''Parse flags and change output.'''
+        self.attrs["flags"] = self.structure.Flags
+
+    @property
+    def size(self):
+        return ctypes.sizeof(self.structure_type)
+
+    @property
+    def compression(self):
+        if self.structure_type == MeModuleHeader1Type:
+            return COMP_TYPE_NOT_COMPRESSED
+        else:
+            return (self.structure.Flags>>4)&7
+
+    def showinfo(self, ts=''):
+        for attr in self.attrs:
+            print "%s: %s" % (attr, self.attrs[attr])        
+
+class MeVariableModule(MeObject):
+    def __init__(self, data):
+        self.size = 0
+        pass
+
+class MeManifestHeader(MeObject):
+    _DATA_OFFSET = 12
+
+    def __init__(self, data):
+        self.attrs = {}
+        self.parse_structure(data, MeManifestHeaderType)
+        self.data = data[self.structure.HeaderLen*4 + self._DATA_OFFSET:]
+
+        '''Set storage attributes.'''
+        self.attrs["header_version"] = "%d.%d" % (self.structure.HeaderVersion>>16, self.structure.HeaderVersion&0xFFFF)
+        self.attrs["version"] = "%d.%d.%d.%d" % (self.structure.MajorVersion, self.structure.MinorVersion, self.structure.HotfixVersion, self.structure.BuildVersion)
+        self.attrs["flags"] = "0x%08X" % (self.structure.Flags)
+        self.attrs["module_vendor"] = "0x%04X" % (self.structure.ModuleVendor)
+        self.attrs["date"] = "%08X" % (self.structure.Date)
+
+        '''Skipped.'''
+        #ModuleType, ModuleSubType, size, tag, num_modules, keysize, scratchsize, rsa
+
+        self.partition_name = self.structure.PartitionName.rstrip("\0")
+        if not self.partition_name: self.partition_name = "(none)"
+
+    def showinfo(self, ts=''):
+        for attr in self.attrs:
+            print "%s: %s" % (attr, self.attrs[attr])
+        print "Partition Name: %s" % self.partition_name
+
+    def process(self):
+        self.modules = []
+
+        if self.structure.Tag == '$MN2':
+            print "...processing module header2"
+            header_type = MeModuleHeader2Type
+        elif self.structure.Tag == '$MAN':
+            header_type = MeModuleHeader1Type
+        else:
+            '''Cannot parsing modules...'''
+            return 
+
+        module_offset = 0
+        huffman_offset = 0
+
+        ### Parse the module headers (two types of headers, specified by the manifest)
+        for module_index in xrange(self.structure.NumModules):
+            module = MeModule(self.data[module_offset:], header_type)
+            if module.compression == COMP_TYPE_HUFFMAN:
+                '''Todo: skipped precondition for huffman offsets.'''
+                print "Debug: Setting huffman offset: %d" % module.structure.Offset
+                self.huffman_offset = module.structure.Offset
+            #module.showinfo()
+
+            module_offset += module.size
+
+        additional_header = self.structure.Size*4 - module_offset
+        print "Debug: Remaining header: %d - %d = %d" % (self.structure.Size*4, module_offset, additional_header)
+
+        while module_offset < self.structure.Size*4:
+            '''There is more module header to process.'''
+            module = MeVariableModule(self.data[module_offset:])
+
+            module_offset += module.size
+
+#class 
+
+class OLDMANIFEST(object):
     def parse_mods(self, f, offset):
         self.modules = []
         self.updparts = []
@@ -453,34 +584,6 @@ class MeManifestHeader(ctypes.LittleEndianStructure):
                 offset1 = huffmanoffsets[huffoff+1][0]
                 chunklen = offset1 - offset0
                 open("%s_chunk_%02X_%04d.huff" % (self.PartitionName, flag, huffoff), "wb").write(f[offset0:offset1])
-
-    def pprint(self):
-        print "Module Type: %d, Subtype: %d" % (self.ModuleType, self.ModuleSubType)
-        print "Header Length:       0x%02X (0x%X bytes)" % (self.HeaderLen, self.HeaderLen*4)
-        print "Header Version:      %d.%d" % (self.HeaderVersion>>16, self.HeaderVersion&0xFFFF)
-        print "Flags:               0x%08X" % (self.Flags),
-        print " [%s signed] [%s flag]" % (["production","debug"][(self.Flags>>31)&1], ["production","pre-production"][(self.Flags>>30)&1])
-        print "Module Vendor:       0x%04X" % (self.ModuleVendor)
-        print "Date:                %08X" % (self.Date)
-        print "Total Manifest Size: 0x%02X (0x%X bytes)" % (self.Size, self.Size*4)
-        print "Tag:                 %s" % (self.Tag)
-        print "Number of modules:   %d" % (self.NumModules)
-        print "Version:             %d.%d.%d.%d" % (self.MajorVersion, self.MinorVersion, self.HotfixVersion, self.BuildVersion)
-        print "Unknown data 1:      %s" % ([n for n in self.Unknown1])
-        print "Key size:            0x%02X (0x%X bytes)" % (self.KeySize, self.KeySize*4)
-        print "Scratch size:        0x%02X (0x%X bytes)" % (self.ScratchSize, self.ScratchSize*4)
-        print "RSA Public Key:      [skipped]"
-        print "RSA Public Exponent: %d" % (self.RsaPubExp)
-        print "RSA Signature:       [skipped]"
-        pname = self.PartitionName.rstrip('\0')
-        if not pname:
-            pname = "(none)"
-        print "Partition name:      %s" % (pname)
-        print "---Modules---"
-        for mod in self.modules:
-            mod.pprint()
-            print
-        print "------End-------"
 
 
 PartTypes = ["Code", "BlockIo", "Nvram", "Generic", "Effs", "Rom"]
