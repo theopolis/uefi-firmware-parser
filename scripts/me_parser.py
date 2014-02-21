@@ -24,6 +24,9 @@ if __name__ == "__main__":
     me_manifest.process()
     me_manifest.showinfo()
     
+    if args.extract:
+        me_manifest.dump("")
+
     #me_manifest.show_structure()
     sys.exit(1)
 
