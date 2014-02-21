@@ -268,14 +268,14 @@ class MeVariableModule(MeObject):
 
         if len(hdr) < self.HEADER_SIZE or hdr[0] != '$':
             print "Debug: invalid module header."
-            #from ..utils import hex_dump
-            #hex_dump(data[:64])
             self.valid_header = False
             return
 
         self.tag = hdr[:4]
-        self.size = struct.unpack("<I", hdr[4:])[0]
-        self.data = data[self.HEADER_SIZE:self.size*4]
+        ### Note the elen size includes the header size
+        self.size = struct.unpack("<I", hdr[4:])[0]*4 - self.HEADER_SIZE
+
+        self.data = data[self.HEADER_SIZE:self.size]
         pass
 
     def add_update(self, tag, name, offset, size):
@@ -294,6 +294,33 @@ class MeVariableModule(MeObject):
             values = array.array("I", self.data)
         self.values = values
         pass
+
+class MeModuleFile(MeObject):
+    def __init__(self, data):
+        self.size = 0
+        tag = data[:4]
+
+        self.valid_header = True
+        if tag != "$MOD":
+            self.valid_header = False
+            return
+
+        self.parse_structure(data, MeModuleFileHeader1Type)
+        self.name = self.structure.Name.rstrip('\0')
+        self.size = self.structure.Size
+        pass
+
+class MeLLUT(MeObject):
+    def __init__(self, data):
+        tag = data[:4]
+        hdr = data[4:52]
+
+        chunkcount, decompbase, unk0c, size, start, a,b,c,d,e,f, chunksize = struct.unpack("<IIIIIIIIIIII", hdr)
+        self.tag = tag
+        self.offset = start
+        self.size = size
+
+        pass     
 
 
 class MeManifestHeader(MeObject):
@@ -340,6 +367,7 @@ class MeManifestHeader(MeObject):
         ### Parse the module headers (two types of headers, specified by the manifest)
         for module_index in xrange(self.structure.NumModules):
             module = MeModule(self.data[module_offset:], header_type)
+            print "Debug: found me module header (%s) at (%d)." % (module.attrs["tag"], module_offset)
             if module.compression == COMP_TYPE_HUFFMAN:
                 '''Todo: skipped precondition for huffman offsets.'''
                 print "Debug: Setting huffman offset: %d" % module.structure.Offset
@@ -362,110 +390,40 @@ class MeManifestHeader(MeObject):
             if module.header_blank:
                 continue
 
-            print "Debug: found module (%s)." % module.tag
+            print "Debug: found module (%s) size (%d)." % (module.tag, module.size)
             module.process()
             if module.tag == '$MCP':
                 partition_end = module.values[0] + module.values[1]
 
             module_offset += module.size
 
-        pass
+        ### Why does this skip a LLUT?
+        print "Debug: module offset (%d), manifest header offset (%d)." % (module_offset, self.structure.Size*4)
+        file_offset = self.structure.Size*4
 
-#class 
-
-class OLDMANIFEST(object):
-    def parse_mods(self, f, offset):
-        self.modules = []
-        self.updparts = []
-        orig_off = offset
-        offset += self.HeaderLen*4
-        offset += 12
-        if self.Tag == '$MN2':
-            htype = MeModuleHeader2
-            hdrlen = ctypes.sizeof(htype)
-            udc_fmt = "<4s32s16sII"
-            udc_len = 0x3C
-        elif self.Tag == '$MAN':
-            htype = MeModuleHeader1
-            hdrlen = ctypes.sizeof(htype)
-            udc_fmt = "<4s20s16sII"
-            udc_len = 0x30
-        else:
-            raise Exception("Don't know how to parse modules for manifest tag %s!" % self.Tag)
-
-        modmap = {}
-        self.huff_start = 0
-        for i in range(self.NumModules):
-            mod = get_struct(f, offset, htype)
-            if not [mod.Tag in '$MME', '$MDL']:
-                raise Exception("Bad module tag (%s) at offset %08X!" % (mod.Tag, offset))
-            nm = mod.Name.rstrip('\0')
-            modmap[nm] = mod
-            self.modules.append(mod)
-            if mod.comptype() == COMP_TYPE_HUFFMAN:
-                if self.huff_start and self.huff_start != orig_off + mod.Offset:
-                    print "Warning: inconsistent start offset for Huffman modules!"
-                self.huff_start = orig_off + mod.Offset
-            offset += hdrlen
-
-        self.partition_end = None
-        hdr_end = orig_off + self.Size*4
-        while offset < hdr_end:
-            print "tags %08X" % offset
-            hdr = f[offset:offset+8]
-            if hdr == '\xFF' * 8:
-                offset += hdrlen
-                continue
-            if len(hdr) < 8 or hdr[0] != '$':
-                break
-            tag, elen = hdr[:4], struct.unpack("<I", hdr[4:])[0]
-            if elen == 0:
-                break
-            print "Tag: %s, data length: %08X (0x%08X bytes)" % (tag, elen, elen*4)
-            if tag == '$UDC':
-                subtag, hash, subname, suboff, size = struct.unpack(udc_fmt, f[offset+8:offset+8+udc_len])
-                suboff += offset
-                print "Update code part: %s, %s, offset %08X, size %08X" % (subtag, subname.rstrip('\0'), suboff, size)
-                self.updparts.append((subtag, suboff, size))
-            elif elen == 3:
-                val = struct.unpack("<I", f[offset+8:offset+12])[0]
-                print "%s: %08X" % (tag[1:], val)
-            elif elen == 4:
-                vals = struct.unpack("<II", f[offset+8:offset+16])
-                print "%s: %08X %08X" % (tag[1:], vals[0], vals[1])
-            else:
-                vals = array.array("I", f[offset+8:offset+elen*4])
-                print "%s: %s" % (tag[1:], " ".join("%08X" % v for v in vals))
-                if tag == '$MCP':
-                    self.partition_end = vals[0] + vals[1]
-            offset += elen*4
-
-        offset = hdr_end
         while True:
-            print "mods %08X" % offset
-            if f[offset:offset+4] != '$MOD':
+            module_file = MeModuleFile(self.data[file_offset:])
+            if not module_file.valid_header:
                 break
-            mfhdr = get_struct(f, offset, MeModuleFileHeader1)
-            mfhdr.pprint()
-            nm = mfhdr.Name.rstrip('\0')
-            mod = modmap[nm]
-            mod.Offset = offset - orig_off
-            mod.UncompressedSize = mfhdr.UncompressedSize
-            offset += mod.Size
-        
-        # check for huffman LUT
-        offset = self.huff_start
-        self.chunksize = 0
-        self.chunkcount = 0
-        self.datalen = 0
-        self.datastart = 0
-        self.llutlen = 0
-        if f[offset:offset+4] == 'LLUT':
-            self.chunkcount, decompbase, unk0c, self.datalen, self.datastart, a,b,c,d,e,f, self.chunksize = struct.unpack("<IIIIIIIIIIII", f[offset+4:offset+52])
-            self.huff_end = self.datastart + self.datalen
+
+            print "Debug: found module file (%s) size (%d)." % (module_file.name, module_file.size)
+            file_offset += module_file.size
+
+        print "Debug: file offset (%d), huffman offset (%d)." % (file_offset, self.huffman_offset)
+        #from ..utils import hex_dump
+        #hex_dump(self.data[self.huffman_offset:self.huffman_offset+52])
+        #print ""
+
+        huffman_offset = self.huffman_offset - (self.structure.HeaderLen*4 + self._DATA_OFFSET)
+        if self.data[huffman_offset:huffman_offset+4] == 'LLUT':
+            huffman_llut = MeLLUT(self.data[huffman_offset:])
+            self.huffman_end    = huffman_llut.offset + huffman_llut.size
         else:
-            self.huff_start = 0xFFFFFFFF
-            self.huff_end = 0xFFFFFFFF
+            self.huffman_offset = 0xFFFFFFFF
+            self.huffman_end    = 0xFFFFFFFF
+        print "Debug: huffman start (0x%08X) end (0x%08X)." % (self.huffman_offset, self.huffman_end)
+
+        pass
 
     def extract(self, f, offset):
         huff_end = self.huff_end

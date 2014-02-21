@@ -31,6 +31,26 @@ def get_struct(str_, off, struct):
 def DwordAt(f, off):
     return struct.unpack("<I", f[off:off+4])[0]
 
+class MeModuleFileHeader1Type(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("Tag",            char*4),   # $MOD
+        ("Unk04",          uint32_t), #
+        ("Unk08",          uint32_t), #
+        ("MajorVersion",   uint16_t), #
+        ("MinorVersion",   uint16_t), #
+        ("HotfixVersion",  uint16_t), #
+        ("BuildVersion",   uint16_t), #
+        ("Unk14",          uint32_t), #
+        ("CompressedSize", uint32_t), #
+        ("UncompressedSize", uint32_t), #
+        ("LoadAddress",    uint32_t), #
+        ("MappedSize",     uint32_t), #
+        ("Unk28",          uint32_t), #
+        ("Unk2C",          uint32_t), #
+        ("Name",           char*16),  #
+        ("Guid",           uint8_t*16), #
+    ]
+
 class MeModuleHeader1Type(ctypes.LittleEndianStructure):
     _fields_ = [
         ("Tag",            char*4),   # $MME
