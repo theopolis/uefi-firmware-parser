@@ -22,8 +22,8 @@ if __name__ == "__main__":
 
     me_manifest = MeManifestHeader(input_data)
     me_manifest.process()
-
     me_manifest.showinfo()
+    
     #me_manifest.show_structure()
     sys.exit(1)
 

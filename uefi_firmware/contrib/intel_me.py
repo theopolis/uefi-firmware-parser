@@ -247,8 +247,9 @@ class MeModule(MeObject):
             return (self.structure.Flags>>4)&7
 
     def showinfo(self, ts=''):
-        for attr in self.attrs:
-            print "%s: %s" % (attr, self.attrs[attr])        
+        #for attr in self.attrs:
+        #    print "%s: %s" % (attr, self.attrs[attr])    
+        print "%sModule Name: %s, GUID: %s, Version: %s" % (ts, self.attrs["name"], self.attrs["guid"], self.attrs["version"])
 
 class MeVariableModule(MeObject):
     HEADER_SIZE = 8
@@ -295,6 +296,9 @@ class MeVariableModule(MeObject):
         self.values = values
         pass
 
+    def showinfo(self, ts=''):
+        pass
+
 class MeModuleFile(MeObject):
     def __init__(self, data):
         self.size = 0
@@ -311,17 +315,23 @@ class MeModuleFile(MeObject):
         pass
 
 class MeLLUT(MeObject):
-    def __init__(self, data):
-        tag = data[:4]
-        hdr = data[4:52]
+    def __init__(self, data, relative_offset):
+        self.tag = data[:4]
 
+        self.valid_header = True
+        if self.tag != 'LLUT':
+            self.valid_header = False
+
+        hdr = data[4:52]
         chunkcount, decompbase, unk0c, size, start, a,b,c,d,e,f, chunksize = struct.unpack("<IIIIIIIIIIII", hdr)
-        self.tag = tag
-        self.offset = start
+
+        ### The start and end addresses are relative to the manifest.
+        ### The relative offset references the start of the manifest data (not header).
+        self.offset = relative_offset
+        self.start = start
         self.size = size
 
-        pass     
-
+        pass
 
 class MeManifestHeader(MeObject):
     _DATA_OFFSET = 12
@@ -344,10 +354,11 @@ class MeManifestHeader(MeObject):
         self.partition_name = self.structure.PartitionName.rstrip("\0")
         if not self.partition_name: self.partition_name = "(none)"
 
-    def showinfo(self, ts=''):
-        for attr in self.attrs:
-            print "%s: %s" % (attr, self.attrs[attr])
-        print "Partition Name: %s" % self.partition_name
+    def showinfo(self, ts= ''):
+        print "Module Manifest type: %d, subtype: %d" % (self.structure.ModuleType, self.structure.ModuleSubType)
+        for module in self.modules:
+            module.showinfo(ts= "  %s" % ts)
+        pass
 
     def process(self):
         self.modules = []
@@ -364,28 +375,27 @@ class MeManifestHeader(MeObject):
         module_offset = 0
         huffman_offset = 0
 
-        ### Parse the module headers (two types of headers, specified by the manifest)
+        ### Parse the module headers (two types of headers, specified by the manifest).
         for module_index in xrange(self.structure.NumModules):
             module = MeModule(self.data[module_offset:], header_type)
             print "Debug: found me module header (%s) at (%d)." % (module.attrs["tag"], module_offset)
             if module.compression == COMP_TYPE_HUFFMAN:
-                '''Todo: skipped precondition for huffman offsets.'''
+                ### Todo: skipped precondition for huffman offsets.
                 print "Debug: Setting huffman offset: %d" % module.structure.Offset
-                self.huffman_offset = module.structure.Offset
-            #module.showinfo()
-
+                huffman_offset = module.structure.Offset
+            self.modules.append(module)
             module_offset += module.size
 
         additional_header = self.structure.Size*4 - module_offset
         print "Debug: Remaining header: %d - %d = %d" % (self.structure.Size*4, module_offset, additional_header)
 
+        ### Parse additional tagged modules.
         partition_end = None
         while module_offset < self.structure.Size*4:
-            '''There is more module header to process.'''
+            ### There is more module header to process.
             module = MeVariableModule(self.data[module_offset:], header_type)
             if not module.valid_header:
                 break
-
             module_offset += module.HEADER_SIZE
             if module.header_blank:
                 continue
@@ -394,10 +404,9 @@ class MeManifestHeader(MeObject):
             module.process()
             if module.tag == '$MCP':
                 partition_end = module.values[0] + module.values[1]
-
             module_offset += module.size
 
-        ### Why does this skip a LLUT?
+        ### Parse optional module file headers.
         print "Debug: module offset (%d), manifest header offset (%d)." % (module_offset, self.structure.Size*4)
         file_offset = self.structure.Size*4
 
@@ -409,19 +418,12 @@ class MeManifestHeader(MeObject):
             print "Debug: found module file (%s) size (%d)." % (module_file.name, module_file.size)
             file_offset += module_file.size
 
-        print "Debug: file offset (%d), huffman offset (%d)." % (file_offset, self.huffman_offset)
-        #from ..utils import hex_dump
-        #hex_dump(self.data[self.huffman_offset:self.huffman_offset+52])
-        #print ""
-
-        huffman_offset = self.huffman_offset - (self.structure.HeaderLen*4 + self._DATA_OFFSET)
-        if self.data[huffman_offset:huffman_offset+4] == 'LLUT':
-            huffman_llut = MeLLUT(self.data[huffman_offset:])
-            self.huffman_end    = huffman_llut.offset + huffman_llut.size
-        else:
-            self.huffman_offset = 0xFFFFFFFF
-            self.huffman_end    = 0xFFFFFFFF
-        print "Debug: huffman start (0x%08X) end (0x%08X)." % (self.huffman_offset, self.huffman_end)
+        ### Parse optional huffman LLUT.
+        print "Debug: file offset (%d), huffman offset (%d)." % (file_offset, huffman_offset)
+        huffman_offset = huffman_offset - (self.structure.HeaderLen*4 + self._DATA_OFFSET)
+        huffman_llut = MeLLUT(self.data[huffman_offset:], huffman_offset)
+        if huffman_llut.valid_header:
+            print "Debug: huffman LLUT start (0x%08X) size (0x%08X)." % (huffman_llut.offset, huffman_llut.size + huffman_llut.start)
 
         pass
 
