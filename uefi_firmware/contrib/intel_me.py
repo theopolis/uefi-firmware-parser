@@ -33,35 +33,7 @@ import array
 import itertools
 from operator import itemgetter
 
-uint8_t  = ctypes.c_ubyte
-char     = ctypes.c_char
-uint32_t = ctypes.c_uint
-uint64_t = ctypes.c_uint64
-uint16_t = ctypes.c_ushort
-
-def replace_bad(value, deletechars):
-    for c in deletechars:
-        value = value.replace(c,'_')
-    return value
-
-def read_struct(li, struct):
-    s = struct()
-    slen = ctypes.sizeof(s)
-    bytes = li.read(slen)
-    fit = min(len(bytes), slen)
-    ctypes.memmove(ctypes.addressof(s), bytes, fit)
-    return s
-
-def get_struct(str_, off, struct):
-    s = struct()
-    slen = ctypes.sizeof(s)
-    bytes = str_[off:off+slen]
-    fit = min(len(bytes), slen)
-    ctypes.memmove(ctypes.addressof(s), bytes, fit)
-    return s
-
-def DwordAt(f, off):
-    return struct.unpack("<I", f[off:off+4])[0]
+from .intel_me_structs import *
 
 class MeObject(object):
     """
@@ -86,21 +58,6 @@ class MeObject(object):
         for field in self.fields:
             print "%s: %s" % (field, getattr(self.structure, field, None))
 
-class MeModuleHeader1Type(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Tag",            char*4),   # $MME
-        ("Guid",           uint8_t*16), #
-        ("MajorVersion",   uint16_t), #
-        ("MinorVersion",   uint16_t), #
-        ("HotfixVersion",  uint16_t), #
-        ("BuildVersion",   uint16_t), #
-        ("Name",           char*16),  #
-        ("Hash",           uint8_t*20), #
-        ("Size",           uint32_t), #
-        ("Flags",          uint32_t), #
-        ("Unk48",          uint32_t), #
-        ("Unk4C",          uint32_t), #
-    ]
 
 class MeModuleHeader1(MeObject):
     def __init__(self):
@@ -174,37 +131,7 @@ COMP_TYPE_LZMA = 2
 MeModuleTypes      = ["DEFAULT", "PRE_ME_KERNEL", "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
 MeApiTypes         = ["API_TYPE_DATA", "API_TYPE_ROMAPI", "API_TYPE_KERNEL", "<unknown>"]
 
-class HuffmanLUTHeader(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("LLUT",           char*4),   # LLUT
-        ("Unk04",          uint32_t), #
-        ("Unk08",          uint32_t), #
-        ("Unk0C",          uint32_t), #
-        ("Unk10",          uint32_t), #
-        ("DataStart",      uint32_t), # Start of data
-        ("Unk18",          uint8_t*24), #
-        ("LLUTLen",        uint32_t), #
-        ("Unk34",          uint32_t), #
-        ("Chipset",        char*8),   # PCH
-    ]
 
-class MeModuleHeader2Type(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Tag",            char*4),   # $MME
-        ("Name",           char*16),  #
-        ("Hash",           uint8_t*32), #
-        ("Unk34",          uint32_t), #
-        ("Offset",         uint32_t), # From the manifest
-        ("Unk3C",          uint32_t), #
-        ("Size",           uint32_t), #
-        ("Unk44",          uint32_t), #
-        ("Unk48",          uint32_t), #
-        ("LoadBase",       uint32_t), #
-        ("Flags",          uint32_t), #
-        ("Unk54",          uint32_t), #
-        ("Unk58",          uint32_t), #
-        ("Unk5C",          uint32_t), #
-    ]
 
 class MeModuleHeader2(MeObject):
     def comptype(self):
@@ -278,32 +205,6 @@ class HuffmanOffsets(ctypes.Union):
         ("asword", uint32_t),
     ]
 
-class MeManifestHeaderType(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("ModuleType",     uint16_t), # 00
-        ("ModuleSubType",  uint16_t), # 02
-        ("HeaderLen",      uint32_t), # 04 in dwords
-        ("HeaderVersion",  uint32_t), # 08
-        ("Flags",          uint32_t), # 0C 0x80000000 = Debug
-        ("ModuleVendor",   uint32_t), # 10
-        ("Date",           uint32_t), # 14 BCD yyyy.mm.dd
-        ("Size",           uint32_t), # 18 in dwords
-        ("Tag",            char*4),   # 1C $MAN or $MN2
-        ("NumModules",     uint32_t), # 20
-        ("MajorVersion",   uint16_t), # 24
-        ("MinorVersion",   uint16_t), # 26
-        ("HotfixVersion",  uint16_t), # 28
-        ("BuildVersion",   uint16_t), # 2A
-        ("Unknown1",       uint32_t*19), # 2C
-        ("KeySize",        uint32_t), # 78
-        ("ScratchSize",    uint32_t), # 7C
-        ("RsaPubKey",      uint32_t*64), # 80
-        ("RsaPubExp",      uint32_t),    # 180
-        ("RsaSig",         uint32_t*64), # 184
-        ("PartitionName",  char*12),    # 284
-        # 290
-    ]
-
 class MeModule(MeObject):
     def __init__(self, data, structure_type):
         self.attrs = {}
@@ -325,6 +226,15 @@ class MeModule(MeObject):
         '''Parse flags and change output.'''
         self.attrs["flags"] = self.structure.Flags
 
+        if structure_type == MeModuleHeader2Type:
+            self.attrs["power_type"] = (self.structure.Flags>>1)&3 # MeModulePowerTypes
+            self.attrs["compression"] = (self.structure.Flags>>4)&7 # MeCompressionTypes
+            self.attrs["module_stage"] = (self.structure.Flags>>7)&0xF # MeModuleTypes (optional)
+            self.attrs["api_type"] = (self.structure.Flags>>11)&7 # MeApiTypes
+            self.attrs["privileged"] = ((self.structure.Flags>>16)&1)
+        # There are unknown flags to parse, todo: revisit
+        pass         
+
     @property
     def size(self):
         return ctypes.sizeof(self.structure_type)
@@ -341,9 +251,50 @@ class MeModule(MeObject):
             print "%s: %s" % (attr, self.attrs[attr])        
 
 class MeVariableModule(MeObject):
-    def __init__(self, data):
+    HEADER_SIZE = 8
+
+    def __init__(self, data, structure_type):
+        self.type = structure_type
+        self.data = None
         self.size = 0
+
+        hdr = data[:self.HEADER_SIZE]
+        self.valid_header = True
+        self.header_blank = False
+
+        if hdr == '\xFF' * self.HEADER_SIZE:
+            self.header_blank = True
+            return
+
+        if len(hdr) < self.HEADER_SIZE or hdr[0] != '$':
+            print "Debug: invalid module header."
+            #from ..utils import hex_dump
+            #hex_dump(data[:64])
+            self.valid_header = False
+            return
+
+        self.tag = hdr[:4]
+        self.size = struct.unpack("<I", hdr[4:])[0]
+        self.data = data[self.HEADER_SIZE:self.size*4]
         pass
+
+    def add_update(self, tag, name, offset, size):
+        pass
+
+    def process(self):
+        if self.tag == '$UDC':
+            subtag, _hash, name, offset, size = struct.unpack(self.stype.udc_format, self.data[:self.type.udc_length])
+            print "Debug: update code found: (%s) (%s), length: %d" % (subtag, name, size)
+            self.add_update(subtag, name, offset, size)
+        if self.size == 3:
+            values = [struct.unpack("<I", self.data[:4])[0]]
+        if self.size == 4:
+            values = struct.unpack("<II", self.data[:8])[0]
+        else:
+            values = array.array("I", self.data)
+        self.values = values
+        pass
+
 
 class MeManifestHeader(MeObject):
     _DATA_OFFSET = 12
@@ -400,11 +351,25 @@ class MeManifestHeader(MeObject):
         additional_header = self.structure.Size*4 - module_offset
         print "Debug: Remaining header: %d - %d = %d" % (self.structure.Size*4, module_offset, additional_header)
 
+        partition_end = None
         while module_offset < self.structure.Size*4:
             '''There is more module header to process.'''
-            module = MeVariableModule(self.data[module_offset:])
+            module = MeVariableModule(self.data[module_offset:], header_type)
+            if not module.valid_header:
+                break
+
+            module_offset += module.HEADER_SIZE
+            if module.header_blank:
+                continue
+
+            print "Debug: found module (%s)." % module.tag
+            module.process()
+            if module.tag == '$MCP':
+                partition_end = module.values[0] + module.values[1]
 
             module_offset += module.size
+
+        pass
 
 #class 
 
