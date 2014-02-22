@@ -36,6 +36,27 @@ from operator import itemgetter
 from .intel_me_structs import *
 from ..utils import dump_data
 
+MeModulePowerTypes = ["POWER_TYPE_RESERVED", "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
+MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED", "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
+COMP_TYPE_NOT_COMPRESSED = 0
+COMP_TYPE_HUFFMAN = 1
+COMP_TYPE_LZMA = 2
+MeModuleTypes      = ["DEFAULT", "PRE_ME_KERNEL", "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
+MeApiTypes         = ["API_TYPE_DATA", "API_TYPE_ROMAPI", "API_TYPE_KERNEL", "<unknown>"]
+
+def extract_code_mods(nm, f, soff):
+    try:
+       os.mkdir(nm)
+    except:
+       pass
+    os.chdir(nm)
+    print " extracting CODE partition %s" % (nm)
+    manif = get_struct(f, soff, MeManifestHeader)
+    manif.parse_mods(f, soff)
+    manif.pprint()
+    manif.extract(f, soff)
+    os.chdir("..")
+
 class MeObject(object):
     """
     An ME Object is a combination of a parsing/extraction class and a ctype
@@ -58,153 +79,6 @@ class MeObject(object):
     def show_structure(self):
         for field in self.fields:
             print "%s: %s" % (field, getattr(self.structure, field, None))
-
-
-class MeModuleHeader1(MeObject):
-    def __init__(self):
-        self.Offset = None
-
-    def comptype(self):
-        return COMP_TYPE_NOT_COMPRESSED
-
-    def print_flags(self):
-        print "    Disable Hash:   %d" % ((self.Flags>>0)&1)
-        print "    Optional:       %d" % ((self.Flags>>1)&1)
-        if self.Flags >> 2:
-            print "    Unknown B2_31: %d" % ((self.Flags>>2))
-
-    def pprint(self):
-        print "Header tag:     %s" % (self.Tag)
-        nm = self.Name.rstrip('\0')
-        print "Module name:    %s" % (nm)
-        print "Guid:           %s" % (" ".join("%02X" % v for v in self.Guid))
-        print "Version:        %d.%d.%d.%d" % (self.MajorVersion, self.MinorVersion, self.HotfixVersion, self.BuildVersion)
-        print "Hash:           %s" % (" ".join("%02X" % v for v in self.Hash))
-        print "Size:           0x%08X" % (self.Size)
-        if self.Offset != None:
-            print "(Offset):       0x%08X" % (self.Offset)
-        print "Flags:          0x%08X" % (self.Flags)
-        self.print_flags()
-        print "Unk48:          0x%08X" % (self.Unk48)
-        print "Unk4C:          0x%08X" % (self.Unk4C)
-
-class MeModuleFileHeader1(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Tag",            char*4),   # $MOD
-        ("Unk04",          uint32_t), #
-        ("Unk08",          uint32_t), #
-        ("MajorVersion",   uint16_t), #
-        ("MinorVersion",   uint16_t), #
-        ("HotfixVersion",  uint16_t), #
-        ("BuildVersion",   uint16_t), #
-        ("Unk14",          uint32_t), #
-        ("CompressedSize", uint32_t), #
-        ("UncompressedSize", uint32_t), #
-        ("LoadAddress",    uint32_t), #
-        ("MappedSize",     uint32_t), #
-        ("Unk28",          uint32_t), #
-        ("Unk2C",          uint32_t), #
-        ("Name",           char*16),  #
-        ("Guid",           uint8_t*16), #
-    ]
-
-    def pprint(self):
-        print "Module tag:        %s" % (self.Tag)
-        nm = self.Name.rstrip('\0')
-        print "Module name:       %s" % (nm)
-        print "Guid:              %s" % (" ".join("%02X" % v for v in self.Guid))
-        print "Version:           %d.%d.%d.%d" % (self.MajorVersion, self.MinorVersion, self.HotfixVersion, self.BuildVersion)
-        print "Unk04:             0x%08X" % (self.Unk04)
-        print "Unk08:             0x%08X" % (self.Unk08)
-        print "Unk14:             0x%08X" % (self.Unk14)
-        print "Compressed size:   0x%08X" % (self.CompressedSize)
-        print "Uncompressed size: 0x%08X" % (self.UncompressedSize)
-        print "Mapped address:    0x%08X" % (self.LoadAddress)
-        print "Mapped size:       0x%08X" % (self.MappedSize)
-        print "Unk28:             0x%08X" % (self.Unk28)
-        print "Unk2C:             0x%08X" % (self.Unk2C)
-
-MeModulePowerTypes = ["POWER_TYPE_RESERVED", "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
-MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED", "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
-COMP_TYPE_NOT_COMPRESSED = 0
-COMP_TYPE_HUFFMAN = 1
-COMP_TYPE_LZMA = 2
-MeModuleTypes      = ["DEFAULT", "PRE_ME_KERNEL", "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
-MeApiTypes         = ["API_TYPE_DATA", "API_TYPE_ROMAPI", "API_TYPE_KERNEL", "<unknown>"]
-
-
-
-class MeModuleHeader2(MeObject):
-    def comptype(self):
-        return (self.Flags>>4)&7
-
-    def print_flags(self):
-        print "    Unknown B0:     %d" % ((self.Flags>>0)&1)
-        powtype = (self.Flags>>1)&3
-        print "    Power Type:     %s (%d)" % (MeModulePowerTypes[powtype], powtype)
-        print "    Unknown B3:     %d" % ((self.Flags>>3)&1)
-        comptype = (self.Flags>>4)&7
-        print "    Compression:    %s (%d)" % (MeCompressionTypes[comptype], comptype)
-        modstage = (self.Flags>>7)&0xF
-        if modstage < len(MeModuleTypes):
-            smtype = MeModuleTypes[modstage]
-        else:
-            smtype = "STAGE %X" % modstage
-        print "    Stage:          %s (%d)" % (smtype, modstage)
-        apitype = (self.Flags>>11)&7
-        print "    API Type:       %s (%d)" % (MeApiTypes[apitype], apitype)
-
-        print "    Unknown B14:    %d" % ((self.Flags>>14)&1)
-        print "    Unknown B15:    %d" % ((self.Flags>>15)&1)
-        print "    Privileged:     %d" % ((self.Flags>>16)&1)
-        print "    Unknown B17_19: %d" % ((self.Flags>>17)&7)
-        print "    Unknown B20_21: %d" % ((self.Flags>>20)&3)
-        if self.Flags >> 22:
-            print "    Unknown B22_31: %d" % ((self.Flags>>22))
-
-    def pprint(self):
-        print "Header tag:     %s" % (self.Tag)
-        nm = self.Name.rstrip('\0')
-        print "Module name:    %s" % (nm)
-        print "Hash:           %s" % (" ".join("%02X" % v for v in self.Hash))
-        print "Unk34:          0x%08X" % (self.Unk34)
-        print "Offset:         0x%08X" % (self.Offset)
-        print "Unk3C:          0x%08X" % (self.Unk3C)
-        print "Data length:    0x%08X" % (self.Size)
-        print "Unk44:          0x%08X" % (self.Unk44)
-        print "Unk48:          0x%08X" % (self.Unk48)
-        print "LoadBase:       0x%08X" % (self.LoadBase)
-        print "Flags:          0x%08X" % (self.Flags)
-        self.print_flags()
-        print "Unk54:          0x%08X" % (self.Unk54)
-        print "Unk58:          0x%08X" % (self.Unk58)
-        print "Unk5C:          0x%08X" % (self.Unk5C)
-
-
-def extract_code_mods(nm, f, soff):
-    try:
-       os.mkdir(nm)
-    except:
-       pass
-    os.chdir(nm)
-    print " extracting CODE partition %s" % (nm)
-    manif = get_struct(f, soff, MeManifestHeader)
-    manif.parse_mods(f, soff)
-    manif.pprint()
-    manif.extract(f, soff)
-    os.chdir("..")
-
-class HuffmanOffsetBytes(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Offset", uint32_t, 24),
-        ("Length", uint8_t),
-    ]
-
-class HuffmanOffsets(ctypes.Union):
-    _fields_ = [
-        ("b", HuffmanOffsetBytes),
-        ("asword", uint32_t),
-    ]
 
 class MeModule(MeObject):
     def __init__(self, data, structure_type, offset):
@@ -263,10 +137,16 @@ class MeModule(MeObject):
             return (self.structure.Flags>>4)&7
 
     def showinfo(self, ts=''): 
-        print "%sModule %s Name: %s, GUID: %s, Version: %s, Size: %s" % (ts, self.tag, self.name, self.guid, self.attrs["version"], self.attrs["module_size"])
+        print "%sModule %s, GUID: %s, Version: %s, Size: %s" % (ts, self.name, self.guid, self.attrs["version"], self.attrs["module_size"]),
+        if self.compression == COMP_TYPE_HUFFMAN: print " (huffman)"
+        elif self.compression == COMP_TYPE_LZMA: print " (lzma)" 
+        else: print "" 
 
     def dump(self, parent= ""):
-        dump_data("%s.module" % os.path.join(parent, self.name), self.data)
+        if self.compression == COMP_TYPE_HUFFMAN:
+            pass
+        else:
+            dump_data("%s.module.lzma" % os.path.join(parent, self.name), self.data)
         pass
 
 class MeVariableModule(MeObject):
@@ -342,35 +222,54 @@ class MeModuleFile(MeObject):
 
 class MeLLUT(MeObject):
     def __init__(self, data, relative_offset):
-        self.tag = data[:4]
+        #self.tag = data[:4]
 
         self.valid_header = True
-        if self.tag != 'LLUT':
+        if data[:4] != 'LLUT':
             self.valid_header = False
 
-        hdr = data[4:52]
-        chunkcount, decompbase, unk0c, size, start, a,b,c,d,e,f, chunksize = struct.unpack("<IIIIIIIIIIII", hdr)
-
+        #hdr = data[4:52]
+        #chunkcount, decompbase, unk0c, size, start, a,b,c,d,e,f, chunksize = struct.unpack("<IIIIIIIIIIII", hdr)
+        self.parse_structure(data, HuffmanLUTHeader)
+        self.size = self.structure.Size
+        
         ### The start and end addresses are relative to the manifest.
         ### The relative offset references the start of the manifest data (not header).
-        self.decompression_base = decompbase
-        self.chunkcount = chunkcount
-        self.chunksize = chunksize
-
+        self.start = self.structure.DataStart
         self.offset = relative_offset
-        self.start = start
-        self.size = size
+
+        self.chunkcount = self.structure.ChunkCount
+        self.chunksize = self.structure.ChunkSize
+        self.decompression_base = self.structure.DecompBase
+
+        self.data = data[self.start-relative_offset:self.start-relative_offset + self.size]
 
     def showinfo(self, ts= ''):
-        print "%sLLUT chunks (%d), chunk size (%d), start (%d), size (%d), base (%d)." % (ts, self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
+        print "%sLLUT chunks (%d), chunk size (%d), start (%d), size (%d), base (%08X)." % (ts, self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
+
+    def dump(self, parent= 'PART'):
+        #print "Debug: relative (%d) absolute start (%d) len (%d)." % (self.offset, self.start, len(self.data))
+        dump_data("%s.llut.compressed" % parent, self.data)
+        pass
 
 class MeManifestHeader(MeObject):
     _DATA_OFFSET = 12
 
-    def __init__(self, data):
+    def __init__(self, data, container_offset= 0):
         self.attrs = {}
+
+        self.valid_header = True
+        if data[:8] != "\x04\x00\x00\x00\xA1\x00\x00\x00":
+            from ..utils import hex_dump
+            hex_dump(data[:32])
+            print "Debug: invalid partition."
+            self.valid_header = False
+            return
+
         self.parse_structure(data, MeManifestHeaderType)
-        self.data = data[self.offset:]
+        ### Save the container offset as LLUT start is an absolute reference
+        self.container_offset = container_offset
+        self.data = data[self.partition_offset:]
 
         '''Set storage attributes.'''
         self.attrs["header_version"] = "%d.%d" % (self.structure.HeaderVersion>>16, self.structure.HeaderVersion&0xFFFF)
@@ -390,7 +289,11 @@ class MeManifestHeader(MeObject):
         self.partition_end = 0
 
     @property
-    def offset(self):
+    def absolute_offset(self):
+        return self.structure.HeaderLen*4 + self._DATA_OFFSET + self.container_offset
+
+    @property
+    def partition_offset(self):
         return self.structure.HeaderLen*4 + self._DATA_OFFSET
 
     def showinfo(self, ts= ''):
@@ -402,378 +305,129 @@ class MeManifestHeader(MeObject):
         self.huffman_llut.showinfo(ts= "  %s" % ts)
         pass
 
-    def process(self):
-        self.modules = []
-
-        if self.structure.Tag == '$MN2':
-            print "...processing module header2"
-            header_type = MeModuleHeader2Type
-        elif self.structure.Tag == '$MAN':
-            header_type = MeModuleHeader1Type
-        else:
-            '''Cannot parsing modules...'''
-            return 
-
-        module_map = {}
+    def _parse_mods(self):
+         ### Parse the module headers (two types of headers, specified by the manifest).
         module_offset = 0
         huffman_offset = 0
-
-        ### Parse the module headers (two types of headers, specified by the manifest).
         for module_index in xrange(self.structure.NumModules):
-            module = MeModule(self.data[module_offset:], header_type, module_offset + self.offset)
-            print "Debug: found me module header (%s) at (%d)." % (module.tag, module_offset)
+            module = MeModule(self.data[module_offset:], self.header_type, module_offset + self.partition_offset)
+            #print "Debug: found me module header (%s) at (%d)." % (module.tag, module_offset)
             if module.compression == COMP_TYPE_HUFFMAN:
                 ### Todo: skipped precondition for huffman offsets.
-                print "Debug: Setting huffman offset: %d" % module.structure.Offset
+                #print "Debug: Setting huffman offset: %d" % module.structure.Offset
                 huffman_offset = module.structure.Offset
             module.process()
             self.modules.append(module)
-            module_map[module.name] = module
+            self.module_map[module.name] = module
             module_offset += module.size
 
         additional_header = self.structure.Size*4 - module_offset
-        print "Debug: Remaining header: %d - %d = %d" % (self.structure.Size*4, module_offset, additional_header)
+        #print "Debug: Remaining header: %d - %d = %d" % (self.structure.Size*4, module_offset, additional_header)       
 
+        self.module_offset = module_offset
+        self.huffman_offset = huffman_offset
+
+    def _parse_variable_mods(self, module_offset):
         ### Parse additional tagged modules.
         self.variable_modules = []
-        self.partition_end = 0
+        partition_end = 0
         while module_offset < self.structure.Size*4:
             ### There is more module header to process.
-            module = MeVariableModule(self.data[module_offset:], header_type)
+            module = MeVariableModule(self.data[module_offset:], self.header_type)
             if not module.valid_header:
                 break
             module_offset += module.HEADER_SIZE
             if module.header_blank:
                 continue
 
-            print "Debug: found module (%s) size (%d)." % (module.tag, module.size)
+            #print "Debug: found module (%s) size (%d)." % (module.tag, module.size)
             module.process()
             if module.tag == '$MCP':
                 ### The end of a manifest partition is stored in MCP
-                self.partition_end = module.values[0] + module.values[1]
+                partition_end = module.values[0] + module.values[1]
             self.variable_modules.append(module)
             module_offset += module.size
 
-        ### Parse optional module file headers.
-        print "Debug: module offset (%d), manifest header offset (%d)." % (module_offset, self.structure.Size*4)
-        file_offset = self.structure.Size*4
+        self.partition_end = partition_end 
 
+    def _parse_module_files(self):
+        file_offset = self.structure.Size*4
+        print "Debug: looking for module files at (%08X)." % file_offset
         while True:
             module_file = MeModuleFile(self.data[file_offset:])
             if not module_file.valid_header:
                 break
             if module_file.name in module_map:
                 ### A module file header cooresponds to the module header
-                module_map[module_file.name].file = module_file
+                self.module_map[module_file.name].file = module_file
             print "Debug: found module file (%s) size (%d)." % (module_file.name, module_file.size)
             file_offset += module_file.size
+        pass
+
+    def process(self):
+        self.modules = []
+        self.module_map = {}
+
+        if self.structure.Tag == '$MN2':
+            #print "...processing module header2"
+            self.header_type = MeModuleHeader2Type
+        elif self.structure.Tag == '$MAN':
+            self.header_type = MeModuleHeader1Type
+        else:
+            #'''Cannot parsing modules...'''
+            return 
+
+        ### Parse the module headers (two types of headers, specified by the manifest).
+        self._parse_mods()
+        self._parse_variable_mods(self.module_offset)
+        self._parse_module_files()
 
         ### Parse optional huffman LLUT.
-        print "Debug: file offset (%d), huffman offset (%d)." % (file_offset, huffman_offset)
-        huffman_offset = huffman_offset - self.offset
-        huffman_llut = MeLLUT(self.data[huffman_offset:], huffman_offset)
-        if huffman_llut.valid_header:
-            print "Debug: huffman LLUT start (0x%08X) end (0x%08X)." % (huffman_llut.offset, huffman_llut.size + huffman_llut.start)
+        huffman_offset = self.huffman_offset - self.partition_offset
+        huffman_llut = MeLLUT(self.data[huffman_offset:], huffman_offset + self.absolute_offset)
+        #if huffman_llut.valid_header:
+            #print "Debug: huffman LLUT start (0x%08X) end (0x%08X)." % (huffman_llut.offset, huffman_llut.size + huffman_llut.start)
+            #pass
+        print "Debug: LLUT end (%08X) partition end (%08X)." % (huffman_llut.size + huffman_offset, self.partition_end)
+
         self.huffman_llut = huffman_llut
         pass
 
     def dump(self, parent= ""):
         huffman_end = self.huffman_llut.size + self.huffman_llut.start
         for module in self.modules:
-            if module.compression == COMP_TYPE_HUFFMAN:
-                print "Huffman module data: %r %08X/%08X" % (module.name, self.huffman_llut.start, self.huffman_llut.size)
-            else:
-                huffman_end = (min(huffman_end, module.structure.Offset))
-                print "Debug: decrementing huffman to %d" % huffman_end
-        for module in self.modules:
+            #if module.compression == COMP_TYPE_HUFFMAN:
+                #print "Huffman module data: %r %08X/%08X" % (module.name, self.huffman_llut.start, self.huffman_llut.size)
+            #else:
+                #huffman_end = (min(huffman_end, module.structure.Offset))
+                #print "Debug: decrementing huffman to %d" % huffman_end
             module.dump(parent)
+        self.huffman_llut.dump(os.path.join(parent, self.structure.PartitionName))
         pass
 
-    def extract(self, f, offset):
-        huff_end = self.huff_end
-        nhuffs = 0
-        for mod in self.modules:
-            if mod.comptype() != COMP_TYPE_HUFFMAN:
-                huff_end = min(huff_end, mod.Offset)
-            else:
-                print "Huffman module data:  %r %08X/%08X" % (mod.Name.rstrip('\0'), self.datastart, self.datalen)
-                nhuffs += 1
-        for imod in range(len(self.modules)):
-            mod = self.modules[imod]
-            nm = mod.Name.rstrip('\0')
-            islast = (imod == len(self.modules)-1)
-            print "Module:      %r %08X" % (nm, mod.Size),
-            if mod.Offset in [0xFFFFFFFF, 0] or (mod.Size in [0xFFFFFFFF, 0] and not islast and mod.comptype() != COMP_TYPE_HUFFMAN):
-                print " (skipping)"
-            else:
-                soff = offset + mod.Offset
-                size = mod.Size
-                if mod.comptype() == COMP_TYPE_LZMA:
-                    ext = "lzma"
-                elif mod.comptype() == COMP_TYPE_HUFFMAN:
-                    if nhuffs != 1:
-                        nm = self.PartitionName
+class MeContainer(MeObject):
+    def __init__(self, data):
+        self.partitions = []
+        self.data = data
 
-                    soff = self.huff_start + 0x40
-                    size = self.chunkcount*4
-                    ext = "huffoff"
-                    fnametab = "%s_mod.%s" % (nm, ext)
-                    print " => %s" % (fnametab),
-                    open(fnametab, "wb").write(f[soff:soff+size])
+    def process(self):
+        offset = 0
+        while True:
+            partition_manifest = MeManifestHeader(self.data[offset:], offset)
+            if not partition_manifest.valid_header:
+                print "Debug: ending at (%08X)." % offset
+                return
+            print "Debug: Found valid partition (%08X)." % offset
 
-                    #ext = "huff"
-                    #soff = self.huff_start
-                    #size = huff_end - mod.Offset
+            partition_manifest.process()
+            self.partitions.append(partition_manifest)
+            offset += partition_manifest.partition_end
+        pass
 
-                    ext = "huff"
-                    soff = self.datastart
-                    size = self.datalen
-                else:
-                    ext = "bin"
-                if self.Tag == '$MAN':
-                    ext = "mod"
-                    moff = soff+0x50
-                    if f[moff:moff+5] == '\x5D\x00\x00\x80\x00':
-                        lzf = open("%s_mod.lzma" % nm, "wb")
-                        lzf.write(f[moff:moff+5])
-                        lzf.write(struct.pack("<Q", mod.UncompressedSize))
-                        lzf.write(f[moff+5:moff+mod.Size-0x50])
-                fnamemod = "%s_mod.%s" % (nm, ext)
-                print " => %s" % (fnamemod)
-                open(fnamemod, "wb").write(f[soff:soff+size])
-        for subtag, soff, subsize in self.updparts:
-            fname = "%s_udc.bin" % subtag
-            print "Update part: %r %08X/%08X" % (subtag, soff, subsize),
-            print " => %s" % (fname)
-            open(fname, "wb").write(f[soff:soff+subsize])
-            extract_code_mods(subtag, f, soff)
+    def showinfo(self, ts= ''):
+        for partition in self.partitions:
+            partition.showinfo("  %s" % ts)
 
-        # Huffman chunks
-        fhufftab = open("%s_mod.huffchunksummary" % self.PartitionName, "w")
-        fhufftab.write("Huffman chunks:\n")
-        chunksize = self.chunksize
-
-        huffmanoffsets = []
-        for huffoff in range(self.chunkcount):
-            soff = self.huff_start + 0x40 + huffoff*4
-            huffmanoffsets.append([struct.unpack("<I", f[soff:soff+4])[0],struct.unpack("B", f[soff+3:soff+4])[0]])
-            huffmanoffsets[huffoff][1] = (huffmanoffsets[huffoff][0] >> 24) & 0xFF
-            huffmanoffsets[huffoff][0] = huffmanoffsets[huffoff][0] & 0xFFFFFF
-            print "0x%04X 0x%02X    (0x%06X)"  % (huffoff, huffmanoffsets[huffoff][1], huffmanoffsets[huffoff][0])
-            fhufftab.write("0x%04X 0x%02X    (0x%06X) 0x%04X\n"  % (huffoff, huffmanoffsets[huffoff][1], huffmanoffsets[huffoff][0], huffmanoffsets[huffoff][0] - huffmanoffsets[huffoff-1][0]))
-        fhufftab.close()
-        huffmanoffsets.append([self.datastart, 0x00])
-        huffmanoffsets = sorted(huffmanoffsets, key=itemgetter(0))
-        for huffoff in range(self.chunkcount):
-            flag = huffmanoffsets[huffoff][1]
-            if flag != 0x80:
-                offset0 = huffmanoffsets[huffoff][0]
-                offset1 = huffmanoffsets[huffoff+1][0]
-                chunklen = offset1 - offset0
-                open("%s_chunk_%02X_%04d.huff" % (self.PartitionName, flag, huffoff), "wb").write(f[offset0:offset1])
-
-
-PartTypes = ["Code", "BlockIo", "Nvram", "Generic", "Effs", "Rom"]
-
-PT_CODE    = 0
-PT_BLOCKIO = 1
-PT_NVRAM   = 2
-PT_GENERIC = 3
-PT_EFFS    = 4
-PT_ROM     = 5
-
-class MeFptEntry(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Name",            char*4),   # 00 partition name
-        ("Owner",           char*4),   # 04 partition owner?
-        ("Offset",          uint32_t), # 08 from the start of FPT, or 0
-        ("Size",            uint32_t), # 0C
-        ("TokensOnStart",   uint32_t), # 10
-        ("MaxTokens",       uint32_t), # 14
-        ("ScratchSectors",  uint32_t), # 18
-        ("Flags",           uint32_t), # 1C
-    ]
-    #def __init__(self, f, offset):
-        #self.sig1, self.Owner,  self.Offset, self.Size  = struct.unpack("<4s4sII", f[offset:offset+0x10])
-        #self.TokensOnStart, self.MaxTokens, self.ScratchSectors, self.Flags = struct.unpack("<IIII", f[offset+0x10:offset+0x20])
-
-    def ptype(self):
-        return self.Flags & 0x7F
-
-    def print_flags(self):
-        pt = self.ptype()
-        if pt < len(PartTypes):
-            stype = "%d (%s)" % (pt, PartTypes[pt])
-        else:
-            stype = "%d" % pt
-        print "    Type:         %s" % stype
-        print "    DirectAccess: %d" % ((self.Flags>>7)&1)
-        print "    Read:         %d" % ((self.Flags>>8)&1)
-        print "    Write:        %d" % ((self.Flags>>9)&1)
-        print "    Execute:      %d" % ((self.Flags>>10)&1)
-        print "    Logical:      %d" % ((self.Flags>>11)&1)
-        print "    WOPDisable:   %d" % ((self.Flags>>12)&1)
-        print "    ExclBlockUse: %d" % ((self.Flags>>13)&1)
-
-
-    def pprint(self):
-        print "Partition:      %r" % self.Name
-        print "Owner:          %s" % [repr(self.Owner), "(none)"][self.Owner == '\xFF\xFF\xFF\xFF']
-        print "Offset/size:    %08X/%08X" % (self.Offset, self.Size)
-        print "TokensOnStart:  %08X" % (self.TokensOnStart)
-        print "MaxTokens:      %08X" % (self.MaxTokens)
-        print "ScratchSectors: %08X" % (self.ScratchSectors)
-        print "Flags:              %04X" % self.Flags
-        self.print_flags()
-
-class MeFptTable:
-    def __init__(self, f, offset):
-        hdr = f[offset:offset+0x30]
-        if hdr[0x10:0x14] == '$FPT':
-            base = offset + 0x10
-        elif hdr[0:4] == '$FPT':
-            base = offset
-        else:
-            raise Exception("FPT format not recognized")
-        num_entries = DwordAt(f, base+4)
-        self.BCDVer, self.FPTEntryType, self.HeaderLen, self.Checksum = struct.unpack("<BBBB", f[base+8:base+12])
-        self.FlashCycleLifetime, self.FlashCycleLimit, self.UMASize   = struct.unpack("<HHI", f[base+12:base+20])
-        self.Flags = struct.unpack("<I", f[base+20:base+24])[0]
-        offset = base + 0x20
-        self.parts = []
-        for i in range(num_entries):
-            part = get_struct(f, offset, MeFptEntry) #MeFptEntry(f, offset)
-            offset += 0x20
-            self.parts.append(part)
-
-    def extract(self, f, offset):
-        for ipart in range(len(self.parts)):
-            part = self.parts[ipart]
-            print "Partition:      %r %08X/%08X" % (part.Name, part.Offset, part.Size),
-            islast = (ipart == len(self.parts)-1)
-            if part.Offset in [0xFFFFFFFF, 0] or (part.Size in [0xFFFFFFFF, 0] and not islast):
-                print " (skipping)"
-            else:
-                nm = part.Name.rstrip('\0')
-                soff  = offset + part.Offset
-                fname = "%s_part.bin" % (part.Name)
-                fname = replace_bad(fname, map(chr, range(128, 256) + range(0, 32)))
-                print " => %s" % (fname)
-                open(fname, "wb").write(f[soff:soff+part.Size])
-                if part.ptype() == PT_CODE:
-                    extract_code_mods(nm, f, soff)
-
-    def pprint(self):
-        print "===ME Flash Partition Table==="
-        print "NumEntries: %d" % len(self.parts)
-        print "Version:    %d.%d" % (self.BCDVer >> 4, self.BCDVer & 0xF)
-        print "EntryType:  %02X"  % (self.FPTEntryType)
-        print "HeaderLen:  %02X"  % (self.HeaderLen)
-        print "Checksum:   %02X"  % (self.Checksum)
-        print "FlashCycleLifetime: %d" % (self.FlashCycleLifetime)
-        print "FlashCycleLimit:    %d" % (self.FlashCycleLimit)
-        print "UMASize:    %d" % self.UMASize
-        print "Flags:      %08X" % self.Flags
-        print "    EFFS present:   %d" % (self.Flags&1)
-        print "    ME Layout Type: %d" % ((self.Flags>>1)&0xFF)
-        print "---Partitions---"
-        for part in self.parts:
-            part.pprint()
-            print
-        print "------End-------"
-
-
-region_names = ["Descriptor", "BIOS", "ME", "GbE", "PDR", "Region 5", "Region 6", "Region 7" ]
-region_fnames =["Flash Descriptor", "BIOS Region", "ME Region", "GbE Region", "PDR Region", "Region 5", "Region 6", "Region 7" ]
-
-def print_flreg(val, name):
-    print "%s region:" % name
-    lim  = ((val >> 4) & 0xFFF000)
-    base = (val << 12) & 0xFFF000
-    if lim == 0 and base == 0xFFF000:
-        print "  [unused]"
-        return None
-    lim |= 0xFFF
-    print "  %08X - %08X (0x%08X bytes)" % (base, lim, lim - base + 1)
-    return (base, lim)
-
-def parse_descr(f, offset, extract):
-    mapoff = offset
-    if f[offset+0x10:offset+0x14] == "\x5A\xA5\xF0\x0F":
-        mapoff = offset + 0x10
-    elif f[offset:offset+0x4] != "\x5A\xA5\xF0\x0F":
-        return -1
-    print "Flash Descriptor found at %08X" % offset
-    FLMAP0, FLMAP1, FLMAP2 = struct.unpack("<III", f[mapoff+4:mapoff+0x10])
-    nr   = (FLMAP0 >> 24) & 0x7
-    frba = (FLMAP0 >> 12) & 0xFF0
-    nc   = (FLMAP0 >>  8) & 0x3
-    fcba = (FLMAP0 <<  4) & 0xFF0
-    print "Number of regions: %d (besides Descriptor)" % nr
-    print "Number of components: %d" % (nc+1)
-    print "FRBA: 0x%08X" % frba
-    print "FCBA: 0x%08X" % fcba
-    me_offset = -1
-    for i in range(nr+1):
-        FLREG = struct.unpack("<I", f[offset + frba + i*4:offset + frba + i*4 + 4])[0]
-        r = print_flreg(FLREG, region_names[i])
-        if r:
-            base, lim = r
-            if i == 2:
-                me_offset = offset + base
-            if extract:
-                fname = "%s.bin" % region_fnames[i]
-                print " => %s" % (fname)
-                open(fname, "wb").write(f[offset + base:offset + base + lim + 1])
-    return me_offset
-
-class AcManifestHeader(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("ModuleType",     uint16_t), # 00
-        ("ModuleSubType",  uint16_t), # 02
-        ("HeaderLen",      uint32_t), # 04 in dwords
-        ("HeaderVersion",  uint32_t), # 08
-        ("ChipsetID",      uint16_t), # 0C
-        ("Flags",          uint16_t), # 0E 0x80000000 = Debug
-        ("ModuleVendor",   uint32_t), # 10
-        ("Date",           uint32_t), # 14 BCD yyyy.mm.dd
-        ("Size",           uint32_t), # 18 in dwords
-        ("Reserved1",      uint32_t), # 1C
-        ("CodeControl",    uint32_t), # 20
-        ("ErrorEntryPoint",uint32_t), # 24
-        ("GDTLimit",       uint32_t), # 28
-        ("GDTBasePtr",     uint32_t), # 2C
-        ("SegSel",         uint32_t), # 30
-        ("EntryPoint",     uint32_t), # 34
-        ("Reserved2",      uint32_t*16), # 38
-        ("KeySize",        uint32_t), # 78
-        ("ScratchSize",    uint32_t), # 7C
-        ("RsaPubKey",      uint32_t*64), # 80
-        ("RsaPubExp",      uint32_t),    # 180
-        ("RsaSig",         uint32_t*64), # 184
-        # 284
-    ]
-
-    def pprint(self):
-        print "Module Type: %d, Subtype: %d" % (self.ModuleType, self.ModuleSubType)
-        print "Header Length:       0x%02X (0x%X bytes)" % (self.HeaderLen, self.HeaderLen*4)
-        print "Header Version:      %d.%d" % (self.HeaderVersion>>16, self.HeaderVersion&0xFFFF)
-        print "ChipsetID:           0x%04X" % (self.ChipsetID)
-        print "Flags:               0x%04X" % (self.Flags),
-        print " [%s signed] [%s flag]" % (["production","debug"][(self.Flags>>15)&1], ["production","pre-production"][(self.Flags>>14)&1])
-        print "Module Vendor:       0x%04X" % (self.ModuleVendor)
-        print "Date:                %08X" % (self.Date)
-        print "Total Module Size:   0x%02X (0x%X bytes)" % (self.Size, self.Size*4)
-        print "Reserved1:           0x%08X" % (self.Reserved1)
-        print "CodeControl:         0x%08X" % (self.CodeControl)
-        print "ErrorEntryPoint:     0x%08X" % (self.ErrorEntryPoint)
-        print "GDTLimit:            0x%08X" % (self.GDTLimit)
-        print "GDTBasePtr:          0x%08X" % (self.GDTBasePtr)
-        print "SegSel:              0x%04X" % (self.SegSel)
-        print "EntryPoint:          0x%08X" % (self.EntryPoint)
-        print "Key size:            0x%02X (0x%X bytes)" % (self.KeySize, self.KeySize*4)
-        print "Scratch size:        0x%02X (0x%X bytes)" % (self.ScratchSize, self.ScratchSize*4)
-        print "RSA Public Key:      [skipped]"
-        print "RSA Public Exponent: %d" % (self.RsaPubExp)
-        print "RSA Signature:       [skipped]"
-        print "------End-------"
+    def dump(self, parent= ""):
+        for partition in self.partitions:
+            partition.dump(os.path.join(parent, partition.structure.PartitionName))

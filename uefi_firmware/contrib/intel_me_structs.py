@@ -69,16 +69,28 @@ class MeModuleHeader1Type(ctypes.LittleEndianStructure):
 
 class HuffmanLUTHeader(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("LLUT",           char*4),   # LLUT
-        ("Unk04",          uint32_t), #
-        ("Unk08",          uint32_t), #
+        ("Tag",            char*4),   # LLUT
+        ("ChunkCount",     uint32_t), #
+        ("DecompBase",     uint32_t), #
         ("Unk0C",          uint32_t), #
-        ("Unk10",          uint32_t), #
+        ("Size",           uint32_t), #
         ("DataStart",      uint32_t), # Start of data
-        ("Unk18",          uint8_t*24), #
-        ("LLUTLen",        uint32_t), #
-        ("Unk34",          uint32_t), #
-        ("Chipset",        char*8),   # PCH
+        ("Unk18",          uint32_t*6), #
+        ("ChunkSize",      uint32_t), #
+        #("Unk34",          uint32_t), #
+        #("Chipset",        char*8),   # PCH
+    ]
+
+class HuffmanOffsetBytes(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("Offset", uint32_t, 24),
+        ("Length", uint8_t),
+    ]
+
+class HuffmanOffsets(ctypes.Union):
+    _fields_ = [
+        ("b", HuffmanOffsetBytes),
+        ("asword", uint32_t),
     ]
 
 class MeModuleHeader2Type(ctypes.LittleEndianStructure):
@@ -129,4 +141,41 @@ class MeManifestHeaderType(ctypes.LittleEndianStructure):
     udc_format = "4s20s16sII"
     udc_length = 0x30
 
+class MeFptEntryType(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("Name",            char*4),   # 00 partition name
+        ("Owner",           char*4),   # 04 partition owner?
+        ("Offset",          uint32_t), # 08 from the start of FPT, or 0
+        ("Size",            uint32_t), # 0C
+        ("TokensOnStart",   uint32_t), # 10
+        ("MaxTokens",       uint32_t), # 14
+        ("ScratchSectors",  uint32_t), # 18
+        ("Flags",           uint32_t), # 1C
+    ]
 
+class AcManifestHeaderType(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("ModuleType",     uint16_t), # 00
+        ("ModuleSubType",  uint16_t), # 02
+        ("HeaderLen",      uint32_t), # 04 in dwords
+        ("HeaderVersion",  uint32_t), # 08
+        ("ChipsetID",      uint16_t), # 0C
+        ("Flags",          uint16_t), # 0E 0x80000000 = Debug
+        ("ModuleVendor",   uint32_t), # 10
+        ("Date",           uint32_t), # 14 BCD yyyy.mm.dd
+        ("Size",           uint32_t), # 18 in dwords
+        ("Reserved1",      uint32_t), # 1C
+        ("CodeControl",    uint32_t), # 20
+        ("ErrorEntryPoint",uint32_t), # 24
+        ("GDTLimit",       uint32_t), # 28
+        ("GDTBasePtr",     uint32_t), # 2C
+        ("SegSel",         uint32_t), # 30
+        ("EntryPoint",     uint32_t), # 34
+        ("Reserved2",      uint32_t*16), # 38
+        ("KeySize",        uint32_t), # 78
+        ("ScratchSize",    uint32_t), # 7C
+        ("RsaPubKey",      uint32_t*64), # 80
+        ("RsaPubExp",      uint32_t),    # 180
+        ("RsaSig",         uint32_t*64), # 184
+        # 284
+    ]
