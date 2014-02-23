@@ -74,13 +74,13 @@ class MeModuleHeader2Type(ctypes.LittleEndianStructure):
         ("Tag",            char*4),   # $MME
         ("Name",           char*16),  #
         ("Hash",           uint8_t*32), #
-        ("Unk34",          uint32_t), #
+        ("ARC4LoadBase",   uint32_t), #
         ("Offset",         uint32_t), # From the manifest
-        ("Unk3C",          uint32_t), #
+        ("CompressedSize", uint32_t), #
         ("Size",           uint32_t), #
-        ("Unk44",          uint32_t), #
-        ("Unk48",          uint32_t), #
-        ("LoadBase",       uint32_t), #
+        ("LocalOffset",    uint32_t), # offset from huff start
+        ("LocalOffset2",   uint32_t), # offset from huff start
+        ("ARC5LoadBase",   uint32_t), #
         ("Flags",          uint32_t), #
         ("Unk54",          uint32_t), #
         ("Unk58",          uint32_t), #
@@ -95,12 +95,15 @@ class HuffmanLUTHeader(ctypes.LittleEndianStructure):
         ("ChunkCount",     uint32_t), #
         ("DecompBase",     uint32_t), #
         ("Unk0C",          uint32_t), #
-        ("Size",           uint32_t), #
+        ("Size",           uint32_t), # data length
         ("DataStart",      uint32_t), # Start of data
         ("Unk18",          uint32_t*6), #
-        ("ChunkSize",      uint32_t), #
-        ("Unk34",          uint32_t), #
-        ("Chipset",        char*8),   # PCH
+        ("ChunkSize",      uint32_t), # uncompressed
+        ("ModuleCount",    uint32_t),
+        ("Chipset",        char*4),   # PCH
+        ("Revision",       char*4),
+        ### ChunkList,     uint32_t * ChunkCount,
+        ### HuffmanData,   Size
     ]
 
 class HuffmanOffsetBytes(ctypes.LittleEndianStructure):
