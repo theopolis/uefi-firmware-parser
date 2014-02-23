@@ -35,6 +35,7 @@ from operator import itemgetter
 
 from .intel_me_structs import *
 from ..utils import dump_data
+from ..lzma import p7z_extract
 
 MeModulePowerTypes = ["POWER_TYPE_RESERVED", "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
 MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED", "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
@@ -75,6 +76,7 @@ class MeObject(object):
         ctypes.memmove(ctypes.addressof(struct_instance), struct_data, struct_length)
         self.structure = struct_instance
         self.fields = [field[0] for field in structure._fields_]
+        self.structure_size = struct_size
 
     def show_structure(self):
         for field in self.fields:
@@ -110,6 +112,7 @@ class MeModule(MeObject):
 
         ### Must know the offset from given data (the start of the header) to find data
         self.offset = self.structure.Offset - offset
+        print "Debug: module data 0x%08X - 0x%08X" % (self.offset, self.offset + self.structure.Size)
         self.data = data[self.offset:self.offset + self.structure.Size]
 
     def process(self):
@@ -147,6 +150,7 @@ class MeModule(MeObject):
             pass
         else:
             dump_data("%s.module.lzma" % os.path.join(parent, self.name), self.data)
+            dump_data("%s.module" % os.path.join(parent, self.name), p7z_extract(self.data))
         pass
 
 class MeVariableModule(MeObject):
@@ -243,12 +247,15 @@ class MeLLUT(MeObject):
         self.decompression_base = self.structure.DecompBase
 
         self.data = data[self.start-relative_offset:self.start-relative_offset + self.size]
+        ### The huffman look up table is stored following the header data.
+        self.lut_data = data[self.structure_size:self.structure_size + self.chunkcount*4]
 
     def showinfo(self, ts= ''):
         print "%sLLUT chunks (%d), chunk size (%d), start (%d), size (%d), base (%08X)." % (ts, self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
 
     def dump(self, parent= 'PART'):
         #print "Debug: relative (%d) absolute start (%d) len (%d)." % (self.offset, self.start, len(self.data))
+        dump_data("%s.llut.table" % parent, self.lut_data)
         dump_data("%s.llut.compressed" % parent, self.data)
         pass
 

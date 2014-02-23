@@ -66,32 +66,8 @@ class MeModuleHeader1Type(ctypes.LittleEndianStructure):
         ("Unk48",          uint32_t), #
         ("Unk4C",          uint32_t), #
     ]
-
-class HuffmanLUTHeader(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Tag",            char*4),   # LLUT
-        ("ChunkCount",     uint32_t), #
-        ("DecompBase",     uint32_t), #
-        ("Unk0C",          uint32_t), #
-        ("Size",           uint32_t), #
-        ("DataStart",      uint32_t), # Start of data
-        ("Unk18",          uint32_t*6), #
-        ("ChunkSize",      uint32_t), #
-        #("Unk34",          uint32_t), #
-        #("Chipset",        char*8),   # PCH
-    ]
-
-class HuffmanOffsetBytes(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("Offset", uint32_t, 24),
-        ("Length", uint8_t),
-    ]
-
-class HuffmanOffsets(ctypes.Union):
-    _fields_ = [
-        ("b", HuffmanOffsetBytes),
-        ("asword", uint32_t),
-    ]
+    udc_format = "<4s20s16sII"
+    udc_length = 0x30
 
 class MeModuleHeader2Type(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -112,6 +88,32 @@ class MeModuleHeader2Type(ctypes.LittleEndianStructure):
     ]
     udc_format = "<4s32s16sII"
     udc_length = 0x3c
+
+class HuffmanLUTHeader(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("Tag",            char*4),   # LLUT
+        ("ChunkCount",     uint32_t), #
+        ("DecompBase",     uint32_t), #
+        ("Unk0C",          uint32_t), #
+        ("Size",           uint32_t), #
+        ("DataStart",      uint32_t), # Start of data
+        ("Unk18",          uint32_t*6), #
+        ("ChunkSize",      uint32_t), #
+        ("Unk34",          uint32_t), #
+        ("Chipset",        char*8),   # PCH
+    ]
+
+class HuffmanOffsetBytes(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("Offset", uint32_t, 24),
+        ("Length", uint8_t),
+    ]
+
+class HuffmanOffsets(ctypes.Union):
+    _fields_ = [
+        ("b", HuffmanOffsetBytes),
+        ("asword", uint32_t),
+    ]
 
 class MeManifestHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -138,8 +140,6 @@ class MeManifestHeaderType(ctypes.LittleEndianStructure):
         ("PartitionName",  char*12),    # 284
         # 290
     ]
-    udc_format = "4s20s16sII"
-    udc_length = 0x30
 
 class MeFptEntryType(ctypes.LittleEndianStructure):
     _fields_ = [
