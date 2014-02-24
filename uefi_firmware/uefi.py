@@ -140,13 +140,11 @@ class CompressedSection(EfiSection):
         
         if self.type == 0x01:
             '''EFI or Tiano compression.'''
-            #print "Debug: attempting EFI decompression"
             self.data = efi_decompressor.Decompress(self.uncompressed_data)
             
         if self.type == 0x02:
             self.data = p7z_extract(self.uncompressed_data)
-            #self._p7zip(self.uncompressed_data)
-        
+            
         if self.data is None:
             '''No data was uncompressed.'''
             return
@@ -157,7 +155,6 @@ class CompressedSection(EfiSection):
     def showinfo(self, ts):
         if self.name is not None:
             print "%s %s" % (blue("%sCompressed Name:" % ts), purple(self.name))
-        
         for i, _object in enumerate(self.subsections):
             _object.showinfo(ts, i)
         
