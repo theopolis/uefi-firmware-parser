@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import os
 
 from uefi_firmware import *
+from uefi_firmware.generator import uefi as uefi_generator
+from uefi_firmware.utils import dump_data
 
 def _brute_search(data):
     volumes = search_firmware_volumes(data)
@@ -26,7 +29,14 @@ def _parse_firmware_volume(data, name="volume"):
     if args.extract:
         print "Dumping..."
         firmware_volume.dump()
-    pass    
+    
+    if args.generate is not None:
+        print "Generating FDF..."
+        firmware_volume.dump(args.generate)
+        generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
+
+        dump_data(os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name)), generator.output)
+        #print generator.output
     pass
 
 def _parse_firmware_filesystem(data):
@@ -46,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', "--firmware", action="store_true", help='The input file is a firmware volume, do not search.')
     parser.add_argument('-o', "--output", default=".", help="Dump EFI Files to this folder.")
     parser.add_argument('-e', "--extract", action="store_true", help="Extract all files/sections/volumes.")
+    parser.add_argument('-g', "--generate", default= None, help= "Generate a FDF, implies extraction")
     parser.add_argument("file", help="The file to work on")
     args = parser.parse_args()
     

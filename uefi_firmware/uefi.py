@@ -133,15 +133,18 @@ class CompressedSection(EfiSection):
         object = FirmwareFileSystemSection(self.data[offset+2:], self.guid)
         return object
     
-    def process(self):
+    def process(self):        
+        if self.type == 0x01:
+            '''EFI or Tiano compression.'''
+            #try:
+            self.data = efi_decompressor.Decompress(self.uncompressed_data)
+            #except Exception, e:
+            #    print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
+
         if self.type == 0x00:
             '''No compression.'''
             self.data = self.uncompressed_data
-        
-        if self.type == 0x01:
-            '''EFI or Tiano compression.'''
-            self.data = efi_decompressor.Decompress(self.uncompressed_data)
-            
+
         if self.type == 0x02:
             self.data = p7z_extract(self.uncompressed_data)
             
@@ -262,7 +265,10 @@ class FirmwareFileSystemSection(EfiSection):
         elif self.type == 0x02: # GUID-defined
             guid_defined = GuidDefinedSection(self.data)
             self.parsed_object = guid_defined
-            
+        
+        elif self.type == 0x14: # version string
+            self.name = uefi_name(self.data)
+
         elif self.type == 0x15: # user interface name
             self.name = uefi_name(self.data)
         
@@ -291,11 +297,11 @@ class FirmwareFileSystemSection(EfiSection):
             self.parsed_object.showinfo(ts + '  ')
                 
     def dump(self, parent= "", index= 0):
-        dump_data(os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1])), self._data)
+        self.path = os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1]))
+        dump_data(self.path, self._data)
 
-        if self.parsed_object is None: return
-
-        self.parsed_object.dump(os.path.join(parent, "section%d" % index))
+        if self.parsed_object is not None:
+            self.parsed_object.dump(os.path.join(parent, "section%d" % index))
 
 
 class FirmwareFile(FirmwareObject):
@@ -394,7 +400,8 @@ class FirmwareFile(FirmwareObject):
 
         if self.raw_blobs is not None:
             for i, blob in enumerate(self.raw_blobs):
-                dump_data(os.path.join(parent, "blob-%s.raw" % i), blob)
+                self.path = os.path.join(parent, "blob-%s.raw" % i)
+                dump_data(self.path, blob)
 
         if self.sections is not None:
             for i, section in enumerate(self.sections):
