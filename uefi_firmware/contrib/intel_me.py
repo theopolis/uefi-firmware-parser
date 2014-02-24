@@ -99,7 +99,7 @@ class MeModule(MeObject):
         self.tag = self.structure.Tag
 
         self.attrs["module_size"] = self.structure.Size
-        self.attrs["load_base"] = self.structure.LoadBase
+        #self.attrs["load_base"] = self.structure.LoadBase
         self.attrs["flags"] = self.structure.Flags
         if structure_type == MeModuleHeader2Type:
             self.attrs["power_type"] = (self.structure.Flags>>1)&3 # MeModulePowerTypes
@@ -251,7 +251,8 @@ class MeLLUT(MeObject):
         self.lut_data = data[self.structure_size:self.structure_size + self.chunkcount*4]
 
     def showinfo(self, ts= ''):
-        print "%sLLUT chunks (%d), chunk size (%d), start (%d), size (%d), base (%08X)." % (ts, self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
+        print "%sLLUT ChunkCount: (%d), ChunkSize (%d), DataStart (0x%08X), DataSize (%d)." % (ts, self.chunkcount, self.chunksize, self.start, self.size)
+        print "%s  ModuleCount (%d), Chipset (%s), Revision (%s)." % (ts, self.structure.ModuleCount, self.structure.Chipset, self.structure.Revision)
 
     def dump(self, parent= 'PART'):
         #print "Debug: relative (%d) absolute start (%d) len (%d)." % (self.offset, self.start, len(self.data))
@@ -433,8 +434,9 @@ class MeContainer(MeObject):
 
     def showinfo(self, ts= ''):
         for partition in self.partitions:
-            partition.showinfo("  %s" % ts)
+            partition.showinfo("%s" % ts)
 
     def dump(self, parent= ""):
         for partition in self.partitions:
             partition.dump(os.path.join(parent, partition.structure.PartitionName))
+
