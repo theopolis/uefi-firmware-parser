@@ -8,7 +8,7 @@
 
 import struct
 from ..uefi import FirmwareVolume, FirmwareFile, FirmwareFileSystemSection
-from ..structs import EFI_FILE_TYPES, EFI_SECTION_TYPES, EFI_COMPRESSION_TYPES
+from ..structs.uefi_structs import EFI_FILE_TYPES, EFI_SECTION_TYPES, EFI_COMPRESSION_TYPES
 from ..utils import fguid
 
 FV_BUFFER = '''
