@@ -6,7 +6,8 @@ import uuid
 
 from .utils import *
 from .structs.uefi_structs import *
-from .contrib import efi_decompressor
+#from .contrib import efi_decompressor
+import efi_compressor
 from .lzma import p7z_extract
 
 def _get_file_type(file_type):
@@ -137,7 +138,8 @@ class CompressedSection(EfiSection):
         if self.type == 0x01:
             '''EFI or Tiano compression.'''
             try:
-                self.data = efi_decompressor.Decompress(self.uncompressed_data)
+                #self.data = efi_decompressor.Decompress(self.uncompressed_data)
+                self.data = efi_compressor.UefiDecompress(self.uncompressed_data, len(self.uncompressed_data))
             except Exception, e:
                 print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
 
