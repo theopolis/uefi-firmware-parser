@@ -96,7 +96,10 @@ class EfiSection(FirmwareObject):
             if subsection_offset % 4: subsection_offset += 4 - (subsection_offset % 4)
             if subsection_offset >= len(self.data): break
 
-            subsection = FirmwareFileSystemSection(self.data[subsection_offset:], self.guid)
+            try:
+                subsection = FirmwareFileSystemSection(self.data[subsection_offset:], self.guid)
+            except struct.error, e:
+                break
             if subsection.size == 0: break
             subsection.process()
             self.subsections.append(subsection)
@@ -136,14 +139,15 @@ class CompressedSection(EfiSection):
     
     def process(self):        
         if self.type == 0x01:
-            '''EFI or Tiano compression.'''
+            ### Tiano or Efi compression, unfortunately these are identified by the same byte
             try:
-                self.data = efi_compressor.TianoDecompress(self.uncompressed_data, len(self.uncompressed_data))
+                self.data = efi_compressor.EfiDecompress(self.uncompressed_data, len(self.uncompressed_data))
             except Exception, e:
                 try:
-                    self.data = efi_compressor.EfiDecompress(self.uncompressed_data, len(self.uncompressed_data))
+                    self.data = efi_compressor.TianoDecompress(self.uncompressed_data, len(self.uncompressed_data))
                 except Exception, e:
                     print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
+                    return
 
         if self.type == 0x00:
             '''No compression.'''
