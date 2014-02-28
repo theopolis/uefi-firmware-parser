@@ -19,13 +19,14 @@ This includes minor API changes for Tiano and EFI decompressor, as well as LZMA.
 //#include "TianoCompress.h"
 
 /*
- UefiDecompress(data_buffer, size, original_size)
+ UefiDecompress(data_buffer, size, huffman_type)
 */
 STATIC
 PyObject*
 UefiDecompress(
   PyObject    *Self,
-  PyObject    *Args
+  PyObject    *Args,
+  short huffman_type
   )
 {
   PyObject      *SrcData;
@@ -78,7 +79,7 @@ UefiDecompress(
     TmpBuf += Len;
   }
 
-  Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, 2);
+  Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, huffman_type);
   if (Status != EFI_SUCCESS) {
     PyErr_SetString(PyExc_Exception, "Failed to decompress\n");
     goto ERROR;
@@ -97,8 +98,37 @@ ERROR:
   return NULL;
 }
 
+/**
 
+The following functions are semi-cyclic, they call a Python-abstraction that calls
+replica version of the following two entry points. Each uses a cased short to determine
+the huffman-decode implementation.
 
+**/
+
+STATIC
+PyObject*
+Py_EfiDecompress(
+  PyObject    *Self,
+  PyObject    *Args
+  )
+{
+  /* Use the "EFI"-type compression, or PI_STD (4-byte symbol tables). */
+  return UefiDecompress(Self, Args, 1);
+}
+
+STATIC
+PyObject*
+Py_TianoDecompress(
+  PyObject    *Self,
+  PyObject    *Args
+  )
+{
+  /* Use the "Tiano"-type compression (4-byte symbol tables). */
+  return UefiDecompress(Self, Args, 2);
+}
+
+/**
 STATIC
 PyObject*
 UefiCompress(
@@ -108,13 +138,15 @@ UefiCompress(
 {
   return NULL;
 }
+*/
 
-STATIC UINT8 DecompressDocs[] = "Decompress(): Decompress data using UEFI standard algorithm\n";
-STATIC UINT8 CompressDocs[] = "Compress(): Compress data using UEFI standard algorithm\n";
+STATIC UINT8 DecompressDocs[] = "Decompress(): Decompress data using UEFI standard algorithms\n";
+//STATIC UINT8 CompressDocs[] = "Compress(): Compress data using UEFI standard algorithm\n";
 
 STATIC PyMethodDef EfiCompressor_Funcs[] = {
-  {"UefiDecompress", (PyCFunction)UefiDecompress, METH_VARARGS, DecompressDocs},
-  {"UefiCompress", (PyCFunction)UefiCompress, METH_VARARGS, CompressDocs},
+  {"EfiDecompress", (PyCFunction)Py_EfiDecompress, METH_VARARGS, DecompressDocs},
+  {"TianoDecompress", (PyCFunction)Py_TianoDecompress, METH_VARARGS, DecompressDocs},
+  //{"UefiCompress", (PyCFunction)UefiCompress, METH_VARARGS, CompressDocs},
   //{"FrameworkDecompress", (PyCFunction)FrameworkDecompress, METH_VARARGS, DecompressDocs},
   //{"FrameworkCompress", (PyCFunction)FrameworkCompress, METH_VARARGS, DecompressDocs},
   {NULL, NULL, 0, NULL}

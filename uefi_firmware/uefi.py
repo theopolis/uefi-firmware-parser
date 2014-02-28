@@ -138,10 +138,12 @@ class CompressedSection(EfiSection):
         if self.type == 0x01:
             '''EFI or Tiano compression.'''
             try:
-                #self.data = efi_decompressor.Decompress(self.uncompressed_data)
-                self.data = efi_compressor.UefiDecompress(self.uncompressed_data, len(self.uncompressed_data))
+                self.data = efi_compressor.TianoDecompress(self.uncompressed_data, len(self.uncompressed_data))
             except Exception, e:
-                print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
+                try:
+                    self.data = efi_compressor.EfiDecompress(self.uncompressed_data, len(self.uncompressed_data))
+                except Exception, e:
+                    print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
 
         if self.type == 0x00:
             '''No compression.'''
