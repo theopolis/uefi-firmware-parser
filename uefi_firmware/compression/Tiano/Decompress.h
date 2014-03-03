@@ -140,33 +140,4 @@ Returns:
 
 **/
 
-typedef
-EFI_STATUS
-(*GETINFO_FUNCTION) (
-  IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-  OUT     UINT32  *DstSize,
-  OUT     UINT32  *ScratchSize
-  );
-
-typedef
-EFI_STATUS
-(*DECOMPRESS_FUNCTION) (
-  IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-  IN OUT  VOID    *Destination,
-  IN      UINT32  DstSize,
-  IN OUT  VOID    *Scratch,
-  IN      UINT32  ScratchSize
-  );
-
-EFI_STATUS
-Extract (
-  IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-     OUT  VOID    **Destination,
-     OUT  UINT32  *DstSize,
-  IN      UINTN   Algorithm
-  );
-
 #endif

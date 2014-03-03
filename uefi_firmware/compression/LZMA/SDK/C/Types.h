@@ -4,7 +4,19 @@
 #ifndef __7Z_TYPES_H
 #define __7Z_TYPES_H
 
-#include "../../UefiLzma.h"
+//#include "../../UefiLzma.h"
+#include "BaseTypes.h"
+
+#ifdef _WIN32
+#undef _WIN32
+#endif
+
+#ifdef _WIN64
+#undef _WIN64
+#endif
+
+#define _LZMA_SIZE_OPT
+#define _7ZIP_ST
 
 #include <stddef.h>
 

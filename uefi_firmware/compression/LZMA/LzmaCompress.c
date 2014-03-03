@@ -12,8 +12,8 @@ WITHWARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 */
 
 #include "LzmaCompress.h"
-#include "Sdk/C/7zVersion.h"
-#include "Sdk/C/LzmaEnc.h"
+//#include "Sdk/C/7zVersion.h"
+#include "SDK/C/LzmaEnc.h"
 
 #include <stdlib.h>
 
@@ -32,7 +32,6 @@ static ICompressProgress g_ProgressCallback = { &OnProgress };
 
 STATIC
     UINT64
-    EFIAPI
     RShiftU64 (
     UINT64                    Operand,
     UINT32                     Count
@@ -57,13 +56,12 @@ VOID
     }
 }
 
-INT32
-    EFIAPI
+EFI_STATUS
     LzmaCompress (
-    CONST VOID  *Source,
-    UINT32       SourceSize,
-    VOID    *Destination,
-    UINT32   *DestinationSize
+    IN     UINT8   *Source,
+    IN     UINT32  SourceSize,
+    IN     UINT8   *Destination,
+    IN OUT UINT32  *DestinationSize
     )
 {
     SRes              LzmaResult;
@@ -85,7 +83,7 @@ INT32
     LzmaResult = LzmaEncode(
         (Byte*)((UINT8*)Destination + LZMA_HEADER_SIZE), 
         &destLen,
-        Source, 
+        (VOID*)Source, 
         SourceSize,
         &props, 
         (UINT8*)Destination, 

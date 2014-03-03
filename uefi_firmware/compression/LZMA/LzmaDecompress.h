@@ -14,10 +14,9 @@
 #ifndef __LZMADECOMPRESS_H__
 #define __LZMADECOMPRESS_H__
 
-#include "../Common/BaseTypes.h"
+#include "BaseTypes.h"
 
 UINT64
-EFIAPI
 LShiftU64 (
   UINT64                    Operand,
   UINT32                    Count
@@ -50,12 +49,12 @@ LShiftU64 (
                           buffer was returned ScratchSize.
 
 */
-INT32
-EFIAPI
+EFI_STATUS
 LzmaGetInfo (
-  CONST VOID  *Source,
-  UINT32      SourceSize,
-  UINT32      *DestinationSize
+  IN     VOID    *Source,
+  IN     UINT32  SourceSize,
+  OUT    UINT32  *DestinationSize,
+  OUT    UINT32  *ScratchSize      // UNUSED
   );
 
 /*
@@ -77,12 +76,14 @@ LzmaGetInfo (
                           The source buffer specified by Source is corrupted 
                           (not a valid compressed format).
 */
-INT32
-EFIAPI
+EFI_STATUS
 LzmaDecompress (
-  CONST VOID  *Source,
-  UINT32       SourceSize,
-  VOID    *Destination
+  IN      VOID    *Source,
+  IN      UINT32  SourceSize,
+  IN OUT  VOID    *Destination,
+  IN      UINT32  DstSize,      // UNUSED
+  IN OUT  VOID    *Scratch,     // UNUSED
+  IN      UINT32  SctachSize    // UNUSED
   );
 
 #endif

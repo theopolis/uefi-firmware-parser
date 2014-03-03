@@ -12,14 +12,13 @@ WITHWARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 */
 
 #include "LzmaDecompress.h"
-#include "Sdk/C/Types.h"
-#include "Sdk/C/7zVersion.h"
-#include "Sdk/C/LzmaDec.h"
+#include "SDK/C/Types.h"
+//#include "Sdk/C/7zVersion.h"
+#include "SDK/C/LzmaDec.h"
 
 #include <stdlib.h>
 
 UINT64
-    EFIAPI
     LShiftU64 (
     UINT64                    Operand,
     UINT32                     Count
@@ -88,13 +87,13 @@ DestinationSize and the size of the scratch
 buffer was returned ScratchSize.
 
 */
-INT32
-    EFIAPI
-    LzmaGetInfo (
-    CONST VOID  *Source,
-    UINT32      SourceSize,
-    UINT32      *DestinationSize
-    )
+EFI_STATUS
+LzmaGetInfo (
+  IN   VOID    *Source,
+  IN   UINT32  SourceSize,
+  OUT  UINT32  *DestinationSize,
+  OUT  UINT32  *ScratchSize
+  )
 {
     UInt64  DecodedSize;
 
@@ -125,12 +124,14 @@ the uncompressed buffer is returned Destination.
 The source buffer specified by Source is corrupted 
 (not a valid compressed format).
 */
-INT32
-    EFIAPI
+EFI_STATUS
     LzmaDecompress (
-    CONST VOID  *Source,
-    UINT32       SourceSize,
-    VOID    *Destination
+    IN      VOID    *Source,
+    IN      UINT32  SourceSize,
+    IN OUT  VOID    *Destination,
+    IN      UINT32  DstSize,
+    IN OUT  VOID    *Scratch,
+    IN      UINT32  ScratchSize
     )
 {
     SRes              LzmaResult;
