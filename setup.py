@@ -23,8 +23,9 @@ setup(
         Extension(
             'uefi_firmware.efi_compressor',
             sources=[
-                #os.path.join(BaseToolsDir, 'Source', 'C', 'Common', 'Decompress.c'),
-                #'EfiCompressor.c'
+                os.path.join("uefi_firmware", "compression", "Tiano", "EfiCompress.c"),
+                os.path.join("uefi_firmware", "compression", "Tiano", "TianoCompress.c"),
+
                 os.path.join("uefi_firmware", "compression", "Tiano", "Decompress.c"),
                 os.path.join("uefi_firmware", "compression", "EfiCompressor.c")
                 ],

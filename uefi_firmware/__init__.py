@@ -1,3 +1,4 @@
-from .uefi import *
+
+import uefi
 import pfs
 import me

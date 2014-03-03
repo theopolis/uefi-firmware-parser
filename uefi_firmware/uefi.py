@@ -6,7 +6,7 @@ import uuid
 
 from .utils import *
 from .structs.uefi_structs import *
-#from .contrib import efi_decompressor
+
 import efi_compressor
 from .lzma import p7z_extract
 
@@ -127,34 +127,31 @@ class CompressedSection(EfiSection):
         self.type = ord(self.type)
         
         # Advance the byte pointer through the header
-        self.uncompressed_data = data[5:]
+        self.compressed_data = data[5:]
         self.attrs = {"decompressed_size": self.decompressed_size, "type": self.type}
         
         pass
-    
-    def _try_again(self, data, offset):
-        '''Warning: this is a massive hack.'''
-        object = FirmwareFileSystemSection(self.data[offset+2:], self.guid)
-        return object
     
     def process(self):        
         if self.type == 0x01:
             ### Tiano or Efi compression, unfortunately these are identified by the same byte
             try:
-                self.data = efi_compressor.EfiDecompress(self.uncompressed_data, len(self.uncompressed_data))
+                self.data = efi_compressor.EfiDecompress(self.compressed_data, len(self.compressed_data))
             except Exception, e:
                 try:
-                    self.data = efi_compressor.TianoDecompress(self.uncompressed_data, len(self.uncompressed_data))
+                    self.data = efi_compressor.TianoDecompress(self.compressed_data, len(self.compressed_data))
                 except Exception, e:
                     print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
                     return
+            #if fguid(self.guid) == "c57ad6b7-0515-40a8-219d-551652854e37":
+            dump_data("%s.readcompressed" % fguid(self.guid), self.compressed_data)
 
         if self.type == 0x00:
             '''No compression.'''
-            self.data = self.uncompressed_data
+            self.data = self.compressed_data
 
         if self.type == 0x02:
-            self.data = p7z_extract(self.uncompressed_data)
+            self.data = p7z_extract(self.compressed_data)
             
         if self.data is None:
             '''No data was uncompressed.'''

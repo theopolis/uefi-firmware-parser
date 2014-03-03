@@ -3,7 +3,7 @@
 import argparse
 import os
 
-from uefi_firmware import *
+from uefi_firmware.uefi import *
 from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware.utils import dump_data
 

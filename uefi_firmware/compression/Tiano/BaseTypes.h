@@ -150,6 +150,9 @@ typedef RETURN_STATUS   EFI_STATUS;
 #define ERR_FILE_READ             7
 #define ERR_FILE_WRITE            8
 
+/* Used in Compress */
+#define EFI_ERROR(A)              RETURN_ERROR(A)
+
 #include <assert.h>
 #define ASSERT(x) assert(x)
 

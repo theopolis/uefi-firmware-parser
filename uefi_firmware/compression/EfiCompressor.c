@@ -15,8 +15,13 @@ This includes minor API changes for Tiano and EFI decompressor, as well as LZMA.
 **/
 
 #include <Python.h>
+
 #include "Decompress.h"
-//#include "TianoCompress.h"
+#include "Compress.h"
+#include "EfiFile.h"
+
+#define EFI_COMPRESSION   1
+#define TIANO_COMPRESSION 2
 
 /*
  UefiDecompress(data_buffer, size, huffman_type)
@@ -26,7 +31,7 @@ PyObject*
 UefiDecompress(
   PyObject    *Self,
   PyObject    *Args,
-  short huffman_type
+  UINT8       type
   )
 {
   PyObject      *SrcData;
@@ -79,7 +84,113 @@ UefiDecompress(
     TmpBuf += Len;
   }
 
-  Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, huffman_type);
+  Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, type);
+  if (Status != EFI_SUCCESS) {
+    PyErr_SetString(PyExc_Exception, "Failed to decompress\n");
+    goto ERROR;
+  }
+
+  return PyBuffer_FromMemory(DstBuf, (Py_ssize_t)DstDataSize);
+
+ERROR:
+  if (SrcBuf != NULL) {
+    free(SrcBuf);
+  }
+
+  if (DstBuf != NULL) {
+    free(DstBuf);
+  }
+  return NULL;
+}
+
+/*
+ UefiCompress(data_buffer, size, huffman_type)
+*/
+STATIC
+PyObject*
+UefiCompress(
+  PyObject    *Self,
+  PyObject    *Args,
+  UINT8       type
+  )
+{
+  PyObject      *SrcData;
+  UINT32        SrcDataSize;
+  UINT32        DstDataSize;
+  UINT32         Status;
+  UINT8         *SrcBuf;
+  UINT8         *DstBuf;
+  UINT8         *TmpBuf;
+  Py_ssize_t    SegNum;
+  Py_ssize_t    Index;
+
+  // Pick the compress function based on compression type
+  //UINT32 HdrSize;
+  //UINT32 TotalSize;
+  UINT32 ObjLen;
+  COMPRESS_FUNCTION CompressFunction;
+
+  ObjLen = 0;
+  DstBuf = NULL;
+
+  Status = PyArg_ParseTuple(
+            Args,
+            "Oi",
+            &SrcData,
+            &SrcDataSize
+            );
+  if (Status == 0) {
+    return NULL;
+  }
+
+  if (SrcData->ob_type->tp_as_buffer == NULL
+      || SrcData->ob_type->tp_as_buffer->bf_getreadbuffer == NULL
+      || SrcData->ob_type->tp_as_buffer->bf_getsegcount == NULL) {
+    PyErr_SetString(PyExc_Exception, "First argument is not a buffer\n");
+    return NULL;
+  }
+
+  // Because some Python objects which support "buffer" protocol have more than one
+  // memory segment, we have to copy them into a contiguous memory.
+  SrcBuf = PyMem_Malloc(SrcDataSize);
+  if (SrcBuf == NULL) {
+    PyErr_SetString(PyExc_Exception, "Not enough memory\n");
+    goto ERROR;
+  }
+
+  SegNum = SrcData->ob_type->tp_as_buffer->bf_getsegcount((PyObject *)SrcData, NULL);
+  TmpBuf = SrcBuf;
+  for (Index = 0; Index < SegNum; ++Index) {
+    VOID *BufSeg;
+    Py_ssize_t Len;
+
+    Len = SrcData->ob_type->tp_as_buffer->bf_getreadbuffer((PyObject *)SrcData, Index, &BufSeg);
+    if (Len < 0) {
+      PyErr_SetString(PyExc_Exception, "Buffer segment is not available\n");
+      goto ERROR;
+    }
+
+    ObjLen += Len;
+    if (ObjLen > SrcDataSize) {
+      PyErr_SetString(PyExc_Exception, "Buffer segment to large, check source size\n");
+      goto ERROR;
+    }
+
+    memcpy(TmpBuf, BufSeg, Len);
+    TmpBuf += Len;
+  }
+
+  CompressFunction = (COMPRESS_FUNCTION) ((type == EFI_COMPRESSION) ? EfiCompress : TianoCompress);
+  Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
+  if (Status == EFI_BUFFER_TOO_SMALL) {
+    DstBuf = malloc (DstDataSize);
+    if (!DstBuf) {
+      goto ERROR;
+    }
+
+    Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
+  }
+
   if (Status != EFI_SUCCESS) {
     PyErr_SetString(PyExc_Exception, "Failed to decompress\n");
     goto ERROR;
@@ -113,8 +224,8 @@ Py_EfiDecompress(
   PyObject    *Args
   )
 {
-  /* Use the "EFI"-type compression, or PI_STD (4-byte symbol tables). */
-  return UefiDecompress(Self, Args, 1);
+  /* Use the "EFI"-type compression, or PI_STD (4-bit symbol tables). */
+  return UefiDecompress(Self, Args, EFI_COMPRESSION);
 }
 
 STATIC
@@ -124,8 +235,30 @@ Py_TianoDecompress(
   PyObject    *Args
   )
 {
-  /* Use the "Tiano"-type compression (4-byte symbol tables). */
-  return UefiDecompress(Self, Args, 2);
+  /* Use the "Tiano"-type compression (5-bit symbol tables). */
+  return UefiDecompress(Self, Args, TIANO_COMPRESSION);
+}
+
+STATIC
+PyObject*
+Py_EfiCompress(
+  PyObject    *Self,
+  PyObject    *Args
+  )
+{
+  /* Use the "EFI"-type compression, or PI_STD (4-bit symbol tables). */
+  return UefiCompress(Self, Args, EFI_COMPRESSION);
+}
+
+STATIC
+PyObject*
+Py_TianoCompress(
+  PyObject    *Self,
+  PyObject    *Args
+  )
+{
+  /* Use the "Tiano"-type compression (5-bit symbol tables). */
+  return UefiCompress(Self, Args, TIANO_COMPRESSION);
 }
 
 /**
@@ -140,12 +273,15 @@ UefiCompress(
 }
 */
 
-STATIC UINT8 DecompressDocs[] = "Decompress(): Decompress data using UEFI standard algorithms\n";
+#define DECOMPRESS_DOCS "Decompress(): Decompress data using UEFI standard algorithms\n"
 //STATIC UINT8 CompressDocs[] = "Compress(): Compress data using UEFI standard algorithm\n";
 
 STATIC PyMethodDef EfiCompressor_Funcs[] = {
-  {"EfiDecompress", (PyCFunction)Py_EfiDecompress, METH_VARARGS, DecompressDocs},
-  {"TianoDecompress", (PyCFunction)Py_TianoDecompress, METH_VARARGS, DecompressDocs},
+  {"EfiDecompress", (PyCFunction)Py_EfiDecompress, METH_VARARGS, DECOMPRESS_DOCS},
+  {"TianoDecompress", (PyCFunction)Py_TianoDecompress, METH_VARARGS, DECOMPRESS_DOCS},
+  {"EfiCompress", (PyCFunction)Py_EfiCompress, METH_VARARGS, DECOMPRESS_DOCS},
+  {"TianoCompress", (PyCFunction)Py_TianoCompress, METH_VARARGS, DECOMPRESS_DOCS},
+
   //{"UefiCompress", (PyCFunction)UefiCompress, METH_VARARGS, CompressDocs},
   //{"FrameworkDecompress", (PyCFunction)FrameworkDecompress, METH_VARARGS, DecompressDocs},
   //{"FrameworkCompress", (PyCFunction)FrameworkCompress, METH_VARARGS, DecompressDocs},
