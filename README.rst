@@ -12,7 +12,7 @@ Installation
 
 **Requirements**
 
-- The 7-zip binary ``7zr`` is used for LZMA decompression.
+- Python development headers, usually found in the ``python-dev`` package.
 - ``pefile`` is optional, and may be used for additional parsing.
 
 Usage
@@ -33,7 +33,18 @@ Example scripts are provided in ``/scripts``
   optional arguments:
     -h, --help            show this help message and exit
     -f, --firmware        The input file is a firmware volume, do not search.
-    -o OUTPUT, --output OUTPUT
-                          Dump EFI Files to this folder.
+    --output OUTPUT       Dump EFI Files to this folder.
     -e, --extract         Extract all files/sections/volumes.
 
+**Features**
+
+- UEFI Firmware Volumes, FileSystems, Files, Sections parsing
+- Intel ME modules parsing
+- Dell PFS (HDR) updates parsing
+
+- Tiano/EFI [De]Compression
+- Native LZMA (7z) [De]Compression
+
+- Complete UEFI Firmware volume object heirarchy
+- Firmware descriptor [re]generation using the parsed input volumes
+- *coming soon* Firmware File Section injection
