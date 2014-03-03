@@ -143,8 +143,6 @@ class CompressedSection(EfiSection):
                 except Exception, e:
                     print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
                     return
-            #if fguid(self.guid) == "c57ad6b7-0515-40a8-219d-551652854e37":
-            dump_data("%s.readcompressed" % fguid(self.guid), self.compressed_data)
 
         if self.type == 0x00:
             '''No compression.'''
