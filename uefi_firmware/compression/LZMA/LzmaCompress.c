@@ -72,7 +72,7 @@ EFI_STATUS
     if (*DestinationSize < destLen)
     {
         *DestinationSize = destLen;
-        return ERR_BUFFER_TOO_SMALL;
+        return EFI_BUFFER_TOO_SMALL;
     }
 
     LzmaEncProps_Init(&props);
@@ -98,9 +98,9 @@ EFI_STATUS
     SetEncodedSizeOfBuf((UINT64)SourceSize, Destination);
 
     if (LzmaResult == SZ_OK) {
-        return ERR_SUCCESS;
+        return EFI_SUCCESS;
     } else {
-        return ERR_INVALID_PARAMETER;
+        return EFI_INVALID_PARAMETER;
     }
 }
 

@@ -47,6 +47,7 @@ Extract (
 
   GetInfoFunction = NULL;
   DecompressFunction = NULL;
+  Scratch = NULL;
   Status = EFI_SUCCESS;
 
   switch (Algorithm) {
@@ -81,7 +82,7 @@ Extract (
         Scratch = (VOID *)malloc(ScratchSize);
       }
       *Destination = (VOID *)malloc(*DstSize);
-      if ((ScratchSize > 0 && Scratch != NULL) && *Destination != NULL) {
+      if (((ScratchSize > 0 && Scratch != NULL) || ScratchSize == 0) && *Destination != NULL) {
         Status = DecompressFunction(Source, SrcSize, *Destination, *DstSize, Scratch, ScratchSize);
       } else {
         Status = EFI_OUT_OF_RESOURCES;

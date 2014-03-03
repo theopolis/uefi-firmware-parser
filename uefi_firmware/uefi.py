@@ -6,9 +6,7 @@ import uuid
 
 from .utils import *
 from .structs.uefi_structs import *
-
 import efi_compressor
-from .lzma import p7z_extract
 
 def _get_file_type(file_type):
     return EFI_FILE_TYPES[file_type] if file_type in EFI_FILE_TYPES else ("unknown", "unknown")
@@ -106,6 +104,9 @@ class EfiSection(FirmwareObject):
 
             subsection_offset += subsection.size
 
+    def build(self, generate_checksum= False, debug= False):
+        raise Exception("Cannot build from unknown section type!")
+
     def process(self): pass
     def showinfo(self, ts= '', index=-1): pass
 
@@ -125,6 +126,8 @@ class CompressedSection(EfiSection):
         # http://dox.ipxe.org/PiFirmwareFile_8h_source.html
         self.decompressed_size, self.type = struct.unpack("<Ic", data[:5])
         self.type = ord(self.type)
+        # A special compression type to determine (EFI/Tiano if type= 0x01).
+        self.subtype = 0
         
         # Advance the byte pointer through the header
         self.compressed_data = data[5:]
@@ -137,11 +140,14 @@ class CompressedSection(EfiSection):
             ### Tiano or Efi compression, unfortunately these are identified by the same byte
             try:
                 self.data = efi_compressor.EfiDecompress(self.compressed_data, len(self.compressed_data))
+                self.subtype = 0x01
             except Exception, e:
                 try:
                     self.data = efi_compressor.TianoDecompress(self.compressed_data, len(self.compressed_data))
+                    self.subtype = 0x02
                 except Exception, e:
-                    print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
+                    #print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
+                    raise Exception("Cannot decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
                     return
 
         if self.type == 0x00:
@@ -149,13 +155,40 @@ class CompressedSection(EfiSection):
             self.data = self.compressed_data
 
         if self.type == 0x02:
-            self.data = p7z_extract(self.compressed_data)
+            try:
+                self.data = efi_compressor.LzmaDecompress(self.compressed_data, len(self.compressed_data))
+            except Exception, e:
+                raise Exception("Cannot decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
+                return
+            #self.data = p7z_extract(self.compressed_data)
             
         if self.data is None:
             '''No data was uncompressed.'''
             return
         
         self.process_subsections()
+        pass
+
+    def build(self, generate_checksum= False, debug= False):
+        #print "Building compression type=(%d, %d)" % (self.type, self.subtype)
+
+        data = ""
+        for section in self.subsections:
+            data += section.build(generate_checksum)
+
+        if self.type == 0x01:
+            if self.subtype == 0x01:
+                data = str(efi_compressor.EfiCompress(data, len(data)))
+            elif self.subtype == 0x02:
+                #print len(data)
+                data = str(efi_compressor.TianoCompress(data, len(data)))
+        elif self.type == 0x02:
+            data = str(efi_compressor.LzmaCompress(data, len(data)))
+        elif self.type == 0x00:
+            pass
+
+        header = struct.pack("<Ic", self.decompressed_size, chr(self.type))
+        return header + data
         pass
 
     def showinfo(self, ts):
@@ -172,7 +205,8 @@ class FreeformGuidSection(EfiSection):
 
     struct { UCHAR GUID[16]; }
     """
-    _CHAR_GUID = uuid.UUID("{059ef06e-c652-4a45-be9f-5975e369461c}")
+    
+    CHAR_GUID = "059ef06e-c652-4a45-be9f-5975e369461c"
     name = None
 
     def __init__(self, data):
@@ -181,12 +215,19 @@ class FreeformGuidSection(EfiSection):
         self.data = data[16:]
 
     def process(self):
-        if uuid.UUID(fguid(self.guid)) == self._CHAR_GUID:
+        if fguid(self.guid) == self.CHAR_GUID:
             self.guid_header = self.data[:12]
             self.name = uefi_name(self.data[12:])
         pass
 
+    def build(self, generate_checksum= False, debug= False):
+        #print "Building FreeformGUID: %s" % green(fguid(self.guid))
+
+        header = struct.pack("<16s", self.guid)
+        return header + self.data
+
     def showinfo(self, ts='', index=-1): 
+        #print "%sGUID: %s" % (ts, green(fguid(self.guid)))
         if self.name is not None:
             print "%sGUID Description: %s" % (ts, purple(self.name))
         pass
@@ -214,14 +255,34 @@ class GuidDefinedSection(EfiSection):
 
     def process(self):
         if fguid(self.guid) == self.LZMA_COMPRESSED_GUID:
-            self.data = p7z_extract(self.data)
+            #self.data = p7z_extract(self.data)
+            try:
+                self.data = efi_compressor.LzmaDecompress(self.data, len(self.data))
+            except Exception, e:
+                raise "Cannot decompress GuidDefinedSection, %s" % (str(e))
+                return
             self.process_subsections()
 
         elif fguid(self.guid) == self.STATIC_GUID:
             self.process_subsections()
         pass
 
+    def build(self, generate_checksum= False, debug= False):
+        #print "Building GUID-defined: %s" % green(fguid(self.guid))
+
+        data = ""
+        for section in self.subsections:
+            data += section.build(generate_checksum)
+
+        if fguid(self.guid) == LZMA_COMPRESSED_GUID:
+            data = efi_compressor.LzmaCompress(data, len(data))
+            pass
+
+        header = struct.pack("<16sHH", self.guid, self.offset, self.attrs)
+        return header + data
+
     def showinfo(self, ts='', index= 0):
+        #print "%sGUID: %s" % (ts, green(fguid(self.guid)))
         if len(self.subsections) > 0:
             for i, section in enumerate(self.subsections):
                 section.showinfo(ts, index= i)
@@ -288,6 +349,21 @@ class FirmwareFileSystemSection(EfiSection):
 
         if self.parsed_object is None: return
         self.parsed_object.process()
+
+        pass
+
+    def build(self, generate_checksum= False, debug= False):
+        #print "Building section (%s): %s" % (_get_section_type(self.type)[1], green(fguid(self.guid)))
+
+        data = ""
+        if self.parsed_object is not None:
+            data = self.parsed_object.build(generate_checksum)
+        else:
+            data = self.data
+
+        size = struct.pack("<I", self.size)
+        header = struct.pack("<3sB", size[:3], self.type)
+        return header + data
 
         pass
 
@@ -376,7 +452,24 @@ class FirmwareFile(FirmwareObject):
             self.sections.append(file_section)
             section_data = section_data[(file_section.size + 3)&(~3):]
         pass
-    
+
+    def build(self, generate_checksum= False, debug= False):
+        #print "Building file: %s" % green(fguid(self.guid))
+        
+        data = ""
+        for section in self.sections:
+            data += section.build(generate_checksum)
+
+        for blob in self.raw_blobs:
+            data += blob
+
+        if generate_checksum:
+            pass
+
+        size = struct.pack("<I", self.size)
+        header = struct.pack("<16sHBB3sB", self.guid, self.checksum, self.type, self.attributes, size[:3], self.state)
+        return header + data
+
     def showinfo(self, ts='', index= "N/A"):
         print "%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x (%d bytes), (%s)" % (
             blue("%sFile %s:" % (ts, index)),
@@ -422,7 +515,9 @@ class FirmwareFileSystem(FirmwareObject):
     def __init__(self, data):
         self.files = []
         self._data = data
-        self.data = data
+
+        ### Overflow data is non-file data within the filesystem
+        self.overflow_data = ""
     
     @property
     def objects(self):
@@ -431,8 +526,9 @@ class FirmwareFileSystem(FirmwareObject):
     def process(self):
         '''Search for a 24-byte header that does not contain all 0xFF.'''
         
-        while len(self.data) >= 24 and self.data[:24] != ("\xff"*24):
-            firmware_file = FirmwareFile(self.data)
+        data = self._data
+        while len(data) >= 24 and data[:24] != ("\xff"*24):
+            firmware_file = FirmwareFile(data)
 
             if firmware_file.size < 24:
                 '''This is a problem, the file was corrupted.'''
@@ -441,9 +537,22 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file.process()
             self.files.append(firmware_file)
             
-            self.data = self.data[(firmware_file.size + 7) & (~7):]
+            data = data[(firmware_file.size + 7) & (~7):]
+
+        if len(data) > 0:
+            ### There is overflow data
+            self.overflow_data = data
         pass
     
+    def build(self, generate_checksum= False, debug= False):
+
+        ### Generate the file system data as an unstructed set of file data.
+        data = ""
+        for firmware_file in self.files:
+            data += firmware_file.build(generate_checksum)
+        return data + self.overflow_data
+        pass
+
     def showinfo(self, ts= ''):
         for i, firmware_file in enumerate(self.files):
             #print ts + "File %d:" % i
@@ -549,7 +658,29 @@ class FirmwareVolume(FirmwareObject):
             firmware_filesystem = FirmwareFileSystem(self.data[:block[0] * block[1]])
             firmware_filesystem.process()            
             self.firmware_filesystems.append(firmware_filesystem)
-            
+
+    def build(self, generate_checksum= False, debug= False):
+        
+        ### Generate blocks from FirmwareFileSystems
+        data = ""
+        for filesystem in self.firmware_filesystems:
+            #print "Building filesystem"
+            data += filesystem.build(generate_checksum)
+
+        ### Generate block map from original block map (assume no size change)
+        block_map = ""
+        for block in self.blocks:
+            #print "Packing block"
+            block_map += struct.pack("<II", block[0], block[1])
+
+        if generate_checksum:
+            pass
+
+        ### Assume no size change
+        header = struct.pack("<16s16sQ4sIHH3sB", self.rsvd, self.guid, self.size, self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision)
+        return header + block_map + data
+        pass
+    
     def showinfo(self, ts=''):
         if len(self.data) == 0:
             return

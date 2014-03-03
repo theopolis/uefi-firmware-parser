@@ -35,7 +35,7 @@ from operator import itemgetter
 
 from .structs.intel_me_structs import *
 from .utils import dump_data
-from .lzma import p7z_extract
+from uefi_firmware import efi_compressor
 
 MeModulePowerTypes = ["POWER_TYPE_RESERVED", "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
 MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED", "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
@@ -137,7 +137,13 @@ class MeModule(MeObject):
             pass
         else:
             dump_data("%s.module.lzma" % os.path.join(parent, self.name), self.data)
-            dump_data("%s.module" % os.path.join(parent, self.name), p7z_extract(self.data))
+            try:
+                data = efi_compressor.LzmaDecompress(self.data, len(self.data))
+                dump_data("%s.module" % os.path.join(parent, self.name), data)
+            except Exception, e:
+                print "Cannot extract GUID (%s), %s" % (fguid(self.guid), str(e))
+                return
+            pass
         pass
 
 class MeVariableModule(MeObject):

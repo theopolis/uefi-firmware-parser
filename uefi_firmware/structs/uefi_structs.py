@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+import ctypes
+
+uint8_t  = ctypes.c_ubyte
+char     = ctypes.c_char
+uint32_t = ctypes.c_uint
+uint64_t = ctypes.c_uint64
+uint16_t = ctypes.c_ushort
 
 EFI_FILE_TYPES = {
     # http://wiki.phoenix.com/wiki/index.php/EFI_FV_FILETYPE
@@ -46,3 +53,16 @@ EFI_COMPRESSION_TYPES = {
     #0x02: "EFI_CUSTOMIZED_COMPRESSION"
     0x02: "PI_STD"
 }
+
+class FirmwareVolumeType(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("Reserved",   char*16),  # Zeros
+        ("Guid",       char*16),  #
+        ("Size",       uint64_t), 
+        ("Magic",      char*4),
+        ("Attributes", uint8_t),
+        ("HeaderSize", uint32_t),
+        ("Checksum",   uint16_t),
+        ("Reserved2",  uint8_t),
+        ("Revision",   uint8_t)
+    ]

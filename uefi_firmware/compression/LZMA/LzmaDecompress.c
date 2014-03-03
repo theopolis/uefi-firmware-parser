@@ -102,7 +102,7 @@ LzmaGetInfo (
     DecodedSize = GetDecodedSizeOfBuf((UINT8*)Source);
 
     *DestinationSize = (UINT32)DecodedSize;
-    return ERR_SUCCESS;
+    return EFI_SUCCESS;
 }
 
 /*
@@ -155,9 +155,9 @@ EFI_STATUS
         );
 
     if (LzmaResult == SZ_OK) {
-        return ERR_SUCCESS;
+        return EFI_SUCCESS;
     } else {
-        return ERR_INVALID_PARAMETER;
+        return EFI_INVALID_PARAMETER;
     }
 }
 
