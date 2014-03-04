@@ -25,6 +25,15 @@ def uefi_name(s):
     except Exception, e:
         return None
 
+def compare(data1, data2):
+    from hashlib import md5
+    md5_1 = md5(data1).hexdigest()
+    md5_2 = md5(data2).hexdigest()
+    if (md5_1 != md5_2):
+        print "%s != %s" % (md5_1, md5_2)
+        return False
+    return True
+
 class FirmwareObject(object):
     data = None
 
@@ -175,6 +184,13 @@ class CompressedSection(EfiSection):
         data = ""
         for section in self.subsections:
             data += section.build(generate_checksum)
+        #data = self.data
+
+        ### Pad the pre-compression data
+        trailling_bytes = len(self.data) - len(data)
+        if trailling_bytes > 0:
+            print "%d %d pre-adding %d" % (len(self.data), len(data), trailling_bytes)
+            data += '\x00' * trailling_bytes
 
         if self.type == 0x01:
             if self.subtype == 0x01:
@@ -186,6 +202,24 @@ class CompressedSection(EfiSection):
             data = str(efi_compressor.LzmaCompress(data, len(data)))
         elif self.type == 0x00:
             pass
+
+        ### Pad the post-compression data, check for potential overflows.
+        #trailling_bytes = len(self.compressed_data) - len(data)
+        #if trailling_bytes > 0:
+        #    print "%d %d post-adding %d" % (len(self.compressed_data), len(data), trailling_bytes)
+        #    data += '\x00' * trailling_bytes
+        #if trailling_bytes < 0:
+        #    raise Exception("CompressionSection overflow for GUID %s of %d bytes." % (fguid(self.guid), trailling_bytes*-1))
+
+        #print str(efi_compressor.LzmaDecompress(data, len(data))) == self.data
+        #dump_data("%s.lzma" % fguid(self.guid), self.compressed_data)
+        #dump_data("%s-2.lzma" % fguid(self.guid), data)
+
+        if not compare(self.compressed_data, data):
+            print len(self.subsections), len(self.compressed_data), len(data), self.type, self.subtype
+            print self.compressed_data[-2:].encode("hex"), data[-2:].encode("hex")
+            dump_data("%s.lzma" % fguid(self.guid), self.compressed_data)
+            dump_data("%s-2.lzma" % fguid(self.guid), data)        
 
         header = struct.pack("<Ic", self.decompressed_size, chr(self.type))
         return header + data
@@ -358,8 +392,19 @@ class FirmwareFileSystemSection(EfiSection):
         data = ""
         if self.parsed_object is not None:
             data = self.parsed_object.build(generate_checksum)
+            #print "adding section %s %s" % (fguid(self.guid), self.attrs["type_name"]), len(data), self.size
         else:
             data = self.data
+            print "adding section %s %s" % (fguid(self.guid), self.attrs["type_name"]), len(data), self.size
+
+        ### Pad the data and check for potential overflows.
+        trailling_bytes = (self.size-4) - len(data)
+        if trailling_bytes > 0:
+            print "%d %d section-adding %d" % (self.size, len(data), trailling_bytes)
+            data += '\x00' * trailling_bytes
+        if trailling_bytes < 0:
+            #raise Exception("FileSystemSection GUID %s has overflown %d bytes." % (fguid(self.guid), trailling_bytes*-1))
+            pass
 
         size = struct.pack("<I", self.size)
         header = struct.pack("<3sB", size[:3], self.type)

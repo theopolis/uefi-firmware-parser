@@ -23,6 +23,7 @@ def _parse_firmware_volume(data, name="volume"):
 
     firmware_volume.process()
     data = firmware_volume.build()
+    dump_data("injected", data)
     #firmware_volume.showinfo('')
     
     pass
