@@ -30,7 +30,7 @@ def compare(data1, data2):
     md5_1 = md5(data1).hexdigest()
     md5_2 = md5(data2).hexdigest()
     if (md5_1 != md5_2):
-        print "%s != %s" % (md5_1, md5_2)
+        print "%s != %s" % (red(md5_1), red(md5_2))
         return False
     return True
 
@@ -156,7 +156,7 @@ class CompressedSection(EfiSection):
                     self.subtype = 0x02
                 except Exception, e:
                     #print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
-                    raise Exception("Cannot decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
+                    raise Exception("Cannot EFI decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
                     return
 
         if self.type == 0x00:
@@ -167,7 +167,7 @@ class CompressedSection(EfiSection):
             try:
                 self.data = efi_compressor.LzmaDecompress(self.compressed_data, len(self.compressed_data))
             except Exception, e:
-                raise Exception("Cannot decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
+                raise Exception("Cannot LZMA decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
                 return
             #self.data = p7z_extract(self.compressed_data)
             
@@ -183,43 +183,28 @@ class CompressedSection(EfiSection):
 
         data = ""
         for section in self.subsections:
-            data += section.build(generate_checksum)
-        #data = self.data
+            subsection_size, subsection_data = section.build(generate_checksum)
+            data += subsection_data
 
         ### Pad the pre-compression data
         trailling_bytes = len(self.data) - len(data)
         if trailling_bytes > 0:
-            print "%d %d pre-adding %d" % (len(self.data), len(data), trailling_bytes)
             data += '\x00' * trailling_bytes
 
         if self.type == 0x01:
             if self.subtype == 0x01:
                 data = str(efi_compressor.EfiCompress(data, len(data)))
             elif self.subtype == 0x02:
-                #print len(data)
                 data = str(efi_compressor.TianoCompress(data, len(data)))
         elif self.type == 0x02:
             data = str(efi_compressor.LzmaCompress(data, len(data)))
         elif self.type == 0x00:
             pass
 
-        ### Pad the post-compression data, check for potential overflows.
-        #trailling_bytes = len(self.compressed_data) - len(data)
-        #if trailling_bytes > 0:
-        #    print "%d %d post-adding %d" % (len(self.compressed_data), len(data), trailling_bytes)
-        #    data += '\x00' * trailling_bytes
-        #if trailling_bytes < 0:
-        #    raise Exception("CompressionSection overflow for GUID %s of %d bytes." % (fguid(self.guid), trailling_bytes*-1))
-
-        #print str(efi_compressor.LzmaDecompress(data, len(data))) == self.data
-        #dump_data("%s.lzma" % fguid(self.guid), self.compressed_data)
-        #dump_data("%s-2.lzma" % fguid(self.guid), data)
-
+        ### Debug compare-compressed data
         if not compare(self.compressed_data, data):
-            print len(self.subsections), len(self.compressed_data), len(data), self.type, self.subtype
-            print self.compressed_data[-2:].encode("hex"), data[-2:].encode("hex")
-            dump_data("%s.lzma" % fguid(self.guid), self.compressed_data)
-            dump_data("%s-2.lzma" % fguid(self.guid), data)        
+            print "  old compress size=%d, new=%d, type=(%d, %d)" % (len(self.compressed_data), len(data), self.type, self.subtype)   
+            pass
 
         header = struct.pack("<Ic", self.decompressed_size, chr(self.type))
         return header + data
@@ -245,7 +230,6 @@ class FreeformGuidSection(EfiSection):
 
     def __init__(self, data):
         self.guid = struct.unpack("<16s", data[:16])[0]
-        #print "FFGS", len(data), len(self.guid), fguid(self.guid)
         self.data = data[16:]
 
     def process(self):
@@ -289,7 +273,6 @@ class GuidDefinedSection(EfiSection):
 
     def process(self):
         if fguid(self.guid) == self.LZMA_COMPRESSED_GUID:
-            #self.data = p7z_extract(self.data)
             try:
                 self.data = efi_compressor.LzmaDecompress(self.data, len(self.data))
             except Exception, e:
@@ -343,8 +326,8 @@ class FirmwareFileSystemSection(EfiSection):
         except Exception, e:
             print "Error: invalid FirmwareFileSystemSection header, expected size 4, got (%d)." % len(header)
             raise e
-        
-        self._data = data[:0x4 + self.size]
+
+        self._data = data[:self.size]
         self.data = data[0x4:self.size]
         self.name = None
 
@@ -390,26 +373,25 @@ class FirmwareFileSystemSection(EfiSection):
         #print "Building section (%s): %s" % (_get_section_type(self.type)[1], green(fguid(self.guid)))
 
         data = ""
+        ### Add section data (either raw, or a partitioned section)
         if self.parsed_object is not None:
             data = self.parsed_object.build(generate_checksum)
-            #print "adding section %s %s" % (fguid(self.guid), self.attrs["type_name"]), len(data), self.size
         else:
             data = self.data
-            print "adding section %s %s" % (fguid(self.guid), self.attrs["type_name"]), len(data), self.size
 
         ### Pad the data and check for potential overflows.
+        size = self.size
         trailling_bytes = (self.size-4) - len(data)
         if trailling_bytes > 0:
-            print "%d %d section-adding %d" % (self.size, len(data), trailling_bytes)
             data += '\x00' * trailling_bytes
         if trailling_bytes < 0:
+            size = self.size - trailling_bytes
             #raise Exception("FileSystemSection GUID %s has overflown %d bytes." % (fguid(self.guid), trailling_bytes*-1))
             pass
 
-        size = struct.pack("<I", self.size)
-        header = struct.pack("<3sB", size[:3], self.type)
-        return header + data
-
+        string_size = struct.pack("<I", size)
+        header = struct.pack("<3sB", string_size[:3], self.type)
+        return size, header + data
         pass
 
     def showinfo(self, ts='', index=-1):
@@ -459,7 +441,7 @@ class FirmwareFile(FirmwareObject):
         self.attrs["type_name"] = _get_file_type(self.type)[0]
         
         '''The size includes the header bytes.'''
-        self._data = data[:self._HEADER_SIZE + self.size]
+        self._data = data[:self.size]
         self.data = data[self._HEADER_SIZE:self.size]
         self.raw_blobs = []
         self.sections = []
@@ -495,6 +477,7 @@ class FirmwareFile(FirmwareObject):
             
             file_section.process()
             self.sections.append(file_section)
+
             section_data = section_data[(file_section.size + 3)&(~3):]
         pass
 
@@ -502,18 +485,32 @@ class FirmwareFile(FirmwareObject):
         #print "Building file: %s" % green(fguid(self.guid))
         
         data = ""
-        for section in self.sections:
-            data += section.build(generate_checksum)
+        for i, section in enumerate(self.sections):
+            section_size, section_data = section.build(generate_checksum)
+            data += section_data
+            if (i+1 < len(self.sections)):
+                ### Nibble-align inter-file sections
+                data += "\x00" * (((section_size + 3)&(~3)) - section_size)
 
         for blob in self.raw_blobs:
             data += blob
 
+        ### Maining to support ffs-padding
+        if len(self.raw_blobs) == 0 and len(self.sections) == 0:
+            data = self.data
+
         if generate_checksum:
             pass
 
-        size = struct.pack("<I", self.size)
-        header = struct.pack("<16sHBB3sB", self.guid, self.checksum, self.type, self.attributes, size[:3], self.state)
-        return header + data
+        size = self.size
+        trailling_bytes = size - (len(data) + 24)
+        if trailling_bytes < 0:
+            print "%s adding %s-bytes to GUID: %s" % (red("Warning"), red(trailling_bytes*-1), red(fguid(self.guid))) 
+            size += (trailling_bytes * -1)
+
+        string_size = struct.pack("<I", size)
+        header = struct.pack("<16sHBB3sB", self.guid, self.checksum, self.type, self.attributes, string_size[:3], self.state)
+        return size, header + data
 
     def showinfo(self, ts='', index= "N/A"):
         print "%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x (%d bytes), (%s)" % (
@@ -582,6 +579,7 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file.process()
             self.files.append(firmware_file)
             
+            #print "pos=%d, size=%s padd=%d" % (len(self._data)-len(data), firmware_file.size, ((firmware_file.size + 7) & (~7)) - firmware_file.size)
             data = data[(firmware_file.size + 7) & (~7):]
 
         if len(data) > 0:
@@ -594,8 +592,16 @@ class FirmwareFileSystem(FirmwareObject):
         ### Generate the file system data as an unstructed set of file data.
         data = ""
         for firmware_file in self.files:
-            data += firmware_file.build(generate_checksum)
-        return data + self.overflow_data
+            file_size, file_data = firmware_file.build(generate_checksum)
+            data += file_data
+            data += "\xFF" * (((file_size + 7) & (~7)) - file_size)
+
+        data += self.overflow_data
+
+        if len(data) != len(self._data):
+            print "ffs size mismatch old=%d new=%d %d" % (len(self._data), len(data), len(self._data)-len(data))
+
+        return data
         pass
 
     def showinfo(self, ts= ''):
@@ -717,6 +723,8 @@ class FirmwareVolume(FirmwareObject):
         for block in self.blocks:
             #print "Packing block"
             block_map += struct.pack("<II", block[0], block[1])
+        ### Add a trailing-NULL to the block map
+        block_map += "\x00"*8
 
         if generate_checksum:
             pass
