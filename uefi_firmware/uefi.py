@@ -182,9 +182,12 @@ class CompressedSection(EfiSection):
         #print "Building compression type=(%d, %d)" % (self.type, self.subtype)
 
         data = ""
-        for section in self.subsections:
+        for i, section in enumerate(self.subsections):
             subsection_size, subsection_data = section.build(generate_checksum)
             data += subsection_data
+            if (i+1 < len(self.subsections)):
+                ### Nibble-align inter-section subsections
+                data += "\x00" * (((subsection_size + 3)&(~3)) - subsection_size)
 
         ### Pad the pre-compression data
         trailling_bytes = len(self.data) - len(data)
