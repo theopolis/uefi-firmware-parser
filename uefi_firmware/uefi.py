@@ -127,6 +127,10 @@ class EfiSection(FirmwareObject):
 class CompressedSection(EfiSection):
     name = None
     
+    ATTR_NOT_COMPRESSED         = 0x00
+    ATTR_STANDARD_COMPRESSION   = 0x01
+    ATTR_CUSTOMIZED_COMPRESSION = 0x02
+
     def __init__(self, data, guid):
         self.guid= guid
         self.data= None
@@ -221,6 +225,12 @@ class CompressedSection(EfiSection):
         
         pass
 
+class VersionSection(EfiSection):
+
+    def __init__(self, data):
+        self.build_number = struct.unpack("<16s", self.data[:16])
+        pass
+
 class FreeformGuidSection(EfiSection):
     """
     A firmware file section type (free-form GUID)
@@ -263,10 +273,17 @@ class GuidDefinedSection(EfiSection):
     """
     LZMA_COMPRESSED_GUID = "ee4e5898-3914-4259-6e9d-dc7bd79403cf"
     STATIC_GUID = "fc1bcdb0-7d31-49aa-6a93-a4600d9dd083"
+    FIRMWARE_VOLUME_GUID = "24400798-3807-4a42-13b4-a1ecee205dd8"
+
+    ATTR_PROCESSING_REQUIRED = 0x01
+    ATTR_AUTH_STATUS_VALID = 0x02
 
     def __init__(self, data):
         self.guid, self.offset, self.attrs = struct.unpack("<16sHH", data[:20])
-        self.data = data[20:]
+
+        ### A guid-defined section includes an offset
+        self.preamble = data[20:self.offset]
+        self.data = data[self.offset:]
 
         self.subsections = []
 
@@ -275,6 +292,7 @@ class GuidDefinedSection(EfiSection):
         return self.subsections
 
     def process(self):
+        print fguid(self.guid)
         if fguid(self.guid) == self.LZMA_COMPRESSED_GUID:
             try:
                 self.data = efi_compressor.LzmaDecompress(self.data, len(self.data))
@@ -285,6 +303,13 @@ class GuidDefinedSection(EfiSection):
 
         elif fguid(self.guid) == self.STATIC_GUID:
             self.process_subsections()
+        elif fguid(self.guid) == self.FIRMWARE_VOLUME_GUID:
+            fv = FirmwareVolume(self.data)
+            fv.process()
+
+            self.subsections.append(fv)
+        else:
+            print "%s: cannot process GUID-defined section." % red("Warning")
         pass
 
     def build(self, generate_checksum= False, debug= False):
@@ -643,8 +668,7 @@ class FirmwareVolume(FirmwareObject):
     
     """
     _HEADER_SIZE = 0x38
-    _VALID_GUIDS = ['7a9354d9-0468-444a-ce81-0bf617d890df', '8c8ce578-8a3d-4f1c-3599-896185c32dd3', 'fff12b8d-7696-4c8b-85a9-2747075b4f50']
-    
+
     name = None
     '''An optional name or offset of the firmware volume.'''
     
@@ -664,7 +688,7 @@ class FirmwareVolume(FirmwareObject):
             print "Error: cannot parse FV header (%s)." % str(e)
             return
 
-        if fguid(self.guid) not in self._VALID_GUIDS:
+        if fguid(self.guid) not in FIRMWARE_VOLUME_GUIDS:
             print "Error: invalid FV guid (%s)." % fguid(self.guid)
             return
 
@@ -737,7 +761,7 @@ class FirmwareVolume(FirmwareObject):
         return header + block_map + data
         pass
     
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index= None):
         if len(self.data) == 0:
             return
 

@@ -47,4 +47,4 @@ Example scripts are provided in ``/scripts``
 
 - Complete UEFI Firmware volume object heirarchy
 - Firmware descriptor [re]generation using the parsed input volumes
-- *coming soon* Firmware File Section injection
+- Firmware File Section injection

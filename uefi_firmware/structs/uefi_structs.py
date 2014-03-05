@@ -7,6 +7,12 @@ uint32_t = ctypes.c_uint
 uint64_t = ctypes.c_uint64
 uint16_t = ctypes.c_ushort
 
+FIRMWARE_VOLUME_GUIDS = [
+    '7a9354d9-0468-444a-ce81-0bf617d890df',
+    '8c8ce578-8a3d-4f1c-3599-896185c32dd3',
+    'fff12b8d-7696-4c8b-85a9-2747075b4f50'
+]
+
 EFI_FILE_TYPES = {
     # http://wiki.phoenix.com/wiki/index.php/EFI_FV_FILETYPE
     0x00: ("unknown",                    "none",        "0x00"),

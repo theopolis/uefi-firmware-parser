@@ -42,12 +42,12 @@ def dump_data(name, data):
     except Exception, e:
         print "Error: could not write (%s), (%s)." % (name, str(e))
 
-def search_firmware_volumes(data):
+def search_firmware_volumes(data, byte_align= 16):
     potential_volumes = []
-    for aligned_start in xrange(32, len(data), 16):
+    for aligned_start in xrange(32, len(data), byte_align):
         if data[aligned_start : aligned_start + 4] == '_FVH':
             potential_volumes.append(aligned_start)
-        if data[aligned_start+8 : aligned_start+8+4] == '_FVH':
-            potential_volumes.append(aligned_start+8)
+        if data[aligned_start+byte_align/2 : aligned_start+byte_align/2+4] == '_FVH':
+            potential_volumes.append(aligned_start+byte_align/2)
     return potential_volumes
     pass
