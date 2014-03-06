@@ -271,12 +271,13 @@ class GuidDefinedSection(EfiSection):
 
     struct { UCHAR GUID[16]; short offset; short attrs; }
     """
+
     LZMA_COMPRESSED_GUID = "ee4e5898-3914-4259-6e9d-dc7bd79403cf"
     STATIC_GUID = "fc1bcdb0-7d31-49aa-6a93-a4600d9dd083"
     FIRMWARE_VOLUME_GUID = "24400798-3807-4a42-13b4-a1ecee205dd8"
 
     ATTR_PROCESSING_REQUIRED = 0x01
-    ATTR_AUTH_STATUS_VALID = 0x02
+    ATTR_AUTH_STATUS_VALID   = 0x02
 
     def __init__(self, data):
         self.guid, self.offset, self.attrs = struct.unpack("<16sHH", data[:20])
@@ -778,7 +779,7 @@ class FirmwareVolume(FirmwareObject):
         for _ffs in self.firmware_filesystems:
             _ffs.showinfo(ts + " ")
     
-    def dump(self, parent= ""):
+    def dump(self, parent= "", index= None):
         if len(self.data) == 0:
             return 
         
