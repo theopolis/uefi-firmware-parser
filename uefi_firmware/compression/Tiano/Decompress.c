@@ -645,6 +645,11 @@ Returns: (VOID)
 
       DataIdx     = Sd->mOutBuf - DecodeP (Sd) - 1;
 
+      // If this is not the correct decompression algorithm, this is an overflow possibility.
+      if (DataIdx > Sd->mOrigSize) {
+        return ;
+      }
+
       BytesRemain--;
       while ((INT16) (BytesRemain) >= 0) {
         Sd->mDstBase[Sd->mOutBuf++] = Sd->mDstBase[DataIdx++];
@@ -656,7 +661,6 @@ Returns: (VOID)
       }
     }
   }
-
   return ;
 }
 
