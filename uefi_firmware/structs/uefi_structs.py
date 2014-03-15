@@ -8,10 +8,24 @@ uint64_t = ctypes.c_uint64
 uint16_t = ctypes.c_ushort
 
 FIRMWARE_VOLUME_GUIDS = [
-    '7a9354d9-0468-444a-ce81-0bf617d890df',
-    '8c8ce578-8a3d-4f1c-3599-896185c32dd3',
-    'fff12b8d-7696-4c8b-85a9-2747075b4f50'
+    '7a9354d9-0468-444a-ce81-0bf617d890df', # FFS1
+    '8c8ce578-8a3d-4f1c-3599-896185c32dd3', # FFS2
+    'fff12b8d-7696-4c8b-85a9-2747075b4f50', # NVRAM
+    '04adeead-61ff-4d31-bab6-64f8bf901f5a',  # Apple Boot Volume
 ]
+
+FIRMWARE_CAPSULE_GUIDS = [
+    '3b6686bd-0d76-4030-0eb7-b5519e2fc5a0', # EFI Capsule
+    '4a3ca68b-7723-48fb-803d-578cc1fec44d', # EFI Capsule v2
+    '539182b9-abb5-4391-9ab6-e3a943f72fcc'  # UEFI Capsule
+]
+
+FIRMWARE_GUIDED_GUIDS = {
+    "LZMA_COMPRESSED": "ee4e5898-3914-4259-6e9d-dc7bd79403cf",
+    "FIRMWARE_VOLUME": "24400798-3807-4a42-13b4-a1ecee205dd8",
+    #"VOLUME_SECTION":  "367ae684-335d-4671-6da1-899dbfea6b88",
+    "STATIC_GUID":     "fc1bcdb0-7d31-49aa-6a93-a4600d9dd083"
+}
 
 EFI_FILE_TYPES = {
     # http://wiki.phoenix.com/wiki/index.php/EFI_FV_FILETYPE

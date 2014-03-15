@@ -32,6 +32,11 @@ def fguid(s):
     a, b, c, d, e = struct.unpack("<IHHH6s", s)
     return "%08x-%04x-%04x-%04x-%s" % (a,b,c,d,''.join('%02x'%ord(c) for c in e))
 
+def rguid(s):
+    a, b, c, d = struct.unpack("<IHH8s", s)
+    return [a, b, c] + [ord(c) for c in d]
+    pass
+
 def dump_data(name, data):
     try:
         if os.path.dirname(name) is not '': 
