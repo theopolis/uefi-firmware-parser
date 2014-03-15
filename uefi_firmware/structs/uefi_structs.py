@@ -17,7 +17,8 @@ FIRMWARE_VOLUME_GUIDS = [
 FIRMWARE_CAPSULE_GUIDS = [
     '3b6686bd-0d76-4030-0eb7-b5519e2fc5a0', # EFI Capsule
     '4a3ca68b-7723-48fb-803d-578cc1fec44d', # EFI Capsule v2
-    '539182b9-abb5-4391-9ab6-e3a943f72fcc'  # UEFI Capsule
+    '539182b9-abb5-4391-9ab6-e3a943f72fcc', # UEFI Capsule
+    '6dcbd5ed-e82d-4c44-a1bd-7194199ad92a', # Firmware Management Capsule
 ]
 
 FIRMWARE_GUIDED_GUIDS = {

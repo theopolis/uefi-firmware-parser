@@ -31,6 +31,9 @@ if __name__ == '__main__':
 	#size of the compressed data. The span will give you the starting
 	#offset into the file where it is found
     match = HDR_PATTERN.search(data)
+    if match is None:
+        print "Failed: No Zlib header/footer found."
+        sys.exit(1)
     (start, stop) = match.span()
 
 	#Now switch the order around since it's little endian

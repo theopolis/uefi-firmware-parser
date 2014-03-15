@@ -690,6 +690,7 @@ class FirmwareVolume(FirmwareObject):
     '''An empty block set.'''
     
     firmware_filesystems = None
+    raw_objects = None
     
     def __init__(self, data, name= "volume"):
         self.name = name
@@ -745,11 +746,18 @@ class FirmwareVolume(FirmwareObject):
             '''No block in the volume? This is a problem.'''
             return
         
+        data = self.data
         self.firmware_filesystems = []
+        self.raw_objects = []
         for block in self.blocks:
-            firmware_filesystem = FirmwareFileSystem(self.data[:block[0] * block[1]])
-            firmware_filesystem.process()            
-            self.firmware_filesystems.append(firmware_filesystem)
+            ### If this is an NVRAM volume, there is no FFS/FFs.
+            if fguid(self.guid) == FIRMWARE_VOLUME_GUIDS[2]:
+                self.raw_objects.append(data[:block[0]* block[1]])
+            else:
+                firmware_filesystem = FirmwareFileSystem(data[:block[0] * block[1]])
+                firmware_filesystem.process()            
+                self.firmware_filesystems.append(firmware_filesystem)
+            data = data[block[0] * block[1]:]
 
     def build(self, generate_checksum= False, debug= False):
         
@@ -791,6 +799,8 @@ class FirmwareVolume(FirmwareObject):
         
         for _ffs in self.firmware_filesystems:
             _ffs.showinfo(ts + " ")
+        for raw in self.raw_objects:
+            print "%s%s NVRAM" % ("%s  " % ts, blue("Raw section:"))
     
     def dump(self, parent= "", index= None):
         if len(self.data) == 0:
