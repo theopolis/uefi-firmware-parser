@@ -23,7 +23,10 @@ def _parse_firmware_capsule(data, name=0):
 
     firmware_capsule.process()
     firmware_capsule.showinfo('')
-    pass
+
+    if args.extract:
+        print "Dumping..."
+        firmware_capsule.dump()
 
 def _parse_firmware_volume(data, name=0):
     print "Parsing FV at index (%s)." % hex(name)
@@ -34,8 +37,6 @@ def _parse_firmware_volume(data, name=0):
 
     firmware_volume.process()
     firmware_volume.showinfo('')
-    
-    #print firmware_volume.iterate_objects(False)
     
     if args.extract:
         print "Dumping..."

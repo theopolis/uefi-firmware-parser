@@ -97,9 +97,11 @@ class EfiSection(FirmwareObject):
     def process_subsections(self):
         self.subsections = []
 
-        if not self.data: return
+        if not self.data: 
+            return False
 
         subsection_offset = 0
+        status = True
         while subsection_offset < len(self.data):
             if subsection_offset % 4: subsection_offset += 4 - (subsection_offset % 4)
             if subsection_offset >= len(self.data): break
@@ -107,12 +109,14 @@ class EfiSection(FirmwareObject):
             try:
                 subsection = FirmwareFileSystemSection(self.data[subsection_offset:], self.guid)
             except struct.error, e:
+                return False
+            if subsection.size == 0: 
                 break
-            if subsection.size == 0: break
-            subsection.process()
+            status = subsection.process() and status
             self.subsections.append(subsection)
 
             subsection_offset += subsection.size
+        return status
 
     def build(self, generate_checksum= False, debug= False):
         raise Exception("Cannot build from unknown section type!")
@@ -149,38 +153,48 @@ class CompressedSection(EfiSection):
         
         pass
     
-    def process(self):        
-        if self.type == 0x01:
-            ### Tiano or Efi compression, unfortunately these are identified by the same byte
-            try:
-                self.data = efi_compressor.EfiDecompress(self.compressed_data, len(self.compressed_data))
-                self.subtype = 0x01
-            except Exception, e:
+    def process(self):
+        def decompress(algorithms, compressed_data):
+            for i, algorithm in enumerate(algorithms):
                 try:
-                    self.data = efi_compressor.TianoDecompress(self.compressed_data, len(self.compressed_data))
-                    self.subtype = 0x02
+                    data = algorithm(compressed_data, len(compressed_data))
+                    return (i, data)
                 except Exception, e:
-                    #print "Error: cannot decompress (%s) (%s)." % (fguid(self.guid), str(e))
-                    raise Exception("Cannot EFI decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
-                    return
+                    continue
+            return None
 
         if self.type == 0x00:
             '''No compression.'''
             self.data = self.compressed_data
 
+        if self.type == 0x01:
+            ### Tiano or Efi compression, unfortunately these are identified by the same byte
+            results = decompress([efi_compressor.EfiDecompress, efi_compressor.TianoDecompress], self.compressed_data)
         if self.type == 0x02:
-            try:
-                self.data = efi_compressor.LzmaDecompress(self.compressed_data, len(self.compressed_data))
-            except Exception, e:
-                raise Exception("Cannot LZMA decompress GUID (%s), %s" % (fguid(self.guid), str(e)))
-                return
-            #self.data = p7z_extract(self.compressed_data)
-            
+            results = decompress([
+                efi_compressor.LzmaDecompress,
+                efi_compressor.EfiDecompress, efi_compressor.TianoDecompress
+            ], self.compressed_data)
+            ### This type is not well-defined, it may include a section header before the compressed data (Intel).
+            if results is None and len(self.compressed_data) > 4:
+                results = decompress([efi_compressor.LzmaDecompress], self.compressed_data[4:])
+
+        if self.type > 0x00:
+            if results is not None:
+                self.subtype = results[0] + 1
+                self.data = results[1]
+            else:
+                #raise Exception("Cannot EFI decompress GUID (%s)" % (fguid(self.guid)))
+                print "Cannot EFI decompress GUID (%s), type= (%d), decompressed_size= (%d)" % (
+                    fguid(self.guid), self.type, self.decompressed_size
+                )
+
         if self.data is None:
             '''No data was uncompressed.'''
-            return
+            return True
         
-        self.process_subsections()
+        status = self.process_subsections()
+        return status
         pass
 
     def build(self, generate_checksum= False, debug= False):
@@ -250,7 +264,7 @@ class FreeformGuidSection(EfiSection):
         if fguid(self.guid) == self.CHAR_GUID:
             self.guid_header = self.data[:12]
             self.name = uefi_name(self.data[12:])
-        pass
+        return True
 
     def build(self, generate_checksum= False, debug= False):
         #print "Building FreeformGUID: %s" % green(fguid(self.guid))
@@ -298,22 +312,24 @@ class GuidDefinedSection(EfiSection):
                 return True
             return False
 
+        status = True
         if fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
             try:
                 self.data = efi_compressor.LzmaDecompress(self.data, len(self.data))
             except Exception, e:
                 raise "Cannot decompress GuidDefinedSection, %s" % (str(e))
-                return
-            self.process_subsections()
+                return False
+            status = self.process_subsections()
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
-            self.process_subsections()
+            status = self.process_subsections()
             if len(self.subsections) == 0:
                 ### There were no subsections parsed, treat as a firmware volume
-                parse_volume()
+                status = parse_volume()
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["FIRMWARE_VOLUME"]:
-            parse_volume()
+            status = parse_volume()
         else:
-            parse_volume()
+            status = parse_volume()
+        return status
         pass
 
     def build(self, generate_checksum= False, debug= False):
@@ -403,10 +419,10 @@ class FirmwareFileSystemSection(EfiSection):
         self.attrs = {"type": self.type, "size": self.size}
         self.attrs["type_name"] = _get_section_type(self.type)[0]
 
-        if self.parsed_object is None: return
-        self.parsed_object.process()
-
-        pass
+        if self.parsed_object is None:
+            return True
+        status = self.parsed_object.process()
+        return status
 
     def build(self, generate_checksum= False, debug= False):
         #print "Building section (%s): %s" % (_get_section_type(self.type)[1], green(fguid(self.guid)))
@@ -498,33 +514,34 @@ class FirmwareFile(FirmwareObject):
         Parse the file and file sections if appropriate.
         """
         if self.type == 0xf0: # ffs padding
-            return
+            return True
         
         if self.type == 0x01: # raw file
             '''File is raw, no sections.'''
             self.raw_blobs.append(self.data)
-            return
+            return True
 
         if self.type == 0x00: # unknown
             self.raw_blobs.append(self.data)
-            return
+            return True
         
         section_data = self.data
         self.sections = []
+        status = True
         while len(section_data) >= 4:
             file_section = FirmwareFileSystemSection(section_data, self.guid)
             if not file_section.valid_header:
-                break
+                return False
             if file_section.size <= 0:
                 '''This is not expected, something bad happened while parsing.'''
                 print "Error: file section size <= 0 (%d)." % file_section.size
-                break
+                return False
             
-            file_section.process()
+            status = file_section.process() and status
             self.sections.append(file_section)
 
             section_data = section_data[(file_section.size + 3)&(~3):]
-        pass
+        return status
 
     def build(self, generate_checksum= False, debug= False):
         #print "Building file: %s" % green(fguid(self.guid))
@@ -618,6 +635,7 @@ class FirmwareFileSystem(FirmwareObject):
         '''Search for a 24-byte header that does not contain all 0xFF.'''
         
         data = self._data
+        status = True
         while len(data) >= 24 and data[:24] != ("\xff"*24):
             firmware_file = FirmwareFile(data)
 
@@ -625,7 +643,7 @@ class FirmwareFileSystem(FirmwareObject):
                 '''This is a problem, the file was corrupted.'''
                 break
             
-            firmware_file.process()
+            status = firmware_file.process() and status
             self.files.append(firmware_file)
             
             #print "pos=%d, size=%s padd=%d" % (len(self._data)-len(data), firmware_file.size, ((firmware_file.size + 7) & (~7)) - firmware_file.size)
@@ -634,7 +652,7 @@ class FirmwareFileSystem(FirmwareObject):
         if len(data) > 0:
             ### There is overflow data
             self.overflow_data = data
-        pass
+        return status
     
     def build(self, generate_checksum= False, debug= False):
 
@@ -735,7 +753,8 @@ class FirmwareVolume(FirmwareObject):
         return self.firmware_filesystems or []
     
     def process(self):
-        if self.block_map is None: return
+        if self.block_map is None: 
+            return False
         
         block_data = self.block_map
         while len(block_data) > 0:
@@ -751,20 +770,22 @@ class FirmwareVolume(FirmwareObject):
             
         if len(self.blocks) == 0:
             '''No block in the volume? This is a problem.'''
-            return
+            return False
         
         data = self.data
         self.firmware_filesystems = []
         self.raw_objects = []
+        status = True
         for block in self.blocks:
             ### If this is an NVRAM volume, there is no FFS/FFs.
             if fguid(self.guid) == FIRMWARE_VOLUME_GUIDS[2]:
                 self.raw_objects.append(data[:block[0]* block[1]])
             else:
                 firmware_filesystem = FirmwareFileSystem(data[:block[0] * block[1]])
-                firmware_filesystem.process()            
+                status = firmware_filesystem.process() and status        
                 self.firmware_filesystems.append(firmware_filesystem)
             data = data[block[0] * block[1]:]
+        return status
 
     def build(self, generate_checksum= False, debug= False):
         
@@ -909,11 +930,12 @@ class FirmwareCapsule(FirmwareObject):
     def process(self):
         fv = FirmwareVolume(self.data[self.offsets["capsule_body"]- self.header_size:])
         if not fv.valid_header:
-            return
+            return False
 
-        fv.process()
+        if not fv.process():
+            return False
         self.capsule_body = fv
-        pass
+        return True
 
     def showinfo(self, ts= '', index= None):
         if not self.valid_header or len(self.data) == 0:
@@ -924,10 +946,26 @@ class FirmwareCapsule(FirmwareObject):
             "%s/%s" % (green(fguid(self.capsule_guid)), green(fguid(self.guid))), 
             self.flags, self.size, self.size
         )
-        print "%s  Details: body= 0x0%x, oem= 0x0%x, author= 0x0%x" % (
-            ts, self.offsets["capsule_body"], self.offsets["oem_header"], self.offsets["author_info"]
+        print "%s  Details: size= 0x%x (%d bytes) body= 0x0%x, oem= 0x0%x, author= 0x0%x" % (
+            ts, self.image_size, self.image_size,
+            self.offsets["capsule_body"], self.offsets["oem_header"], self.offsets["author_info"]
         )
 
         if self.capsule_body is not None:
             self.capsule_body.showinfo(ts)
         pass
+
+    def dump(self, parent= "", index= None):
+        if len(self.data) == 0:
+            return 
+        
+        path = os.path.join(parent, "capsule-%s.cap" % self.name)
+        dump_data(path, self._data)
+
+        if self.capsule_body is not None:
+            self.capsule_body.dump(os.path.join(parent, "capsule-%s" % self.name))
+        else:
+            ### Write the raw image data from the capsule.
+            path = os.path.join(parent, "capsule-%s.image" % self.name)
+            offset = self.offsets["capsule_body"]- self.header_size
+            dump_data(path, self.data[offset:offset+ self.image_size])
