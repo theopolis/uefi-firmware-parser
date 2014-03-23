@@ -778,7 +778,7 @@ class FirmwareVolume(FirmwareObject):
         status = True
         for block in self.blocks:
             ### If this is an NVRAM volume, there is no FFS/FFs.
-            if fguid(self.guid) == FIRMWARE_VOLUME_GUIDS[2]:
+            if fguid(self.guid) in FIRMWARE_VOLUME_GUIDS[3:]:
                 self.raw_objects.append(data[:block[0]* block[1]])
             else:
                 firmware_filesystem = FirmwareFileSystem(data[:block[0] * block[1]])

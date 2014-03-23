@@ -21,7 +21,11 @@ def _parse_firmware_capsule(data, name=0):
     if not firmware_capsule.valid_header:
         return
 
-    firmware_capsule.process()
+    status= firmware_capsule.process()
+    if args.test:
+        print file_name, name, status
+        return
+
     firmware_capsule.showinfo('')
 
     if args.extract:
@@ -35,7 +39,11 @@ def _parse_firmware_volume(data, name=0):
     if not firmware_volume.valid_header:
         return
 
-    firmware_volume.process()
+    status= firmware_volume.process()
+    if args.test:
+        print file_name, name, status
+        return
+
     firmware_volume.showinfo('')
     
     if args.extract:
@@ -70,21 +78,23 @@ if __name__ == "__main__":
     parser.add_argument('-o', "--output", default=".", help="Dump EFI Files to this folder.")
     parser.add_argument('-e', "--extract", action="store_true", help="Extract all files/sections/volumes.")
     parser.add_argument('-g', "--generate", default= None, help= "Generate a FDF, implies extraction")
-    parser.add_argument("file", help="The file to work on")
+    parser.add_argument('-t', "--test", default=False, action= 'store_true', help= "Test file parsing, output name/success.")
+    parser.add_argument("file", nargs='+', help="The file(s) to work on")
     args = parser.parse_args()
     
-    try:
-        with open(args.file, 'rb') as fh: input_data = fh.read()
-    except Exception, e:
-        print "Error: Cannot read file (%s) (%s)." % (args.file, str(e))
-        sys.exit(1)
-    
-    if args.capsule:
-        _parse_firmware_capsule(input_data)
-    elif args.firmware:
-        _parse_firmware_volume(input_data) 
-    else: 
-        _brute_search(input_data)
+    for file_name in args.file:
+        try:
+            with open(file_name, 'rb') as fh: input_data = fh.read()
+        except Exception, e:
+            print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
+            sys.exit(1)
+        
+        if args.capsule:
+            _parse_firmware_capsule(input_data)
+        elif args.firmware:
+            _parse_firmware_volume(input_data) 
+        else: 
+            _brute_search(input_data)
 
 
 

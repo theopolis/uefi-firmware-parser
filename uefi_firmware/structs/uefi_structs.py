@@ -11,7 +11,9 @@ FIRMWARE_VOLUME_GUIDS = [
     '7a9354d9-0468-444a-ce81-0bf617d890df', # FFS1
     '8c8ce578-8a3d-4f1c-3599-896185c32dd3', # FFS2
     'fff12b8d-7696-4c8b-85a9-2747075b4f50', # NVRAM
-    '04adeead-61ff-4d31-bab6-64f8bf901f5a',  # Apple Boot Volume
+    '04adeead-61ff-4d31-bab6-64f8bf901f5a', # Apple Boot Volume
+
+    'cef5b9a3-476d-497f-dc9f-e98143e0422c', # NVRAM
 ]
 
 FIRMWARE_CAPSULE_GUIDS = [
