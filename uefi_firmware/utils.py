@@ -32,12 +32,18 @@ def fguid(s):
     a, b, c, d, e = struct.unpack("<IHHH6s", s)
     return "%08x-%04x-%04x-%04x-%s" % (a,b,c,d,''.join('%02x'%ord(c) for c in e))
 
+def brguid(s):
+    guid = [s[:8], s[8+1:9+4], s[13+1:14+4], s[-15:-13] + s[-17:-15] + s[-12:]]
+    a, b, c, d = struct.unpack(">IHH8s", "".join([part.decode("hex") for part in guid]))
+    return [a, b, c] + [ord(c) for c in d]
+
 def rguid(s):
     a, b, c, d = struct.unpack("<IHH8s", s)
     return [a, b, c] + [ord(c) for c in d]
     pass
 
 def dump_data(name, data):
+    '''Write binary data to name.'''
     try:
         if os.path.dirname(name) is not '': 
             if not os.path.exists(os.path.dirname(name)):
@@ -48,6 +54,7 @@ def dump_data(name, data):
         print "Error: could not write (%s), (%s)." % (name, str(e))
 
 def search_firmware_volumes(data, byte_align= 16):
+    '''Search a blob for heuristics related to UEFI firmware volume headers.'''
     potential_volumes = []
     for aligned_start in xrange(32, len(data), byte_align):
         if data[aligned_start : aligned_start + 4] == '_FVH':
@@ -56,3 +63,13 @@ def search_firmware_volumes(data, byte_align= 16):
             potential_volumes.append(aligned_start+byte_align/2)
     return potential_volumes
     pass
+
+def flatten_firmware_objects(base_objects):
+    '''Flatten the parent-child relations between firmware objects into a list.'''
+    objects = []
+    for firmware_object in base_objects:
+        objects.append(firmware_object)
+        if "objects" in firmware_object and len(firmware_object["objects"]) > 0:
+            objects += flatten_firmware_objects(firmware_object["objects"])
+    return objects
+

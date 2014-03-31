@@ -2,6 +2,13 @@ import struct
 
 from .utils import dump_data, fguid
 
+PFS_GUIDS = {
+    "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-16a3-22dd0517c1e8",
+    "INTEL_ME":         "7439ed9e-70d3-4b65-339e-1963a7ad3c37",
+    "BIOS_ROMS_1":      "08e56a30-62ed-41c6-4092-b7455ee653d7",
+    "BIOS_ROMS_2":      "492261e4-0659-424c-b682-73274389e7a7"
+}
+
 class PFSSection(object):
     HEADER_SIZE = 72
 
@@ -114,13 +121,16 @@ class PFSFile(object):
         data = self.data[16:-16]
 
         chunk_num = 0
+        offset = 16
         while True:
 
             section = PFSSection(data)
             section.process()
             self.sections.append(section)
+            #print "0x%X" % offset
 
             chunk_num += 1
+            offset += section.section_size
             data = data[section.section_size:]
 
             if len(data) < 64:

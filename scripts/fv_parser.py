@@ -7,14 +7,14 @@ from uefi_firmware.uefi import *
 from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware.utils import dump_data
 
-def _brute_search(data):
+def brute_search(data):
     volumes = search_firmware_volumes(data)
     
     for index in volumes:
-        _parse_firmware_volume(data[index-40:], name=index-40)
+        parse_firmware_volume(data[index-40:], name=index-40)
     pass
 
-def _parse_firmware_capsule(data, name=0):
+def parse_firmware_capsule(data, name=0):
     print "Parsing FC at index (%s)." % hex(name)
     firmware_capsule = FirmwareCapsule(data, name)
 
@@ -32,7 +32,7 @@ def _parse_firmware_capsule(data, name=0):
         print "Dumping..."
         firmware_capsule.dump()
 
-def _parse_firmware_volume(data, name=0):
+def parse_firmware_volume(data, name=0):
     print "Parsing FV at index (%s)." % hex(name)
     firmware_volume = FirmwareVolume(data, name)
 
@@ -56,24 +56,12 @@ def _parse_firmware_volume(data, name=0):
         generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
 
         dump_data(os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name)), generator.output)
-        #print generator.output
-    pass
 
-def _parse_firmware_filesystem(data):
-    firmware_fs = FirmwareFileSystem(data)
-    firmware_fs.process()
-    
-    print "Filesystem:"
-    firmware_fs.showinfo(' ')
-    
-    if args.extract:
-        print "Dumping..."
-        firmware_fs.dump()
     pass
         
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description= "Search a file for UEFI firmware volumes, parse and output.")
-    parser.add_argument('-f', "--firmware", action="store_true", help='The input file is a firmware volume, do not search.')
+    parser = argparse.ArgumentParser(description= "Parse, and optionally output, details and data on UEFI-related firmware.")
+    parser.add_argument('-b', "--brute", action="store_true", help= 'The input is a blob and may contain FV headers.')
     parser.add_argument('-c', "--capsule", action="store_true", help='The input file is a firmware capsule, do not search.')
     parser.add_argument('-o', "--output", default=".", help="Dump EFI Files to this folder.")
     parser.add_argument('-e', "--extract", action="store_true", help="Extract all files/sections/volumes.")
@@ -90,11 +78,11 @@ if __name__ == "__main__":
             sys.exit(1)
         
         if args.capsule:
-            _parse_firmware_capsule(input_data)
-        elif args.firmware:
-            _parse_firmware_volume(input_data) 
-        else: 
-            _brute_search(input_data)
+            parse_firmware_capsule(input_data)
+        elif args.brute:
+            brute_search(input_data)
+        else:
+            parse_firmware_volume(input_data) 
 
 
 
