@@ -37,10 +37,19 @@ def brguid(s):
     a, b, c, d = struct.unpack(">IHH8s", "".join([part.decode("hex") for part in guid]))
     return [a, b, c] + [ord(c) for c in d]
 
+def rfguid(a):
+    guid = ""
+    for value in a:
+        value = format(value, 'x')
+        guid += value.zfill(len(value)+len(value)%2).decode("hex")
+    guid = guid.zfill(len(guid)+len(guid)%2)
+    a, b, c, e = struct.unpack(">IHH8s", guid)
+    return "%08x-%04x-%04x-%02x%02x-%s" % (a,b,c, ord(e[1]), ord(e[0]),''.join('%02x'%ord(c) for c in e[2:]))
+
 def rguid(s):
     a, b, c, d = struct.unpack("<IHH8s", s)
     return [a, b, c] + [ord(c) for c in d]
-    pass
+
 
 def dump_data(name, data):
     '''Write binary data to name.'''

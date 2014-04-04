@@ -4,6 +4,7 @@ import os
 import sys, struct
 import uuid
 
+from .base import FirmwareObject, RawObject
 from .utils import *
 from .guids import get_guid_name
 from .structs.uefi_structs import *
@@ -34,58 +35,6 @@ def compare(data1, data2):
         print "%s != %s" % (red(md5_1), red(md5_2))
         return False
     return True
-
-class FirmwareObject(object):
-    data = None
-
-    @property
-    def content(self):
-        if hasattr(self, "data"): return self.data
-        return ""
-    @property
-    def objects(self):
-        return []
-    @property
-    def label(self):
-        if hasattr(self, "name"): 
-            if self.name is None: return ""
-            return self.name
-        return ""
-    @property
-    def guid_label(self):
-        if not hasattr(self, "guid"): return ""
-        return fguid(self.guid)
-    @property
-    def type_label(self):
-        return self.__class__.__name__
-    @property
-    def attrs_label(self):
-        if hasattr(self, "attrs"): return self.attrs
-        return {}
-
-    def info(self, include_content= False):
-        return {
-            "_self": self,
-            "label": self.label,
-            "guid": self.guid_label,
-            "type": self.type_label,
-            "content": self.content if include_content else "",
-            "attrs": self.attrs_label
-        }   
-    
-    def iterate_objects(self, include_content= False):
-        objects = []
-        for _object in self.objects:
-            if _object is None: continue
-            _info = _object.info(include_content)
-            _info["objects"] = _object.iterate_objects(include_content)
-            objects.append(_info)
-        return objects
-
-class RawObject(FirmwareObject):
-    def __init__(self, data):
-        self.data = data
-    pass
 
 class EfiSection(FirmwareObject):
     subsections = []
@@ -463,7 +412,7 @@ class FirmwareFileSystemSection(EfiSection):
                 
     def dump(self, parent= "", index= 0):
         self.path = os.path.join(parent, "section%d.%s" % (index, _get_section_type(self.type)[1]))
-        dump_data(self.path, self._data)
+        dump_data(self.path, self.data)
 
         if self.parsed_object is not None:
             self.parsed_object.dump(os.path.join(parent, "section%d" % index))
@@ -928,6 +877,9 @@ class FirmwareCapsule(FirmwareObject):
         return [self.capsule_body]
 
     def process(self):
+        ### Copy the EOH to capsule into a preable
+        self.preamble = self.data[:self.offsets["capsule_body"]- self.header_size]
+
         fv = FirmwareVolume(self.data[self.offsets["capsule_body"]- self.header_size:])
         if not fv.valid_header:
             return False
@@ -936,6 +888,16 @@ class FirmwareCapsule(FirmwareObject):
             return False
         self.capsule_body = fv
         return True
+
+    def build(self, generate_checksum= False, debug= False):
+        if self.capsule_body is not None:
+            body = self.capsule_body.build(generate_checksum, debug= debug)
+        else:
+            body = self.data[self.offsets["capsule_body"]- self.header_size:]
+
+        ### Assume no size change
+        return self._data[:self.header_size] + self.preamble + body
+        pass
 
     def showinfo(self, ts= '', index= None):
         if not self.valid_header or len(self.data) == 0:
@@ -969,3 +931,4 @@ class FirmwareCapsule(FirmwareObject):
             path = os.path.join(parent, "capsule-%s.image" % self.name)
             offset = self.offsets["capsule_body"]- self.header_size
             dump_data(path, self.data[offset:offset+ self.image_size])
+

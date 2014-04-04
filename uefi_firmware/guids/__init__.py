@@ -23,3 +23,7 @@ def get_guid_name(guid):
         if match:
             return name
     return None
+
+def get_tables():
+    return GUID_TABLES
+    pass

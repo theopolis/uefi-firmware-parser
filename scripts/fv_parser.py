@@ -30,7 +30,7 @@ def parse_firmware_capsule(data, name=0):
 
     if args.extract:
         print "Dumping..."
-        firmware_capsule.dump()
+        firmware_capsule.dump(args.output)
 
 def parse_firmware_volume(data, name=0):
     print "Parsing FV at index (%s)." % hex(name)
@@ -48,7 +48,7 @@ def parse_firmware_volume(data, name=0):
     
     if args.extract:
         print "Dumping..."
-        firmware_volume.dump()
+        firmware_volume.dump(args.output)
     
     if args.generate is not None:
         print "Generating FDF..."

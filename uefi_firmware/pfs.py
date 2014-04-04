@@ -1,6 +1,8 @@
 import struct
 
-from .utils import dump_data, fguid
+from .base import FirmwareObject, RawObject
+from .uefi import FirmwareVolume
+from .utils import dump_data, fguid, green, blue
 
 PFS_GUIDS = {
     "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-16a3-22dd0517c1e8",
@@ -9,16 +11,20 @@ PFS_GUIDS = {
     "BIOS_ROMS_2":      "492261e4-0659-424c-b682-73274389e7a7"
 }
 
-class PFSSection(object):
+class PFSSection(FirmwareObject):
     HEADER_SIZE = 72
 
     def __init__(self, data):
         self.data = data
         self.size = -1
 
+        ### Store parsed objects (if any)
+        self.section_objects = []
+
     def process(self):
         hdr = self.data[:self.HEADER_SIZE]
         self.uuid = hdr[:16]
+        self.header = hdr
 
         # Spec seems to be a consistent 1, what I thought was a timestamp is not.
         # Version is static except for the first section in a PFS
@@ -33,7 +39,7 @@ class PFSSection(object):
 
         # This seems to be a set of 8byte CRCs for each chunk (4 total)
         self.crcs = hdr[32+24:self.HEADER_SIZE]
-        self.chunk_data = self.data[self.HEADER_SIZE:self.HEADER_SIZE+csize]
+        self.section_data = self.data[self.HEADER_SIZE:self.HEADER_SIZE+csize]
 
         # Not yet sure what the following three partitions are
         self.chunk1 = self.data[self.HEADER_SIZE+csize:self.HEADER_SIZE+csize+size1]
@@ -50,42 +56,75 @@ class PFSSection(object):
         self.section_size = self.HEADER_SIZE + total_chunk_size
         self.data = None
 
+        if fguid(self.uuid) == PFS_GUIDS["FIRMWARE_VOLUMES"]:
+            ### This is a series of firmware volumes
+            fv_offset = 0
+            while fv_offset < len(self.section_data):
+                fv = FirmwareVolume(self.section_data[fv_offset:], hex(fv_offset))
+                if not fv.valid_header:
+                    break
+                fv.process()
+                self.section_objects.append(fv)
+                fv_offset += fv.size
+            pass
+        else:
+            self.section_objects.append(RawObject(self.section_data))
         pass
+
+    @property
+    def objects(self):
+        return self.section_objects + [self.chunk1, self.chunk2, self.chunk3]
 
     def info(self, include_content= False):
         return {
             "_self": self,
             "guid": fguid(self.uuid),
             "type": "PFSSection",
-            "content": self.chunk_data if include_content else "",
+            "content": self.section_date if include_content else "",
             "attrs": {
                 "type": self.type,
-                "size": len(self.chunk_data),
+                "size": self.section_size,
                 "crcs": self.crcs.encode("hex"),
                 "unknowns": [u.encode("hex") for u in self.unknowns],
                 "ts": self.ts,
                 "version": self.version
             },
             "chunks": [self.chunk1, self.chunk2, self.chunk3] if include_content else []
-        }   
-
-    def showinfo(self):
-        print "UUID: (%s)" % fguid(self.uuid)
-        print "Spec (%d), TS (%d), Type (%d), Version (%d)" % (self.spec, self.ts, self.type, self.version)
-        print "Size (%d) S1 (%d) S2 (%d) S3 (%d)" % (len(self.chunk_data), len(self.chunk1), len(self.chunk2), len(self.chunk3))
-        print "CRCs (0x%s)" % self.crcs.encode("hex")
-        #print "MD5 (%s)" % hashlib.md5(self.chunk_data).hexdigest()
-
-        print "Unknowns (%s)" % ", ".join([u.encode("hex") for u in self.unknowns])
+        }
         pass
 
-    def dump(self):
-        dump_data("%s.data" % fguid(self.uuid), self.chunk_data)
-        if len(self.chunk1) > 0: dump_data("%s.c1" % fguid(self.uuid), self.chunk1)
-        if len(self.chunk2) > 0: dump_data("%s.c2" % fguid(self.uuid), self.chunk2)
-        if len(self.chunk3) > 0: dump_data("%s.c3" % fguid(self.uuid), self.chunk3)
+    def build(self, generate_checksum= False, debug= False):
+        body = ""
+        for sub_object in self.section_objects:
+            body += sub_object.build(generate_checksum, debug= debug)
+        return self.header + body + self.chunk1 + self.chunk2 + self.chunk3
         pass
 
+    def showinfo(self, ts='', index= None):
+        print "%s%s %s spec %d ts %d type %d version %d size 0x%x (%d bytes)" % (
+            ts, blue("Dell PFSSection:"), green(fguid(self.uuid)),
+            self.spec, self.ts, self.type, self.version,
+            self.section_size, self.section_size
+        )
+
+        #print "Size (%d) S1 (%d) S2 (%d) S3 (%d)" % (len(self.section_data), len(self.chunk1), len(self.chunk2), len(self.chunk3))
+        #print "CRCs (0x%s)" % self.crcs.encode("hex")
+        #print "Unknowns (%s)" % ", ".join([u.encode("hex") for u in self.unknowns])
+        for sub_object in self.section_objects:
+            sub_object.showinfo("%s  " % ts)
+        pass
+
+    def dump(self, parent= "", index= None):
+        path = os.path.join(parent, "%s" % fguid(self.uuid))
+        dump_data("%s.data" % path, self.section_data)
+        if len(self.chunk1) > 0: dump_data("%s.c1" % path, self.chunk1)
+        if len(self.chunk2) > 0: dump_data("%s.c2" % path, self.chunk2)
+        if len(self.chunk3) > 0: dump_data("%s.c3" % path, self.chunk3)
+
+        path = os.path.join(parent, "section-%s" % fguid(self.uuid))
+        for sub_object in self.section_objects:
+            sub_object.dump_data(path)
+        pass
 
 class PFSFile(object):
     PFS_HEADER = "PFS.HDR."
@@ -102,6 +141,9 @@ class PFSFile(object):
 
         hdr = self.data[:16]
         magic, spec, size = struct.unpack("<8sII", hdr)
+
+        self.spec = spec
+        self.size = size
 
         if magic != self.PFS_HEADER:
             print "Data does not contain the header magic (%s)." % self.PFS_HEADER
@@ -140,11 +182,26 @@ class PFSFile(object):
     def objects(self):
         return self.sections
 
-    def showinfo(self):
+    def build(self, generate_checksum= False, debug= False):
+        body = ""
         for section in self.sections:
-            section.showinfo()
+            body += section.build(generate_checksum, debug= debug)
+        return self.data[:16] + body + self.data[-16:]
+        pass
+
+    def showinfo(self, ts= '', index= None):
+        print "%s%s spec 0x%x size 0x%x (%d bytes)" % (
+            ts, blue("DellPFS:"), 
+            self.spec, self.size, self.size
+        )
+        for section in self.sections:
+            section.showinfo("%s  " % ts)
     
-    def dump(self):
+    def dump(self, parent= '', index= None):
+        path = os.path.join(parent, "pfsobject.pfs")
+        dump_data(path, self.data)
+
+        path = os.path.join(parent, "pfsobject")
         for section in self.sections:
-            section.dump()
+            section.dump(path)
 
