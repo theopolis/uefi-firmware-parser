@@ -4,7 +4,7 @@ import os
 import sys, struct
 import uuid
 
-from .base import FirmwareObject, RawObject
+from .base import FirmwareObject, RawObject, BaseObject
 from .utils import *
 from .guids import get_guid_name
 from .structs.uefi_structs import *
@@ -118,7 +118,10 @@ class CompressedSection(EfiSection):
 
         if self.type == 0x01:
             ### Tiano or Efi compression, unfortunately these are identified by the same byte
-            results = decompress([efi_compressor.EfiDecompress, efi_compressor.TianoDecompress], self.compressed_data)
+            results = decompress([
+                efi_compressor.EfiDecompress, 
+                efi_compressor.TianoDecompress,
+            ], self.compressed_data)
         if self.type == 0x02:
             results = decompress([
                 efi_compressor.LzmaDecompress,

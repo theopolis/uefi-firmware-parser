@@ -1,6 +1,7 @@
 import struct
+import os
 
-from .base import FirmwareObject, RawObject
+from .base import FirmwareObject, RawObject, BaseObject
 from .uefi import FirmwareVolume
 from .utils import dump_data, fguid, green, blue
 
@@ -11,7 +12,7 @@ PFS_GUIDS = {
     "BIOS_ROMS_2":      "492261e4-0659-424c-b682-73274389e7a7"
 }
 
-class PFSSection(FirmwareObject):
+class PFSSection(FirmwareObject, BaseObject):
     HEADER_SIZE = 72
 
     def __init__(self, data):
@@ -80,7 +81,7 @@ class PFSSection(FirmwareObject):
             "_self": self,
             "guid": fguid(self.uuid),
             "type": "PFSSection",
-            "content": self.section_date if include_content else "",
+            "content": self.section_data if include_content else "",
             "attrs": {
                 "type": self.type,
                 "size": self.section_size,
@@ -123,7 +124,7 @@ class PFSSection(FirmwareObject):
 
         path = os.path.join(parent, "section-%s" % fguid(self.uuid))
         for sub_object in self.section_objects:
-            sub_object.dump_data(path)
+            sub_object.dump(path)
         pass
 
 class PFSFile(object):
@@ -182,7 +183,7 @@ class PFSFile(object):
     def objects(self):
         return self.sections
 
-    def build(self, generate_checksum= False, debug= False):
+    def build(self, generate_checksum= False    , debug= False):
         body = ""
         for section in self.sections:
             body += section.build(generate_checksum, debug= debug)

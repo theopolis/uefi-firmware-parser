@@ -74,7 +74,6 @@ Extract (
   default:
     Status = EFI_INVALID_PARAMETER;
   }
-
   if (GetInfoFunction != NULL) {
     Status = GetInfoFunction(Source, SrcSize, DstSize, &ScratchSize);
     if (Status == EFI_SUCCESS) {
@@ -354,17 +353,21 @@ Py_LzmaCompress(
   return UefiCompress(Self, Args, LZMA_COMPRESSION);
 }
 
-#define EFI_DECOMPRESS_DOCS   "EfiDecompress(): Decompress data using UEFI standard algorithm.\n"
+#define EFI_DECOMPRESS_DOCS   "EfiDecompress(): Decompress data using the EDKII standard algorithm.\n"
 #define TIANO_DECOMPRESS_DOCS "TianoDecompress(): Decompress data using 5-bit Huffman encoding.\n"
 #define LZMA_DECOMPRESS_DOCS  "LzmaDecompress(): Decompress using 7-z LZMA alogrithm.\n"
+#define EFI_COMPRESS_DOCS     "EfiCompress(): Compress data using the EDKII standard algorithm.\n"
+#define TIANO_COMPRESS_DOCS   "TianoCompress(): Compress data using 5-bit Huffman encoding.\n"
+#define LZMA_COMPRESS_DOCS    "LzmaCompress(): Compress using 7-z LZMA alogrithm.\n"
+
 
 STATIC PyMethodDef EfiCompressor_Funcs[] = {
   {"EfiDecompress",   (PyCFunction)Py_EfiDecompress,   METH_VARARGS, EFI_DECOMPRESS_DOCS},
   {"TianoDecompress", (PyCFunction)Py_TianoDecompress, METH_VARARGS, TIANO_DECOMPRESS_DOCS},
   {"LzmaDecompress",  (PyCFunction)Py_LzmaDecompress,  METH_VARARGS, LZMA_DECOMPRESS_DOCS},
-  {"EfiCompress",     (PyCFunction)Py_EfiCompress,     METH_VARARGS, EFI_DECOMPRESS_DOCS},
-  {"TianoCompress",   (PyCFunction)Py_TianoCompress,   METH_VARARGS, TIANO_DECOMPRESS_DOCS},
-  {"LzmaCompress",    (PyCFunction)Py_LzmaCompress,    METH_VARARGS, LZMA_DECOMPRESS_DOCS},
+  {"EfiCompress",     (PyCFunction)Py_EfiCompress,     METH_VARARGS, EFI_COMPRESS_DOCS},
+  {"TianoCompress",   (PyCFunction)Py_TianoCompress,   METH_VARARGS, TIANO_COMPRESS_DOCS},
+  {"LzmaCompress",    (PyCFunction)Py_LzmaCompress,    METH_VARARGS, LZMA_COMPRESS_DOCS},
 
   {NULL, NULL, 0, NULL}
 };
