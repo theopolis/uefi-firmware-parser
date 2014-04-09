@@ -348,9 +348,12 @@ class GuidDefinedSection(EfiSection):
 
     def showinfo(self, ts='', index= 0):
         #print "%sGUID: %s" % (ts, green(fguid(self.guid)))
-        print "%s%s %s offset= 0x%x attrs= 0x%x" % (
+        auth_status = "ATTR_UNKNOWN"
+        if self.attrs == self.ATTR_AUTH_STATUS_VALID: auth_status = "AUTH_VALID"
+        if self.attrs == self.ATTR_PROCESSING_REQUIRED: auth_status = "PROCESSING_REQUIRED"
+        print "%s%s %s offset= 0x%x attrs= 0x%x (%s)" % (
             ts, blue("Guid-Defined:"), green(fguid(self.guid)),
-            self.offset, self.attrs
+            self.offset, self.attrs, purple(auth_status)
         )
         if len(self.subsections) > 0:
             for i, section in enumerate(self.subsections):

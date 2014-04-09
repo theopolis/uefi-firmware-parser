@@ -56,17 +56,17 @@ EFI_SECTION_TYPES = {
     0x11: ("PE32+ PIC image",           "pic.pe",       "PIC"),
     0x12: ("Terse executable (TE)",     "te",           "TE"),
     0x13: ("DXE dependency expression", "dxe.depex",    "DXE_DEPEX"),
+    # Added from previous code (not in Phoenix spec
+    0x14: ("Version section",           "version",      "VERSION"),
+    0x15: ("User interface name",       "ui",           "UI"),
+    
     0x16: ("IA-32 16-bit image",        "ia32.16bit",   "COMPAT16"),
     0x17: ("Firmware volume image",     "fv",           "FV_IMAGE"),
     ### See FdfParser.py in EDKII's GenFds 
     0x18: ("Free-form GUID",            "freeform.guid", "SUBTYPE_GUID"),
     0x19: ("Raw",                       "raw",          "RAW"),
     0x1b: ("PEI dependency expression", "pie.depex",    "PEI_DEPEX"),
-    
-    # Added from previous code (not in Phoenix spec
-    0x14: ("Version section",           "version",      "VERSION"),
-    0x15: ("User interface name",       "ui",           "UI"),
-    0x1b: ("SMM dependency expression", "smm.depex",    "SMM_DEPEX")
+    0x1c: ("SMM dependency expression", "smm.depex",    "SMM_DEPEX")
 }
 
 EFI_COMPRESSION_TYPES = {
