@@ -11,7 +11,7 @@ GUID_TABLES = [
 ]
 
 def get_guid_name(guid):
-    raw_guid = rguid(guid)
+    raw_guid = rguid(guid) if type(guid) is str else guid
 
     for guid_table in GUID_TABLES:
       for name, match_guid in guid_table.iteritems():
@@ -23,3 +23,7 @@ def get_guid_name(guid):
         if match:
             return name
     return None
+
+def get_tables():
+    return GUID_TABLES
+    pass

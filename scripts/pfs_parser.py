@@ -19,7 +19,9 @@ from uefi_firmware.pfs import PFSFile
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Parse a Dell PFS update.")
+    parser.add_argument('-o', "--output", default=".", help="Dump EFI Files to this folder.")
     parser.add_argument("-e", "--extract", action="store_true", default=False, help="Dump all PFS sections.")
+    
     parser.add_argument("file", help="The file to work on")
     args = parser.parse_args()
     
@@ -37,4 +39,4 @@ if __name__ == "__main__":
     pfs.showinfo()
 
     if args.extract:
-      pfs.dump()
+      pfs.dump(args.output)

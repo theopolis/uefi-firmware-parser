@@ -260,7 +260,7 @@ class MeManifestHeader(MeObject):
 
         self.valid_header = True
         if data[:8] != "\x04\x00\x00\x00\xA1\x00\x00\x00":
-            from ..utils import hex_dump
+            from .utils import hex_dump
             hex_dump(data[:32])
             print "Debug: invalid partition."
             self.valid_header = False
