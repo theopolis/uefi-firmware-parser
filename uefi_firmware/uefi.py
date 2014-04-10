@@ -296,7 +296,7 @@ class GuidDefinedSection(EfiSection):
             pass
 
         header = struct.pack("<16sHH", self.guid, self.offset, self.attrs)
-        return header + data
+        return header + self.preamble + data
 
     def showinfo(self, ts='', index= 0):
         #print "%sGUID: %s" % (ts, green(fguid(self.guid)))
@@ -307,6 +307,13 @@ class GuidDefinedSection(EfiSection):
         if len(self.subsections) > 0:
             for i, section in enumerate(self.subsections):
                 section.showinfo("%s  " % ts, index= i)
+
+    def dump(self, parent= "", generate_checksum= False, debug= False):
+        for i, subsection in enumerate(self.subsections):
+            subsection.dump(parent, i)
+        dump_data(os.path.join(parent, "guided.preamble"), self.preamble)
+        dump_data(os.path.join(parent, "guided.certs"), self.preamble[172:])
+        pass
 
     pass
 
