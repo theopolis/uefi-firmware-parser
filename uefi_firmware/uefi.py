@@ -36,6 +36,15 @@ def compare(data1, data2):
         return False
     return True
 
+def decompress(algorithms, compressed_data):
+    for i, algorithm in enumerate(algorithms):
+        try:
+            data = algorithm(compressed_data, len(compressed_data))
+            return (i, data)
+        except Exception, e:
+            continue
+    return None
+
 class EfiSection(FirmwareObject):
     subsections = []
 
@@ -77,6 +86,21 @@ class EfiSection(FirmwareObject):
         for i, subsection in enumerate(self.subsections):
             subsection.dump(parent, i)
 
+    def _build_subsections(self, generate_checksum= False):
+        data = ""
+        for i, section in enumerate(self.subsections):
+            subsection_size, subsection_data = section.build(generate_checksum)
+            data += subsection_data
+            if (i+1 < len(self.subsections)):
+                ### Nibble-align inter-section subsections
+                data += "\x00" * (((subsection_size + 3)&(~3)) - subsection_size)
+
+        ### Pad the pre-compression data
+        trailling_bytes = len(self.data) - len(data)
+        if trailling_bytes > 0:
+            data += '\x00' * trailling_bytes
+        return data
+
 
 class CompressedSection(EfiSection):
     name = None
@@ -103,15 +127,6 @@ class CompressedSection(EfiSection):
         pass
     
     def process(self):
-        def decompress(algorithms, compressed_data):
-            for i, algorithm in enumerate(algorithms):
-                try:
-                    data = algorithm(compressed_data, len(compressed_data))
-                    return (i, data)
-                except Exception, e:
-                    continue
-            return None
-
         if self.type == 0x00:
             '''No compression.'''
             self.data = self.compressed_data
@@ -152,18 +167,7 @@ class CompressedSection(EfiSection):
     def build(self, generate_checksum= False, debug= False):
         #print "Building compression type=(%d, %d)" % (self.type, self.subtype)
 
-        data = ""
-        for i, section in enumerate(self.subsections):
-            subsection_size, subsection_data = section.build(generate_checksum)
-            data += subsection_data
-            if (i+1 < len(self.subsections)):
-                ### Nibble-align inter-section subsections
-                data += "\x00" * (((subsection_size + 3)&(~3)) - subsection_size)
-
-        ### Pad the pre-compression data
-        trailling_bytes = len(self.data) - len(data)
-        if trailling_bytes > 0:
-            data += '\x00' * trailling_bytes
+        data = self._build_subsections()
 
         if self.type == 0x01:
             if self.subtype == 0x01:
@@ -173,11 +177,6 @@ class CompressedSection(EfiSection):
         elif self.type == 0x02:
             data = str(efi_compressor.LzmaCompress(data, len(data)))
         elif self.type == 0x00:
-            pass
-
-        ### Debug compare-compressed data
-        if not compare(self.compressed_data, data):
-            print "  old compress size=%d, new=%d, type=(%d, %d)" % (len(self.compressed_data), len(data), self.type, self.subtype)   
             pass
 
         header = struct.pack("<Ic", self.decompressed_size, chr(self.type))
@@ -266,11 +265,15 @@ class GuidDefinedSection(EfiSection):
 
         status = True
         if fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
-            try:
-                self.data = efi_compressor.LzmaDecompress(self.data, len(self.data))
-            except Exception, e:
-                raise "Cannot decompress GuidDefinedSection, %s" % (str(e))
-                return False
+            ### Try to decompress the body of the section.
+            results = decompress([efi_compressor.LzmaDecompress], self.preamble + self.data)
+            if results is None:
+                ### Attempt to recover by skipping the preamble.
+                results = decompress([efi_compressor.LzmaDecompress], self.data)
+                if results is None:
+                    return False
+            self.subtype = results[0] + 1
+            self.data = results[1]
             status = self.process_subsections()
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             status = self.process_subsections()
@@ -287,12 +290,10 @@ class GuidDefinedSection(EfiSection):
     def build(self, generate_checksum= False, debug= False):
         #print "Building GUID-defined: %s" % green(fguid(self.guid))
 
-        data = ""
-        for section in self.subsections:
-            data += section.build(generate_checksum)
+        data = self._build_subsections(generate_checksum)
 
-        if fguid(self.guid) == LZMA_COMPRESSED_GUID:
-            data = efi_compressor.LzmaCompress(data, len(data))
+        if fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
+            data = str(efi_compressor.LzmaCompress(data, len(data)))
             pass
 
         header = struct.pack("<16sHH", self.guid, self.offset, self.attrs)
@@ -564,6 +565,7 @@ class FirmwareFile(FirmwareObject):
     def dump(self, parent= ""):
         parent = os.path.join(parent, "file-%s" % fguid(self.guid))
 
+        dump_data(os.path.join(parent, "file.obj"), self._data)
         if self.raw_blobs is not None:
             for i, blob in enumerate(self.raw_blobs):
                 self.path = os.path.join(parent, "blob-%s.raw" % i)
