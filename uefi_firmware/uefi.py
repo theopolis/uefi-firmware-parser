@@ -243,12 +243,12 @@ class GuidDefinedSection(EfiSection):
     ATTR_AUTH_STATUS_VALID   = 0x02
 
     def __init__(self, data):
-        self.guid, self.offset, self.attrs = struct.unpack("<16sHH", data[:20])
+        self.guid, self.offset, self.attr_mask = struct.unpack("<16sHH", data[:20])
 
         ### A guid-defined section includes an offset
         self.preamble = data[20:self.offset]
         self.data = data[self.offset:]
-
+        self.attrs = {"attrs": self.attr_mask}
         self.subsections = []
 
     @property
@@ -272,6 +272,7 @@ class GuidDefinedSection(EfiSection):
                 raise "Cannot decompress GuidDefinedSection, %s" % (str(e))
                 return False
             status = self.process_subsections()
+        ### Todo: check for processing required attribute
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             status = self.process_subsections()
             if len(self.subsections) == 0:
@@ -301,11 +302,11 @@ class GuidDefinedSection(EfiSection):
     def showinfo(self, ts='', index= 0):
         #print "%sGUID: %s" % (ts, green(fguid(self.guid)))
         auth_status = "ATTR_UNKNOWN"
-        if self.attrs == self.ATTR_AUTH_STATUS_VALID: auth_status = "AUTH_VALID"
-        if self.attrs == self.ATTR_PROCESSING_REQUIRED: auth_status = "PROCESSING_REQUIRED"
+        if self.attrs["attrs"] == self.ATTR_AUTH_STATUS_VALID: auth_status = "AUTH_VALID"
+        if self.attrs["attrs"] == self.ATTR_PROCESSING_REQUIRED: auth_status = "PROCESSING_REQUIRED"
         print "%s%s %s offset= 0x%x attrs= 0x%x (%s)" % (
             ts, blue("Guid-Defined:"), green(fguid(self.guid)),
-            self.offset, self.attrs, purple(auth_status)
+            self.offset, self.attrs["attrs"], purple(auth_status)
         )
         if len(self.subsections) > 0:
             for i, section in enumerate(self.subsections):
@@ -841,6 +842,9 @@ class FirmwareCapsule(FirmwareObject):
             self.valid_header = False
             return
 
+        ### Header sections
+        self.header_sections = []
+
         ### Set data (original, and body content)
         self._data = data
         self.data = data[self.header_size:]
@@ -885,6 +889,11 @@ class FirmwareCapsule(FirmwareObject):
         self.header_size = self.size
         pass
 
+
+    def parse_sections(self, header):
+        ### Parse the various pieces within the capsule header, before body
+        pass
+
     @property
     def objects(self):
         return [self.capsule_body]
@@ -892,6 +901,7 @@ class FirmwareCapsule(FirmwareObject):
     def process(self):
         ### Copy the EOH to capsule into a preable
         self.preamble = self.data[:self.offsets["capsule_body"]- self.header_size]
+        self.parse_sections()
 
         fv = FirmwareVolume(self.data[self.offsets["capsule_body"]- self.header_size:])
         if not fv.valid_header:
@@ -925,6 +935,7 @@ class FirmwareCapsule(FirmwareObject):
             ts, self.image_size, self.image_size,
             self.offsets["capsule_body"], self.offsets["oem_header"], self.offsets["author_info"]
         )
+        print self.offsets
 
         if self.capsule_body is not None:
             self.capsule_body.showinfo(ts)
@@ -944,4 +955,6 @@ class FirmwareCapsule(FirmwareObject):
             path = os.path.join(parent, "capsule-%s.image" % self.name)
             offset = self.offsets["capsule_body"]- self.header_size
             dump_data(path, self.data[offset:offset+ self.image_size])
+
+
 

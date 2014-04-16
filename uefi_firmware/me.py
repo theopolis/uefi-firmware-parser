@@ -36,6 +36,7 @@ from operator import itemgetter
 from .structs.intel_me_structs import *
 from .utils import dump_data
 from uefi_firmware import efi_compressor
+from uefi_firmware.base import StructuredObject
 
 MeModulePowerTypes = ["POWER_TYPE_RESERVED", "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
 MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED", "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
@@ -45,29 +46,14 @@ COMP_TYPE_LZMA = 2
 MeModuleTypes      = ["DEFAULT", "PRE_ME_KERNEL", "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
 MeApiTypes         = ["API_TYPE_DATA", "API_TYPE_ROMAPI", "API_TYPE_KERNEL", "<unknown>"]
 
-class MeObject(object):
+class MeObject(StructuredObject):
     """
     An ME Object is a combination of a parsing/extraction class and a ctype
     definding structure object. 
 
     This follows the same ctor, process, showinfo, dump calling convention.
     """
-
-    def parse_structure(self, data, structure):
-        '''Construct an instance object of the provided structure.'''
-        struct_instance = structure()
-        struct_size = ctypes.sizeof(struct_instance)
-
-        struct_data = data[:struct_size]
-        struct_length = min(len(struct_data), struct_size)
-        ctypes.memmove(ctypes.addressof(struct_instance), struct_data, struct_length)
-        self.structure = struct_instance
-        self.fields = [field[0] for field in structure._fields_]
-        self.structure_size = struct_size
-
-    def show_structure(self):
-        for field in self.fields:
-            print "%s: %s" % (field, getattr(self.structure, field, None))
+    pass
 
 class MeModule(MeObject):
     def __init__(self, data, structure_type, offset):

@@ -1,4 +1,6 @@
 import os
+import ctypes
+
 from .utils import dump_data, fguid
 
 class BaseObject(object):
@@ -50,6 +52,23 @@ class FirmwareObject(object):
             _info["objects"] = _object.iterate_objects(include_content)
             objects.append(_info)
         return objects
+
+class StructuredObject(object):
+    def parse_structure(self, data, structure):
+        '''Construct an instance object of the provided structure.'''
+        struct_instance = structure()
+        struct_size = ctypes.sizeof(struct_instance)
+
+        struct_data = data[:struct_size]
+        struct_length = min(len(struct_data), struct_size)
+        ctypes.memmove(ctypes.addressof(struct_instance), struct_data, struct_length)
+        self.structure = struct_instance
+        self.fields = [field[0] for field in structure._fields_]
+        self.structure_size = struct_size
+
+    def show_structure(self):
+        for field in self.fields:
+            print "%s: %s" % (field, getattr(self.structure, field, None))
 
 class RawObject(FirmwareObject):
     def __init__(self, data):

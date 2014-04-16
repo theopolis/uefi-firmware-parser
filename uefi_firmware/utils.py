@@ -62,14 +62,16 @@ def dump_data(name, data):
     except Exception, e:
         print "Error: could not write (%s), (%s)." % (name, str(e))
 
-def search_firmware_volumes(data, byte_align= 16):
+def search_firmware_volumes(data, byte_align= 16, limit= None):
     '''Search a blob for heuristics related to UEFI firmware volume headers.'''
     potential_volumes = []
     for aligned_start in xrange(32, len(data), byte_align):
         if data[aligned_start : aligned_start + 4] == '_FVH':
             potential_volumes.append(aligned_start)
+            if limit and limit == len(potential_volumes): return potential_volumes
         if data[aligned_start+byte_align/2 : aligned_start+byte_align/2+4] == '_FVH':
             potential_volumes.append(aligned_start+byte_align/2)
+            if limit and limit == len(potential_volumes): return potential_volumes
     return potential_volumes
     pass
 
