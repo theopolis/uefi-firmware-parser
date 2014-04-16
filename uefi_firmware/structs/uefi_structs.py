@@ -14,6 +14,7 @@ FIRMWARE_VOLUME_GUIDS = [
     '04adeead-61ff-4d31-bab6-64f8bf901f5a', # Apple Boot Volume
 
     'cef5b9a3-476d-497f-dc9f-e98143e0422c', # NVRAM
+    #'08758b38-458d-50e8-e856-3bffffff83c4'
 ]
 
 FIRMWARE_CAPSULE_GUIDS = [
@@ -36,16 +37,19 @@ EFI_FILE_TYPES = {
     0x01: ("raw",                        "raw",         "RAW"),
     0x02: ("freeform",                   "freeform",    "FREEFORM"),
     0x03: ("security core",              "sec",         "SEC"),
-    0x04: ("pei core",                   "pei",         "PEI_CORE"),
-    0x05: ("dxe core",                   "dxe",         "DXE_CORE"),
+    0x04: ("pei core",                   "pei.core",    "PEI_CORE"),
+    0x05: ("dxe core",                   "dxe.core",    "DXE_CORE"),
     0x06: ("pei module",                 "peim",        "PEIM"),
-    0x07: ("driver",                     "driver",      "DRIVER"),
-    0x08: ("combined pei module/driver", "peim.driver", "COMBO_PEIM_DRIVER"),
+    0x07: ("driver",                     "dxe",         "DRIVER"),
+    0x08: ("combined pei module/driver", "peim.dxe",    "COMBO_PEIM_DRIVER"),
     0x09: ("application",                "app",         "APPLICATION"),
+    0x0a: ("system management",          "smm",         "SMM"),
     0x0b: ("firmware volume image",      "vol",         "FV_IMAGE"),
+    0x0c: ("combined smm/driver",        "smm.dxe",     "COMBO_SMM_DRIVER"),
+    0x0d: ("smm core",                   "smm.core",    "SMM_CORE"),
+    #0xc0: ("oem min"),
+    #0xdf: ("oem max"),
     0xf0: ("ffs padding",                "pad",         "0xf0")
-    ### SMM_CORE
-    ### DXE_SMM_CORE
 }
 
 EFI_SECTION_TYPES = {
