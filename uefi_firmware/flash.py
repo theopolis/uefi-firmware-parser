@@ -70,6 +70,11 @@ class FlashRegion(FirmwareObject, BaseObject):
         pass
 
     def dump(self, parent= ""):
+        dump_data(os.path.join(parent, "region-%s.fd" % self.name), self.data)
+
+        parent = os.path.join(parent, "region-%s" % self.name)
+        for section in self.sections:
+            section.dump(parent)
         pass
     pass
 
@@ -155,6 +160,13 @@ class FlashDescriptor(FirmwareObject):
         )
         for region in self.regions:
             region.showinfo(ts= "%s  " % ts)
+
+    def dump(self, parent, index= None):
+        dump_data(os.path.join(parent, "flash.fd"), self.data)
+
+        parent = os.path.join(parent, "regions")
+        for region in self.regions:
+            region.dump(parent)
 
     pass
 
