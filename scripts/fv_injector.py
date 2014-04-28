@@ -41,7 +41,7 @@ if __name__ == "__main__":
     #parser.add_argument('-f', "--firmware", action="store_true", help='The input file is a firmware volume.')
     #parser.add_argument('-b', "--brute", action="store_true", help= 'The input is a blob and may contain FV headers.')
     parser.add_argument('-c', "--capsule", action="store_true", help='The input file is a firmware capsule.')
-    #parser.add_argument('-p', "--pfs", action="store_true", help='The input file is a Dell PFS.')
+    parser.add_argument('-p', "--pfs", action="store_true", help='The input file is a Dell PFS.')
     
     ### Injection options
     parser.add_argument('--guid', default=None, help="GUID to replace (inject).")
@@ -67,11 +67,10 @@ if __name__ == "__main__":
     #    parsed = brute_search(input_data)
     #elif args.capsule:
     #    pass
-    #if args.pfs:
-    #    parsed = parse_pfs(input_data)
-    #else:
-    #    parsed = parse_firmware_volume(input_data)
-    parsed = parse_firmware_volume(input_data, name="input")
+    if args.pfs:
+        parsed = parse_pfs(input_data)
+    else:
+        parsed = parse_firmware_volume(input_data)
     if parsed is None:
         sys.exit(0)
 

@@ -20,6 +20,7 @@ def search_flash_descriptor(data):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Parse an Intel PCH/Flash descriptor.")
     parser.add_argument('-e', "--extract", action="store_true", help="Extract all sections.")
+    parser.add_argument('-o', "--output", default=".", help="Dump sections to this folder.")
     parser.add_argument('-t', "--test", action="store_true", help="Test the parsing.")
     parser.add_argument('-b', "--brute", action= "store_true", help= "Brute force search for flash descriptors")
     parser.add_argument("file", help="The file to work on")
@@ -49,6 +50,9 @@ if __name__ == "__main__":
 
         flash.process()
         flash.showinfo()
+
+    if args.extract:
+        flash.dump(args.output)
 
     #if args.extract:
         #flash.dump("")
