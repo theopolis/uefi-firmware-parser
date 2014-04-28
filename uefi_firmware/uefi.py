@@ -277,10 +277,13 @@ class GuidDefinedSection(EfiSection):
             status = self.process_subsections()
         ### Todo: check for processing required attribute
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
-            status = self.process_subsections()
-            if len(self.subsections) == 0:
-                ### There were no subsections parsed, treat as a firmware volume
-                status = parse_volume()
+            #status = self.process_subsections()
+            #if len(self.subsections) == 0:
+            #    ### There were no subsections parsed, treat as a firmware volume
+            #    #status = parse_volume()
+            #    #if not status:
+            self.subsections.append(RawObject(self.data))
+            pass
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["FIRMWARE_VOLUME"]:
             status = parse_volume()
         else:
@@ -479,11 +482,19 @@ class FirmwareFile(FirmwareObject):
         """
         if self.type == 0xf0: # ffs padding
             return True
-        
+
+        status = True
         if self.type == 0x01: # raw file
-            '''File is raw, no sections.'''
-            self.raw_blobs.append(self.data)
-            return True
+            ### File is raw, it should have no sections.
+            ### It may be a firmware volume (Lenovo).
+            fv = FirmwareVolume(self.data, fguid(self.guid))
+            if fv.valid_header:
+                status = fv.process() and status
+                self.raw_blobs.append(fv)
+            else:
+                stauts = True
+                self.raw_blobs.append(self.data)
+            return status
 
         if self.type == 0x00: # unknown
             self.raw_blobs.append(self.data)
@@ -491,7 +502,6 @@ class FirmwareFile(FirmwareObject):
         
         section_data = self.data
         self.sections = []
-        status = True
         while len(section_data) >= 4:
             file_section = FirmwareFileSystemSection(section_data, self.guid)
             if not file_section.valid_header:
@@ -519,7 +529,10 @@ class FirmwareFile(FirmwareObject):
                 data += "\x00" * (((section_size + 3)&(~3)) - section_size)
 
         for blob in self.raw_blobs:
-            data += blob
+            if type(blob) == FirmwareVolume:
+                data += blob.build(generate_checksum)
+            else:
+                data += blob
 
         ### Maining to support ffs-padding
         if len(self.raw_blobs) == 0 and len(self.sections) == 0:
@@ -550,7 +563,10 @@ class FirmwareFile(FirmwareObject):
         )
         
         for i, blob in enumerate(self.raw_blobs):
-            self._guessinfo(ts+"  ", blob, index=i)
+            if type(blob) == FirmwareVolume:
+                blob.showinfo(ts+"  ", index=i)
+            else:
+                self._guessinfo(ts+"  ", blob, index=i)
         
         if self.sections is None:
             # padding file, skip for now
@@ -862,6 +878,7 @@ class FirmwareCapsule(FirmwareObject):
 
             ### Store offsets
             self.offsets = {
+                ### This offset can be relative to the base of the capsule or end of the header.
                 "capsule_body":  capsule_body,
                 "split_info":    split_info,
                 "oem_header":    oem_header,
@@ -888,6 +905,7 @@ class FirmwareCapsule(FirmwareObject):
                 "oem_header": 0,
                 "author_info": 0
             }
+
         self.header_size = self.size
         pass
 
@@ -902,12 +920,15 @@ class FirmwareCapsule(FirmwareObject):
 
     def process(self):
         ### Copy the EOH to capsule into a preable
-        self.preamble = self.data[:self.offsets["capsule_body"]- self.header_size]
-        self.parse_sections()
+        self.preamble = self.data[:self.offsets["capsule_body"]]
+        self.parse_sections(None)
 
-        fv = FirmwareVolume(self.data[self.offsets["capsule_body"]- self.header_size:])
+        fv = FirmwareVolume(self.data[self.offsets["capsule_body"]:])
         if not fv.valid_header:
-            return False
+            ### The body could be an offset from the end of the header (Intel does this).
+            fv = FirmwareVolume(self.data[self.offsets["capsule_body"]- self.header_size:])
+            if not fv.valid_header:
+                return False
 
         if not fv.process():
             return False
@@ -918,7 +939,7 @@ class FirmwareCapsule(FirmwareObject):
         if self.capsule_body is not None:
             body = self.capsule_body.build(generate_checksum, debug= debug)
         else:
-            body = self.data[self.offsets["capsule_body"]- self.header_size:]
+            body = self.data[self.offsets["capsule_body"]:]
 
         ### Assume no size change
         return self._data[:self.header_size] + self.preamble + body
@@ -937,7 +958,7 @@ class FirmwareCapsule(FirmwareObject):
             ts, self.image_size, self.image_size,
             self.offsets["capsule_body"], self.offsets["oem_header"], self.offsets["author_info"]
         )
-        print self.offsets
+        #print self.offsets
 
         if self.capsule_body is not None:
             self.capsule_body.showinfo(ts)
@@ -955,7 +976,7 @@ class FirmwareCapsule(FirmwareObject):
         else:
             ### Write the raw image data from the capsule.
             path = os.path.join(parent, "capsule-%s.image" % self.name)
-            offset = self.offsets["capsule_body"]- self.header_size
+            offset = self.offsets["capsule_body"]
             dump_data(path, self.data[offset:offset+ self.image_size])
 
 
