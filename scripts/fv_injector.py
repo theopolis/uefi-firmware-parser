@@ -35,14 +35,43 @@ def parse_firmware_volume(data, name="volume"):
 
     firmware_volume.process()
     return firmware_volume
-        
+
+def parse_file(data):
+    obj_references = []
+    def _print_obj(obj):
+        obj_references.append(obj["_self"])
+        print "[%d] %s: %s" % (len(obj_references), str(obj["_self"]), str(obj["attrs"]))
+        if "objects" in obj and len(obj["objects"]) > 0:
+            for sub_obj in obj["objects"]: _print_obj(sub_obj)
+    ff = FirmwareFile(data)
+
+    if not ff.process():
+        print "[!] Error: Cannot parse FirmwareFile."
+        return None
+    objects = ff.iterate_objects(include_content= False)
+    for obj in objects:
+        _print_obj(obj)
+    selection = 0
+    while True:
+        selection = raw_input("[#] Replace what section: [1-%d]: " % len(obj_references))
+        try: 
+            selection = int(selection);
+            if selection < 1 or selection > len(obj_references): 
+                print "[!] Try again..."; continue
+            break
+        except: 
+            print "[!] Try again..."; continue
+        pass
+    return (ff, obj_references, selection)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Search a file for UEFI firmware volumes, parse and output.")
     #parser.add_argument('-f', "--firmware", action="store_true", help='The input file is a firmware volume.')
     #parser.add_argument('-b', "--brute", action="store_true", help= 'The input is a blob and may contain FV headers.')
-    parser.add_argument('-c', "--capsule", action="store_true", help='The input file is a firmware capsule.')
-    parser.add_argument('-p', "--pfs", action="store_true", help='The input file is a Dell PFS.')
-    
+    parser.add_argument('-c', "--capsule", action="store_true", default=False, help='The input file is a firmware capsule.')
+    parser.add_argument('-p', "--pfs", action="store_true", default=False, help='The input file is a Dell PFS.')
+    parser.add_argument("-f", "--ff", action="store_true", default=False, help="Inject payload into firmware file.")
+
     ### Injection options
     parser.add_argument('--guid', default=None, help="GUID to replace (inject).")
     parser.add_argument('--injection', required= True, help="Pre-generated EFI file to inject.")
@@ -67,22 +96,50 @@ if __name__ == "__main__":
     #    parsed = brute_search(input_data)
     #elif args.capsule:
     #    pass
+
+    ### Special case, regenerate a file.
+    if args.ff:
+        print "[#] Opening firmware file."
+        parsed = parse_file(input_data)
+        firmware_file = parsed[0]
+        objects = parsed[1]
+        index = parsed[2]
+        print "[#] Regenerating firmware file with injected section payload."
+        objects[index-1].regen(injection_data)
+        print "[#] Re-parsing firmware file objects."
+        objects[index-1].process()
+        print "[#] Rebuilding firmware objects."
+        output_object = firmware_file.build()
+        print "[#] Rebuild complete, injection successful."
+        dump_data(args.output, output_object[1])
+        print "[#] Injected firmware written to %s." % args.output
+        sys.exit(0)
+
     if args.pfs:
+        print "[#] Opening firmware as Dell PFS."
         parsed = parse_pfs(input_data)
     else:
+        print "[#] Opening firmware as UEFI firmware volume."
         parsed = parse_firmware_volume(input_data)
     if parsed is None:
         sys.exit(0)
 
     ### Iterate over each file object.
     objects = flatten_firmware_objects(parsed.iterate_objects(True))
+    print "[#] Firmware objects parsed."
     for firmware_object in objects:
         if firmware_object["guid"] == args.guid and type(firmware_object["_self"]) == FirmwareFile:
-            print "Injecting (replacing) FirmwareFile %s." % green(args.guid)
-            firmware_object["_self"].data = injection_data
+            print "[#] Injecting (replacing) FirmwareFile %s." % green(args.guid)
+            #firmware_object["_self"].data = injection_data
+            firmware_object["_self"].regen(injection_data)
+            print "[#] Regenerating firmware children structures (from injection point)."
             firmware_object["_self"].process()
+            print "[#] Regeneration complete, child objects parsed."
+    print "[#] Rebuilding complete firmware with injection."
     output_object = parsed.build()
+    print "[#] Rebuild complete, injection successful."
     dump_data(args.output, output_object)
+    print "[#] Injected firmware written to %s." % args.output
 
 
 

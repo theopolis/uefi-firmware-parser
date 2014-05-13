@@ -32,6 +32,17 @@ def parse_firmware_capsule(data, name=0):
         print "Dumping..."
         firmware_capsule.dump(args.output)
 
+def parse_file(data, name=""):
+    print "Parsing Firmware File"
+    firmware_file = FirmwareFile(data)
+
+    firmware_file.process()
+    firmware_file.showinfo('')
+
+    if args.extract:
+        print "Dumping..."
+        firmware_file.dump(args.output)
+
 def parse_firmware_volume(data, name=0):
     print "Parsing FV at index (%s)." % hex(name)
     firmware_volume = FirmwareVolume(data, name)
@@ -63,6 +74,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Parse, and optionally output, details and data on UEFI-related firmware.")
     parser.add_argument('-b', "--brute", action="store_true", help= 'The input is a blob and may contain FV headers.')
     parser.add_argument('-c', "--capsule", action="store_true", help='The input file is a firmware capsule, do not search.')
+    parser.add_argument('-f', "--ff", action="store_true", help='The input file is a firmware file.')
     parser.add_argument('-o', "--output", default=".", help="Dump EFI Files to this folder.")
     parser.add_argument('-e', "--extract", action="store_true", help="Extract all files/sections/volumes.")
     parser.add_argument('-g', "--generate", default= None, help= "Generate a FDF, implies extraction")
@@ -77,6 +89,8 @@ if __name__ == "__main__":
             print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
             sys.exit(1)
         
+        if args.ff:
+            parse_file(input_data)
         if args.capsule:
             parse_firmware_capsule(input_data)
         elif args.brute:
