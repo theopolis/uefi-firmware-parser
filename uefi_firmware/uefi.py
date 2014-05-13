@@ -8,6 +8,7 @@ from .base import FirmwareObject, RawObject, BaseObject
 from .utils import *
 from .guids import get_guid_name
 from .structs.uefi_structs import *
+from .structs.flash_structs import *
 import efi_compressor
 
 def _get_file_type(file_type):
@@ -484,15 +485,26 @@ class FirmwareFile(FirmwareObject):
             return True
 
         status = True
+        has_object = False
         if self.type == 0x01: # raw file
             ### File is raw, it should have no sections.
             ### It may be a firmware volume (Lenovo).
             fv = FirmwareVolume(self.data, fguid(self.guid))
             if fv.valid_header:
+                has_object = True
                 status = fv.process() and status
                 self.raw_blobs.append(fv)
-            else:
-                stauts = True
+            elif self.data[0x10:0x10+4] == FLASH_HEADER:
+                ### Lenovo may also bundle a flash descriptor as raw content.
+                from .flash import FlashDescriptor
+                flash = FlashDescriptor(self.data)
+                if flash.valid_header:
+                    has_object = True
+                    status = flash.process() and status
+                    self.raw_blobs.append(flash)
+            ### If everything is normal (according to the FV/FF spec).
+            if not has_object:
+                status = True
                 self.raw_blobs.append(self.data)
             return status
 
@@ -563,7 +575,7 @@ class FirmwareFile(FirmwareObject):
         )
         
         for i, blob in enumerate(self.raw_blobs):
-            if type(blob) == FirmwareVolume:
+            if type(blob) not in [str, bytes]:
                 blob.showinfo(ts+"  ", index=i)
             else:
                 self._guessinfo(ts+"  ", blob, index=i)

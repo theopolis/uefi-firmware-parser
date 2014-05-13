@@ -5,12 +5,12 @@ import sys, struct
 import uuid
 
 from .base import FirmwareObject, RawObject, BaseObject, StructuredObject
-from .uefi import FirmwareVolume
 from .utils import *
 from .guids import get_guid_name
 from .structs.flash_structs import *
 
-FLASH_HEADER = "\x5A\xA5\xF0\x0F"
+### Inline imports
+#from .uefi import FirmwareVolume
 
 class RegionSection(StructuredObject):
     size = 20
@@ -42,6 +42,8 @@ class FlashRegion(FirmwareObject, BaseObject):
         return self.sections
 
     def process(self):
+        from .uefi import FirmwareVolume
+        
         if self.name == "bios":
             data= self.data
             while True:

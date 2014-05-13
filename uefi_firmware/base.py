@@ -70,7 +70,7 @@ class StructuredObject(object):
         for field in self.fields:
             print "%s: %s" % (field, getattr(self.structure, field, None))
 
-class RawObject(FirmwareObject):
+class RawObject(FirmwareObject, BaseObject):
     def __init__(self, data):
         self.data = data
     def build(self, generate_checksum, debug= False):

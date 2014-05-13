@@ -1,6 +1,8 @@
 import ctypes
 import struct
 
+FLASH_HEADER = "\x5A\xA5\xF0\x0F"
+
 uint8_t  = ctypes.c_ubyte
 char     = ctypes.c_char
 uint32_t = ctypes.c_uint
@@ -25,6 +27,7 @@ class FlashDescriptorMapType(ctypes.LittleEndianStructure):
         ("NumberOfDmiTableEntries", uint8_t), #
         ("ReservedZero",            uint16_t),  #
     ]
+    #size = 
 
 class FlashMasterSectionType(ctypes.LittleEndianStructure):
     _fields_ = [
