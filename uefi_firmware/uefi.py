@@ -297,7 +297,7 @@ class GuidDefinedSection(EfiSection):
             data = str(efi_compressor.LzmaCompress(data, len(data)))
             pass
 
-        header = struct.pack("<16sHH", self.guid, self.offset, self.attrs)
+        header = struct.pack("<16sHH", self.guid, self.offset, self.attrs["attrs"])
         return header + self.preamble + data
 
     def showinfo(self, ts='', index= 0):
@@ -354,6 +354,11 @@ class FirmwareFileSystemSection(EfiSection):
     def objects(self):
         return [self.parsed_object]
         #return self.subsections
+
+    def regen(self, data):
+        ### Transitional method, should be adopted by other objects.
+        self._data = data
+        self.data = data[0x4:]
 
     def process(self):
         self.parsed_object = None
@@ -472,6 +477,11 @@ class FirmwareFile(FirmwareObject):
     @property
     def objects(self):
         return self.sections
+
+    def regen(self, data):
+        ### Transitional method, should be adopted by other objects.
+        #self._data = data
+        self.__init__(data)
 
     def process(self):
         """
@@ -688,7 +698,9 @@ class FirmwareVolume(FirmwareObject):
 
         try:
             header = data[:self._HEADER_SIZE]
-            self.rsvd, self.guid, self.size, self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
+            self.rsvd, self.guid, self.size, self.magic, self.attributes, \
+            self.hdrlen, self.checksum, self.rsvd2, \
+            self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
         except Exception, e:
             print "Error: cannot parse FV header (%s)." % str(e)
             return
@@ -772,7 +784,8 @@ class FirmwareVolume(FirmwareObject):
             pass
 
         ### Assume no size change
-        header = struct.pack("<16s16sQ4sIHH3sB", self.rsvd, self.guid, self.size, self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision)
+        header = struct.pack("<16s16sQ4sIHH3sB", self.rsvd, self.guid, self.size, \
+            self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision)
         return header + block_map + data
         pass
     
@@ -780,9 +793,10 @@ class FirmwareVolume(FirmwareObject):
         if not self.valid_header or len(self.data) == 0:
             return
 
-        print "%s %s attr 0x%08x, rev %d, size 0x%x (%d bytes)" % (
+        print "%s %s attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
             blue("%sFirmware Volume:" % (ts)),
             green(fguid(self.guid)), self.attributes, self.revision, 
+            self.checksum,
             self.size, self.size
         )
         print blue("%s  Firmware Volume Blocks: " % (ts)),
