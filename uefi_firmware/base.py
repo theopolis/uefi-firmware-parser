@@ -1,7 +1,7 @@
 import os
 import ctypes
 
-from .utils import dump_data, fguid
+from .utils import dump_data, fguid, blue
 
 class BaseObject(object):
     '''A base object can be used to access direct content.'''
@@ -76,9 +76,12 @@ class RawObject(FirmwareObject):
     def build(self, generate_checksum, debug= False):
     	return self.data
     def showinfo(self, ts= '', index= None):
+        print "%s%s size= %d " % (
+            ts, blue("RawObject:"), len(self.data)
+        )
     	pass
     def dump(self, parent= '', index= None):
-    	#path = os.path.join(parent, "object.raw")
-    	#dump_data(path, self.data)
+    	path = os.path.join(parent, "object.raw")
+    	dump_data(path, self.data)
     	pass
     pass
