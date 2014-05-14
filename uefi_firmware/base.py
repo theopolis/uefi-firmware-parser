@@ -50,6 +50,7 @@ class FirmwareObject(object):
             if _object is None: continue
             _info = _object.info(include_content)
             _info["objects"] = _object.iterate_objects(include_content)
+            for object in _info["objects"]: object["parent"] = _info
             objects.append(_info)
         return objects
 
