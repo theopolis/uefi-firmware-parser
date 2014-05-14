@@ -46,6 +46,30 @@ def decompress(algorithms, compressed_data):
             continue
     return None
 
+def find_volumes(data, process= True):
+    ### Search for arbitary firmware volumes within data, used for Raw files and sections.
+    index = 0
+
+    objects = []
+    while True:
+        volume_index = data.find("_FVH")
+        if volume_index < 0: 
+            break
+        volume_index -= (8 + 16*2)
+        fv = FirmwareVolume(data[volume_index:])
+        if not fv.valid_header:
+            data = data[16*3:]
+            continue
+        if volume_index > 0:
+            objects.append(RawObject(data[:volume_index]))
+        if process: fv.process()
+        objects.append(fv)
+        data = data[volume_index + fv.size:]
+    if len(data) > 0:
+        objects.append(RawObject(data))
+    return objects
+    pass
+
 class EfiSection(FirmwareObject):
     subsections = []
 
@@ -278,12 +302,14 @@ class GuidDefinedSection(EfiSection):
             status = self.process_subsections()
         ### Todo: check for processing required attribute
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
-            #status = self.process_subsections()
-            #if len(self.subsections) == 0:
-            #    ### There were no subsections parsed, treat as a firmware volume
-            #    #status = parse_volume()
-            #    #if not status:
-            self.subsections.append(RawObject(self.data))
+            ### Todo: verify this (FirmwareFile hack)
+            self.data = self.preamble[-4:] + self.data
+            status = self.process_subsections()
+            if len(self.subsections) == 0:
+                ### There were no subsections parsed, treat as a firmware volume
+                status = parse_volume()
+                if not status:
+                    self.subsections.append(RawObject(self.data))
             pass
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["FIRMWARE_VOLUME"]:
             status = parse_volume()
@@ -480,7 +506,7 @@ class FirmwareFile(FirmwareObject):
 
     @property
     def objects(self):
-        return self.sections
+        return self.sections + [blob for blob in self.raw_blobs if type(blob) not in [bytes, str]]
 
     def regen(self, data):
         ### Transitional method, should be adopted by other objects.
@@ -515,7 +541,9 @@ class FirmwareFile(FirmwareObject):
             ### If everything is normal (according to the FV/FF spec).
             if not has_object:
                 status = True
-                self.raw_blobs.append(self.data)
+                ### There may be arbitrary firmware structures (Lenovo)
+                objects = find_volumes(self.data)
+                self.raw_blobs += objects
             return status
 
         if self.type == 0x00: # unknown
@@ -730,11 +758,11 @@ class FirmwareVolume(FirmwareObject):
             self.hdrlen, self.checksum, self.rsvd2, \
             self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
         except Exception, e:
-            print "Error: cannot parse FV header (%s)." % str(e)
+            #print "Error: cannot parse FV header (%s)." % str(e)
             return
 
         if fguid(self.guid) not in FIRMWARE_VOLUME_GUIDS:
-            print "Error: invalid FV guid (%s)." % fguid(self.guid)
+            #print "Error: invalid FV guid (%s)." % fguid(self.guid)
             return
 
         self.blocks = []
@@ -945,7 +973,7 @@ class FirmwareCapsule(FirmwareObject):
         return [self.capsule_body]
 
     def process(self):
-        ### Copy the EOH to capsule into a preable
+        ### Copy the EOH to capsule into a preamble
         self.preamble = self.data[:self.offsets["capsule_body"]]
         self.parse_sections(None)
 
@@ -957,7 +985,9 @@ class FirmwareCapsule(FirmwareObject):
                 return False
 
         if not fv.process():
-            return False
+            ### Todo: test code coverage
+            #return False
+            pass
         self.capsule_body = fv
         return True
 
@@ -1004,6 +1034,3 @@ class FirmwareCapsule(FirmwareObject):
             path = os.path.join(parent, "capsule-%s.image" % self.name)
             offset = self.offsets["capsule_body"]
             dump_data(path, self.data[offset:offset+ self.image_size])
-
-
-
