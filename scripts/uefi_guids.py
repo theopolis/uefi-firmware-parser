@@ -4,7 +4,8 @@ import argparse
 import os
 
 from uefi_firmware.uefi import *
-from uefi_firmware.utils import flatten_firmware_objects
+from uefi_firmware.utils import *
+from uefi_firmware.flash import FlashDescriptor
 from uefi_firmware.guids import get_guid_name
 
 def debug(text, cr= True, gen= False):
@@ -82,40 +83,44 @@ def list_uefi_guids(base_object):
 
     pass
 
-def brute_search(data):
+def brute_search_volumes(data):
     volumes = search_firmware_volumes(data)
-    
     for index in volumes:
         parse_firmware_volume(data[index-40:], name=index-40)
     pass
 
-def parse_firmware_capsule(data, name=0):
-    #print "Parsing FC at index (%s)." % hex(name)
-    firmware_capsule = FirmwareCapsule(data, name)
+def brute_search_flash(data):
+    descriptors = search_flash_descriptor(data)
+    for index in descriptors:
+        parse_flash_descriptor(data[index:])
+    pass
 
+def parse_firmware_capsule(data, name=0):
+    firmware_capsule = FirmwareCapsule(data, name)
     if not firmware_capsule.valid_header:
         return
-
     firmware_capsule.process()
-    #firmware_capsule.showinfo('')
     pass
 
 def parse_firmware_volume(data, name=0):
-    #print "Parsing FV at index (%s)." % hex(name)
     firmware_volume = FirmwareVolume(data, name)
-
-    #if not firmware_volume.valid_header:
-    #    return
-
     firmware_volume.process()
-    #firmware_volume.showinfo('')
     list_uefi_guids(firmware_volume)
 
+def parse_flash_descriptor(data):
+    flash = FlashDescriptor(data)
+    if not flash.valid_header:
+        return
+    flash.process()
+    list_uefi_guids(flash)
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description= "Output GUIDs for files, optionally write GUID structure file.")
     parser.add_argument('-c', "--capsule", action="store_true", help='The input file is a firmware capsule, do not search.')
     parser.add_argument('-b', "--brute", action= "store_true", help='The input file is a blob, search for firmware volume headers.')
+    parser.add_argument('-d', "--flash", action="store_true", help='The input file is a flash descriptor.')
+    
+    
     parser.add_argument('-g', "--generate", default= None, help= "Generate a behemonth-style GUID output.")
     parser.add_argument('-u', "--unknowns", action= "store_true", help='When generating also print unknowns.')
     
@@ -129,9 +134,16 @@ if __name__ == "__main__":
         sys.exit(1)
     
     if args.brute:
-        brute_search(input_data)
+        if args.flash:
+            brute_search_flash(input_data)
+        else:
+            brute_search_volumes(input_data)
+        sys.exit(1)
+
     if args.capsule:
         parse_firmware_capsule(input_data)
+    elif args.flash:
+        parse_flash_descriptor(input_data)
     else:
         parse_firmware_volume(input_data) 
 
