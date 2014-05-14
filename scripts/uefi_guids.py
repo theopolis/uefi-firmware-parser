@@ -36,7 +36,7 @@ def label_as_guid_name(label):
         return None
     if producer.lower().find(args.generate.lower()) != 0:
         producer = "%s_%s" % (args.generate, producer)
-    return "%s_GUID" % producer.upper()
+    return "%s_GUID" % producer.upper().replace(".EFI", "")
 
 def list_uefi_guids(base_object):
     base_objects = base_object.iterate_objects(False)
@@ -47,6 +47,8 @@ def list_uefi_guids(base_object):
         guid = firmware_object["guid"] if "guid" in firmware_object else None
         if guid is None: 
             continue
+        if firmware_object["guid"] in [v for k,v in FIRMWARE_GUIDED_GUIDS.iteritems()]:
+	    guid = firmware_object["parent"]["parent"]["guid"]
 
         if len(guid) == 0:
             continue
