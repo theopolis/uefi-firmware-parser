@@ -1,13 +1,17 @@
 import efiguids
 import efiguids_ami
 import efiguids_dell
+import efiguids_lenovo
+import efiguids_asrock
 
 from ..utils import rguid
 
 GUID_TABLES = [
     efiguids.GUIDs,
     efiguids_ami.GUIDs,
-    efiguids_dell.GUIDs
+    efiguids_dell.GUIDs,
+    efiguids_lenovo.GUIDs,
+    efiguids_asrock.GUIDs,
 ]
 
 def get_guid_name(guid):
