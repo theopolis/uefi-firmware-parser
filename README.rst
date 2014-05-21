@@ -1,6 +1,7 @@
 UEFI Firmware Parser
 ====================
-The UEFI firmware parser is a simple module and set of scripts for parsing, extracting, and recreating UEFI firmware volumes.
+The UEFI firmware parser is a simple module and set of scripts for parsing, extracting, 
+and recreating UEFI firmware volumes.
 This includes parsing modules for BIOS, OptionROM, Intel ME and other formats too. 
 Please use the example scripts for parsing tutorials.
 
@@ -13,6 +14,7 @@ Installation
 **Requirements**
 
 - Python development headers, usually found in the ``python-dev`` package.
+- The compression/decompression features will use the python headers and ``gcc``.
 - ``pefile`` is optional, and may be used for additional parsing.
 
 Usage
@@ -22,8 +24,53 @@ Example scripts are provided in ``/scripts``
 ::
 
   $ python ./scripts/fv_parser.py -h
+  usage: fv_parser.py [-h] [-b] [-c] [-f] [-d] [-m] [-p] [-q] [-o OUTPUT] [-e]
+                      [-g GENERATE] [-t]
+                      file [file ...]
 
-  usage: fv_parser.py [-h] [-f] [-o OUTPUT] [-e] file
+  Parse, and optionally output, details and data on UEFI-related firmware.
+
+  positional arguments:
+    file                  The file(s) to work on
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    -b, --brute           The input is a blob and may contain FV headers.
+    -c, --capsule         The input file is a firmware capsule, do not search.
+    -f, --ff              The input file is a firmware file.
+    -d, --flash           The input file is a flash descriptor.
+    -m, --me              The input file is an Intel ME container.
+    -p, --pfs             The input file is a Dell PFS.HDR update.
+    -q, --quiet           Do not show info.
+    -o OUTPUT, --output OUTPUT
+                          Dump EFI Files to this folder.
+    -e, --extract         Extract all files/sections/volumes.
+    -g GENERATE, --generate GENERATE
+                          Generate a FDF, implies extraction
+    -t, --test            Test file parsing, output name/success.
+
+**Features**
+
+- UEFI Firmware Volumes, Capsules, FileSystems, Files, Sections parsing
+- Intel PCH Flash Descriptors
+- Intel ME modules parsing (for ARC5)
+- Dell PFS (HDR) updates parsing
+- Tiano/EFI, and native LZMA (7z) [de]compression
+
+- Complete UEFI Firmware volume object heirarchy display
+- Firmware descriptor [re]generation using the parsed input volumes
+- Firmware File Section injection
+
+**GUID Injection**
+
+Injection or GUID replacement (no addition/subtraction yet) can be performed on sections within a UEFI firmware file, or on UEFI firmware files within a firmware filesystem.
+
+:: 
+
+  $ python ./scripts/fv_injector.py -h
+  usage: fv_injector.py [-h] [-c] [-p] [-f] [--guid GUID] --injection INJECTION
+                        [-o OUTPUT]
+                        file
 
   Search a file for UEFI firmware volumes, parse and output.
 
@@ -32,19 +79,53 @@ Example scripts are provided in ``/scripts``
 
   optional arguments:
     -h, --help            show this help message and exit
-    -f, --firmware        The input file is a firmware volume, do not search.
-    --output OUTPUT       Dump EFI Files to this folder.
-    -e, --extract         Extract all files/sections/volumes.
+    -c, --capsule         The input file is a firmware capsule.
+    -p, --pfs             The input file is a Dell PFS.
+    -f, --ff              Inject payload into firmware file.
+    --guid GUID           GUID to replace (inject).
+    --injection INJECTION
+                          Pre-generated EFI file to inject.
+    -o OUTPUT, --output OUTPUT
+                          Name of the output file.
 
-**Features**
+Note: when injecting into a firmware file the user will be prompted for which section to replace. At the moment this is not-yet-scriptable. 
 
-- UEFI Firmware Volumes, FileSystems, Files, Sections parsing
-- Intel ME modules parsing
-- Dell PFS (HDR) updates parsing
+**IDA Python support**
 
-- Tiano/EFI [De]Compression
-- Native LZMA (7z) [De]Compression
+There is an included script to generate additional GUID labels to import into IDA Python
+using Snare's plugins. Using the ``-g LABEL`` the script will generate a Python dictionary-formatted output. This project will try to keep up-to-date with popular vendor GUIDs automatically.
 
-- Complete UEFI Firmware volume object heirarchy
-- Firmware descriptor [re]generation using the parsed input volumes
-- Firmware File Section injection
+::
+
+  $ python ./scripts/uefi_guids.py -h
+  usage: uefi_guids.py [-h] [-c] [-b] [-d] [-g GENERATE] [-u] file
+
+  Output GUIDs for files, optionally write GUID structure file.
+
+  positional arguments:
+    file                  The file to work on
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    -c, --capsule         The input file is a firmware capsule, do not search.
+    -b, --brute           The input file is a blob, search for firmware volume
+                          headers.
+    -d, --flash           The input file is a flash descriptor.
+    -g GENERATE, --generate GENERATE
+                          Generate a behemonth-style GUID output.
+    -u, --unknowns        When generating also print unknowns.
+
+**Supported Vendors**
+
+This module has been tested on BIOS/UEFI/firmware updates from the following vendors.
+Not every update for every product will parse, some may required a-prioi decompression
+or extraction from the distribution update mechanism (typically a PE). 
+
+- ASRock
+- Dell
+- Gigabyte
+- Intel
+- Lenovo
+- HP
+- MSI
+- VMware
