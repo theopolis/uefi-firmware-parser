@@ -581,6 +581,8 @@ class FirmwareFile(FirmwareObject):
         for blob in self.raw_blobs:
             if type(blob) == FirmwareVolume:
                 data += blob.build(generate_checksum)
+            elif type(blob) == RawObject:
+                data += blob.data
             else:
                 data += blob
 
