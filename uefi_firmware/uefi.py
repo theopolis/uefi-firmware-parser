@@ -415,6 +415,12 @@ class FirmwareFileSystemSection(EfiSection):
             freeform_guid = FreeformGuidSection(self.data)
             self.parsed_object = freeform_guid
 
+        elif self.type == 0x19: #raw
+            if self.data[:10] == "123456789A":
+                ### HP adds a strange header to nested FVs.
+                fv = FirmwareVolume(self.data[12:], fguid(self.guid))
+                self.parsed_object = fv
+
         self.attrs = {"type": self.type, "size": self.size}
         self.attrs["type_name"] = _get_section_type(self.type)[0]
 
@@ -524,7 +530,7 @@ class FirmwareFile(FirmwareObject):
         has_object = False
         if self.type == 0x01: # raw file
             ### File is raw, it should have no sections.
-            ### It may be a firmware volume (Lenovo).
+            ### It may be a firmware volume (Lenovo or HP).
             fv = FirmwareVolume(self.data, fguid(self.guid))
             if fv.valid_header:
                 has_object = True
