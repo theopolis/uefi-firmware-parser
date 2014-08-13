@@ -643,8 +643,7 @@ class FirmwareFile(FirmwareObject):
         dump_data(os.path.join(parent, "file.obj"), self._data)
         if self.raw_blobs is not None:
             for i, blob in enumerate(self.raw_blobs):
-                self.path = os.path.join(parent, "blob-%s.raw" % i)
-                dump_data(self.path, blob)
+                blob.dump(parent, index= i)
 
         if self.sections is not None:
             for i, section in enumerate(self.sections):
