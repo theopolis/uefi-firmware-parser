@@ -74,7 +74,7 @@ class PFSSection(FirmwareObject, BaseObject):
 
     @property
     def objects(self):
-        return self.section_objects + [self.chunk1, self.chunk2, self.chunk3]
+        return self.section_objects #+ [self.chunk1, self.chunk2, self.chunk3]
 
     def info(self, include_content= False):
         return {
@@ -127,7 +127,7 @@ class PFSSection(FirmwareObject, BaseObject):
             sub_object.dump(path)
         pass
 
-class PFSFile(object):
+class PFSFile(FirmwareObject):
     PFS_HEADER = "PFS.HDR."
     PFS_FOOTER = "PFS.FTR."
 
