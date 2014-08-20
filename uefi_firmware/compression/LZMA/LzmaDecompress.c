@@ -97,6 +97,9 @@ LzmaGetInfo (
 {
     UInt64  DecodedSize;
 
+    //Scratch size is not applicable for LZMA
+    *ScratchSize  = 1;
+
     ASSERT(SourceSize >= LZMA_HEADER_SIZE);
 
     DecodedSize = GetDecodedSizeOfBuf((UINT8*)Source);
