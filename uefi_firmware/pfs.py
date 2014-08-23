@@ -43,9 +43,9 @@ class PFSSection(FirmwareObject, BaseObject):
         self.section_data = self.data[self.HEADER_SIZE:self.HEADER_SIZE+csize]
 
         # Not yet sure what the following three partitions are
-        self.chunk1 = self.data[self.HEADER_SIZE+csize:self.HEADER_SIZE+csize+size1]
-        self.chunk2 = self.data[self.HEADER_SIZE+csize+size1:self.HEADER_SIZE+csize+size1+size2]
-        self.chunk3 = self.data[self.HEADER_SIZE+csize+size1+size2:self.HEADER_SIZE+csize+size1+size2+size3]
+        self.chunk1 = RawObject(self.data[self.HEADER_SIZE+csize:self.HEADER_SIZE+csize+size1])
+        self.chunk2 = RawObject(self.data[self.HEADER_SIZE+csize+size1:self.HEADER_SIZE+csize+size1+size2])
+        self.chunk3 = RawObject(self.data[self.HEADER_SIZE+csize+size1+size2:self.HEADER_SIZE+csize+size1+size2+size3])
         
         total_chunk_size = csize+size1+size2+size3
 
@@ -98,7 +98,10 @@ class PFSSection(FirmwareObject, BaseObject):
         body = ""
         for sub_object in self.section_objects:
             body += sub_object.build(generate_checksum, debug= debug)
-        return self.header + body + self.chunk1 + self.chunk2 + self.chunk3
+        return self.header + body + \
+            self.chunk1.build(generate_checksum) + \
+            self.chunk2.build(generate_checksum) + \
+            self.chunk3.build(generate_checksum)
         pass
 
     def showinfo(self, ts='', index= None):
@@ -127,7 +130,7 @@ class PFSSection(FirmwareObject, BaseObject):
             sub_object.dump(path)
         pass
 
-class PFSFile(object):
+class PFSFile(FirmwareObject):
     PFS_HEADER = "PFS.HDR."
     PFS_FOOTER = "PFS.FTR."
 

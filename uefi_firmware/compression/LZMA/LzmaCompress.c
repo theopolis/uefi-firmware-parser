@@ -66,8 +66,8 @@ EFI_STATUS
 {
     SRes              LzmaResult;
     CLzmaEncProps     props;
-    SizeT propsSize = LZMA_PROPS_SIZE;
-    SizeT destLen = SourceSize + SourceSize / 3 + 128;
+    UINT32 propsSize = LZMA_PROPS_SIZE;
+    UINT32 destLen = SourceSize + SourceSize / 3 + 128;
 
     if (*DestinationSize < destLen)
     {
@@ -82,12 +82,12 @@ EFI_STATUS
 
     LzmaResult = LzmaEncode(
         (Byte*)((UINT8*)Destination + LZMA_HEADER_SIZE), 
-        &destLen,
+        (SizeT*)&destLen,
         (VOID*)Source, 
         SourceSize,
         &props, 
         (UINT8*)Destination, 
-        &propsSize, 
+        (SizeT*)&propsSize,
         props.writeEndMark,
         &g_ProgressCallback, 
         &SzAllocForLzma, 
