@@ -287,19 +287,23 @@ class GuidDefinedSection(EfiSection):
                 self.subsections = [fv]
                 return True
             return False
-
-        status = True
-        if fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
+        def decompress_guid(alg):
             ### Try to decompress the body of the section.
-            results = decompress([efi_compressor.LzmaDecompress], self.preamble + self.data)
+            results = decompress([alg], self.preamble + self.data)
             if results is None:
                 ### Attempt to recover by skipping the preamble.
-                results = decompress([efi_compressor.LzmaDecompress], self.data)
+                results = decompress([alg], self.data)
                 if results is None:
                     return False
             self.subtype = results[0] + 1
             self.data = results[1]
-            status = self.process_subsections()
+            return self.process_subsections()
+
+        status = True
+        if fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
+            status = decompress_guid(efi_compressor.LzmaDecompress)
+        if fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["TIANO_COMPRESSED"]:
+            status = decompress_guid(efi_compressor.TianoDecompress)
         ### Todo: check for processing required attribute
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             ### Todo: verify this (FirmwareFile hack)
@@ -314,6 +318,7 @@ class GuidDefinedSection(EfiSection):
         elif fguid(self.guid) == FIRMWARE_GUIDED_GUIDS["FIRMWARE_VOLUME"]:
             status = parse_volume()
         else:
+            ### Undefined GUIDed-Section GUID, treat as a FV?
             status = parse_volume()
         return status
         pass
@@ -333,8 +338,10 @@ class GuidDefinedSection(EfiSection):
     def showinfo(self, ts='', index= 0):
         #print "%sGUID: %s" % (ts, green(fguid(self.guid)))
         auth_status = "ATTR_UNKNOWN"
-        if self.attrs["attrs"] == self.ATTR_AUTH_STATUS_VALID: auth_status = "AUTH_VALID"
-        if self.attrs["attrs"] == self.ATTR_PROCESSING_REQUIRED: auth_status = "PROCESSING_REQUIRED"
+        if self.attrs["attrs"] == self.ATTR_AUTH_STATUS_VALID: 
+            auth_status = "AUTH_VALID"
+        if self.attrs["attrs"] == self.ATTR_PROCESSING_REQUIRED: 
+            auth_status = "PROCESSING_REQUIRED"
         print "%s%s %s offset= 0x%x attrs= 0x%x (%s)" % (
             ts, blue("Guid-Defined:"), green(fguid(self.guid)),
             self.offset, self.attrs["attrs"], purple(auth_status)
@@ -553,7 +560,7 @@ class FirmwareFile(FirmwareObject):
             return status
 
         if self.type == 0x00: # unknown
-            self.raw_blobs.append(self.data)
+            self.raw_blobs.append(RawObject(self.data))
             return True
         
         section_data = self.data
