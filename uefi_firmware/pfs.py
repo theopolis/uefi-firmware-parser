@@ -3,13 +3,13 @@ import os
 
 from .base import FirmwareObject, RawObject, BaseObject
 from .uefi import FirmwareVolume
-from .utils import dump_data, fguid, green, blue
+from .utils import dump_data, sguid, green, blue
 
 PFS_GUIDS = {
-    "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-16a3-22dd0517c1e8",
-    "INTEL_ME":         "7439ed9e-70d3-4b65-339e-1963a7ad3c37",
-    "BIOS_ROMS_1":      "08e56a30-62ed-41c6-4092-b7455ee653d7",
-    "BIOS_ROMS_2":      "492261e4-0659-424c-b682-73274389e7a7"
+    "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-a316-22dd0517c1e8",
+    "INTEL_ME":         "7439ed9e-70d3-4b65-9e33-1963a7ad3c37",
+    "BIOS_ROMS_1":      "08e56a30-62ed-41c6-9240-b7455ee653d7",
+    "BIOS_ROMS_2":      "492261e4-0659-424c-82b6-73274389e7a7"
 }
 
 class PFSSection(FirmwareObject, BaseObject):
@@ -57,7 +57,7 @@ class PFSSection(FirmwareObject, BaseObject):
         self.section_size = self.HEADER_SIZE + total_chunk_size
         self.data = None
 
-        if fguid(self.uuid) == PFS_GUIDS["FIRMWARE_VOLUMES"]:
+        if sguid(self.uuid) == PFS_GUIDS["FIRMWARE_VOLUMES"]:
             ### This is a series of firmware volumes
             fv_offset = 0
             while fv_offset < len(self.section_data):
@@ -79,7 +79,7 @@ class PFSSection(FirmwareObject, BaseObject):
     def info(self, include_content= False):
         return {
             "_self": self,
-            "guid": fguid(self.uuid),
+            "guid": sguid(self.uuid),
             "type": "PFSSection",
             "content": self.section_data if include_content else "",
             "attrs": {
@@ -106,7 +106,7 @@ class PFSSection(FirmwareObject, BaseObject):
 
     def showinfo(self, ts='', index= None):
         print "%s%s %s spec %d ts %d type %d version %d size 0x%x (%d bytes)" % (
-            ts, blue("Dell PFSSection:"), green(fguid(self.uuid)),
+            ts, blue("Dell PFSSection:"), green(sguid(self.uuid)),
             self.spec, self.ts, self.type, self.version,
             self.section_size, self.section_size
         )
@@ -119,13 +119,13 @@ class PFSSection(FirmwareObject, BaseObject):
         pass
 
     def dump(self, parent= "", index= None):
-        path = os.path.join(parent, "%s" % fguid(self.uuid))
+        path = os.path.join(parent, "%s" % sguid(self.uuid))
         dump_data("%s.data" % path, self.section_data)
         if len(self.chunk1) > 0: dump_data("%s.c1" % path, self.chunk1)
         if len(self.chunk2) > 0: dump_data("%s.c2" % path, self.chunk2)
         if len(self.chunk3) > 0: dump_data("%s.c3" % path, self.chunk3)
 
-        path = os.path.join(parent, "section-%s" % fguid(self.uuid))
+        path = os.path.join(parent, "section-%s" % sguid(self.uuid))
         for sub_object in self.section_objects:
             sub_object.dump(path)
         pass

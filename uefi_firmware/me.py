@@ -127,7 +127,7 @@ class MeModule(MeObject):
                 data = efi_compressor.LzmaDecompress(self.data, len(self.data))
                 dump_data("%s.module" % os.path.join(parent, self.name), data)
             except Exception, e:
-                print "Cannot extract GUID (%s), %s" % (fguid(self.guid), str(e))
+                print "Cannot extract GUID (%s), %s" % (sguid(self.guid), str(e))
                 return
             pass
         pass

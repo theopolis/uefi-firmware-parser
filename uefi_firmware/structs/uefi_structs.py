@@ -7,29 +7,35 @@ uint32_t = ctypes.c_uint
 uint64_t = ctypes.c_uint64
 uint16_t = ctypes.c_ushort
 
-FIRMWARE_VOLUME_GUIDS = [
-    '7a9354d9-0468-444a-ce81-0bf617d890df', # FFS1
-    '8c8ce578-8a3d-4f1c-3599-896185c32dd3', # FFS2
-    'fff12b8d-7696-4c8b-85a9-2747075b4f50', # NVRAM
-    '04adeead-61ff-4d31-bab6-64f8bf901f5a', # Apple Boot Volume
+FIRMWARE_FFS_GUID = "7a9354d9-0468-444a-81ce-0bf617d890df"
 
-    'cef5b9a3-476d-497f-dc9f-e98143e0422c', # NVRAM
-    #'08758b38-458d-50e8-e856-3bffffff83c4'
+FIRMWARE_VOLUME_GUIDS = [
+    '7a9354d9-0468-444a-81ce-0bf617d890df', # FFS1
+    '8c8ce578-8a3d-4f1c-9935-896185c32dd3', # FFS2
+    'fff12b8d-7696-4c8b-a985-2747075b4f50', # NVRAM
+    '04adeead-61ff-4d31-b6ba-64f8bf901f5a', # Apple Boot Volume
+
+    'cef5b9a3-476d-497f-9fdc-e98143e0422c', # NVRAM
+    #'08758b38-458d-50e8-56e8-3bffffff83c4'
 ]
 
 FIRMWARE_CAPSULE_GUIDS = [
-    '3b6686bd-0d76-4030-0eb7-b5519e2fc5a0', # EFI Capsule
-    '4a3ca68b-7723-48fb-803d-578cc1fec44d', # EFI Capsule v2
-    '539182b9-abb5-4391-9ab6-e3a943f72fcc', # UEFI Capsule
-    '6dcbd5ed-e82d-4c44-a1bd-7194199ad92a', # Firmware Management Capsule
+    '3b6686bd-0d76-4030-b70e-b5519e2fc5a0', # EFI Capsule
+    '4a3ca68b-7723-48fb-3d80-578cc1fec44d', # EFI Capsule v2
+    '539182b9-abb5-4391-b69a-e3a943f72fcc', # UEFI Capsule
+    '6dcbd5ed-e82d-4c44-bda1-7194199ad92a', # Firmware Management Capsule
 ]
 
 FIRMWARE_GUIDED_GUIDS = {
-    "LZMA_COMPRESSED":  "ee4e5898-3914-4259-6e9d-dc7bd79403cf",
-    "TIANO_COMPRESSED": "a31280ad-481e-41b6-e895-127f4c984779",
-    "FIRMWARE_VOLUME":  "24400798-3807-4a42-13b4-a1ecee205dd8",
-    #"VOLUME_SECTION":  "367ae684-335d-4671-6da1-899dbfea6b88",
-    "STATIC_GUID":      "fc1bcdb0-7d31-49aa-6a93-a4600d9dd083"
+    "LZMA_COMPRESSED":  "ee4e5898-3914-4259-9d6e-dc7bd79403cf",
+    "TIANO_COMPRESSED": "a31280ad-481e-41b6-95e8-127f4c984779",
+    "FIRMWARE_VOLUME":  "24400798-3807-4a42-b413-a1ecee205dd8",
+    #"VOLUME_SECTION":  "367ae684-335d-4671-a16d-899dbfea6b88",
+    "STATIC_GUID":      "fc1bcdb0-7d31-49aa-936a-a4600d9dd083"
+}
+
+FIRMWARE_FREEFORM_GUIDS = {
+    "CHAR_GUID": "059ef06e-c652-4a45-9fbe-5975e369461c"
 }
 
 EFI_FILE_TYPES = {

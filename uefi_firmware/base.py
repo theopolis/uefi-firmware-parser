@@ -1,7 +1,7 @@
 import os
 import ctypes
 
-from .utils import dump_data, fguid, blue
+from .utils import dump_data, sguid, blue
 
 class BaseObject(object):
     '''A base object can be used to access direct content.'''
@@ -25,7 +25,7 @@ class FirmwareObject(object):
     @property
     def guid_label(self):
         if not hasattr(self, "guid"): return ""
-        return fguid(self.guid)
+        return sguid(self.guid)
     @property
     def type_label(self):
         return self.__class__.__name__

@@ -28,26 +28,29 @@ def hex_dump(data, size= 16):
     if not len(data) % size == 0:
         print_line(data[(len(data) % size) * -1:])
 
-def fguid(s):
-    a, b, c, d, e = struct.unpack("<IHHH6s", s)
-    return "%08x-%04x-%04x-%04x-%s" % (a,b,c,d,''.join('%02x'%ord(c) for c in e))
+def sguid(b, big=False): # fguid
+    '''RFC4122 binary GUID as string.'''
+    a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
+    d = ''.join('%02x'%ord(c) for c in d)
+    return "%08x-%04x-%04x-%s-%s" % (a, b, c, d[:4], d[4:])
 
-def brguid(s):
-    guid = [s[:8], s[8+1:9+4], s[13+1:14+4], s[-15:-13] + s[-17:-15] + s[-12:]]
-    a, b, c, d = struct.unpack(">IHH8s", "".join([part.decode("hex") for part in guid]))
-    return [a, b, c] + [ord(c) for c in d]
+def s2aguid(s): # brguid
+    '''RFC4122 string GUID as int array.'''
+    guid = [s[:8], s[8+1:9+4], s[13+1:14+4], s[18+1:19+4] + s[-12:]]
+    return aguid("".join([part.decode("hex") for part in guid]), True)
 
-def rfguid(a):
+def a2sguid(a): # rfguid
+    '''RFC4122 int array GUID as string.'''
     guid = ""
     for value in a:
         value = format(value, 'x')
-        guid += value.zfill(len(value)+len(value)%2).decode("hex")
-    guid = guid.zfill(len(guid)+len(guid)%2)
-    a, b, c, e = struct.unpack(">IHH8s", guid)
-    return "%08x-%04x-%04x-%02x%02x-%s" % (a,b,c, ord(e[1]), ord(e[0]),''.join('%02x'%ord(c) for c in e[2:]))
+        guid += value.zfill(len(value) + len(value) % 2).decode("hex")
+    guid = guid.zfill(len(guid) + len(guid) % 2)
+    return sguid(guid, True)
 
-def rguid(s):
-    a, b, c, d = struct.unpack("<IHH8s", s)
+def aguid(b, big=False): # rguid
+    '''RFC4122 binary GUID as int array.'''
+    a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
     return [a, b, c] + [ord(c) for c in d]
 
 
