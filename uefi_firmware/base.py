@@ -1,7 +1,7 @@
 import os
 import ctypes
 
-from .utils import dump_data, fguid, blue
+from .utils import dump_data, sguid, blue
 
 class BaseObject(object):
     '''A base object can be used to access direct content.'''
@@ -22,13 +22,16 @@ class FirmwareObject(object):
             if self.name is None: return ""
             return self.name
         return ""
+
     @property
     def guid_label(self):
         if not hasattr(self, "guid"): return ""
-        return fguid(self.guid)
+        return sguid(self.guid)
+
     @property
     def type_label(self):
         return self.__class__.__name__
+
     @property
     def attrs_label(self):
         if hasattr(self, "attrs"): return self.attrs
@@ -64,7 +67,8 @@ class StructuredObject(object):
         struct_length = min(len(struct_data), struct_size)
         ctypes.memmove(ctypes.addressof(struct_instance), struct_data, struct_length)
         self.structure = struct_instance
-        self.fields = [field[0] for field in structure._fields_]
+        self.structure_data = struct_data
+        self.structure_fields = [field[0] for field in structure._fields_]
         self.structure_size = struct_size
 
     def show_structure(self):
@@ -74,15 +78,15 @@ class StructuredObject(object):
 class RawObject(FirmwareObject, BaseObject):
     def __init__(self, data):
         self.data = data
+
     def build(self, generate_checksum, debug= False):
     	return self.data
+
     def showinfo(self, ts= '', index= None):
         print "%s%s size= %d " % (
             ts, blue("RawObject:"), len(self.data)
         )
-    	pass
+
     def dump(self, parent= '', index= None):
     	path = os.path.join(parent, "object.raw")
     	dump_data(path, self.data)
-    	pass
-    pass

@@ -48,6 +48,7 @@ Extract (
   GetInfoFunction = NULL;
   DecompressFunction = NULL;
   Scratch = NULL;
+  ScratchSize = 0;
   Status = EFI_SUCCESS;
 
   switch (Algorithm) {

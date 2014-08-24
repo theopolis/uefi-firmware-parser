@@ -64,10 +64,10 @@ def list_uefi_guids(base_object):
     guid_list.sort()
 
     for guid in guid_list:
-        guid_name = get_guid_name(brguid(guid))
+        guid_name = get_guid_name(s2aguid(guid))
 
         label = ""
-        if len(guids[guid]["labels"]) == 1:
+        if len(guids[guid]["labels"]) >= 1:
             label = guids[guid]["labels"][0]
 
         if guid_name is not None:
@@ -78,7 +78,7 @@ def list_uefi_guids(base_object):
             if generated_label is not None or args.unknowns:
                 if args.unknowns and generated_label is None: 
                     generated_label = "__UNKNOWN__"
-                debug("\"%s\": %s," % (generated_label, brguid(guid)), True, True)
+                debug("\"%s\": %s," % (generated_label, s2aguid(guid)), True, True)
 
         debug(green(guid), False)
         debug(", ".join([purple(label) for label in guids[guid]["labels"]]), False)

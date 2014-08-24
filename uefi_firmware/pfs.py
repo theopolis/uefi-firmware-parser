@@ -3,13 +3,13 @@ import os
 
 from .base import FirmwareObject, RawObject, BaseObject
 from .uefi import FirmwareVolume
-from .utils import dump_data, fguid, green, blue
+from .utils import print_error, dump_data, sguid, green, blue
 
 PFS_GUIDS = {
-    "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-16a3-22dd0517c1e8",
-    "INTEL_ME":         "7439ed9e-70d3-4b65-339e-1963a7ad3c37",
-    "BIOS_ROMS_1":      "08e56a30-62ed-41c6-4092-b7455ee653d7",
-    "BIOS_ROMS_2":      "492261e4-0659-424c-b682-73274389e7a7"
+    "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-a316-22dd0517c1e8",
+    "INTEL_ME":         "7439ed9e-70d3-4b65-9e33-1963a7ad3c37",
+    "BIOS_ROMS_1":      "08e56a30-62ed-41c6-9240-b7455ee653d7",
+    "BIOS_ROMS_2":      "492261e4-0659-424c-82b6-73274389e7a7"
 }
 
 class PFSSection(FirmwareObject, BaseObject):
@@ -43,9 +43,9 @@ class PFSSection(FirmwareObject, BaseObject):
         self.section_data = self.data[self.HEADER_SIZE:self.HEADER_SIZE+csize]
 
         # Not yet sure what the following three partitions are
-        self.chunk1 = self.data[self.HEADER_SIZE+csize:self.HEADER_SIZE+csize+size1]
-        self.chunk2 = self.data[self.HEADER_SIZE+csize+size1:self.HEADER_SIZE+csize+size1+size2]
-        self.chunk3 = self.data[self.HEADER_SIZE+csize+size1+size2:self.HEADER_SIZE+csize+size1+size2+size3]
+        self.chunk1 = RawObject(self.data[self.HEADER_SIZE+csize:self.HEADER_SIZE+csize+size1])
+        self.chunk2 = RawObject(self.data[self.HEADER_SIZE+csize+size1:self.HEADER_SIZE+csize+size1+size2])
+        self.chunk3 = RawObject(self.data[self.HEADER_SIZE+csize+size1+size2:self.HEADER_SIZE+csize+size1+size2+size3])
         
         total_chunk_size = csize+size1+size2+size3
 
@@ -57,7 +57,7 @@ class PFSSection(FirmwareObject, BaseObject):
         self.section_size = self.HEADER_SIZE + total_chunk_size
         self.data = None
 
-        if fguid(self.uuid) == PFS_GUIDS["FIRMWARE_VOLUMES"]:
+        if sguid(self.uuid) == PFS_GUIDS["FIRMWARE_VOLUMES"]:
             ### This is a series of firmware volumes
             fv_offset = 0
             while fv_offset < len(self.section_data):
@@ -79,7 +79,7 @@ class PFSSection(FirmwareObject, BaseObject):
     def info(self, include_content= False):
         return {
             "_self": self,
-            "guid": fguid(self.uuid),
+            "guid": sguid(self.uuid),
             "type": "PFSSection",
             "content": self.section_data if include_content else "",
             "attrs": {
@@ -98,12 +98,15 @@ class PFSSection(FirmwareObject, BaseObject):
         body = ""
         for sub_object in self.section_objects:
             body += sub_object.build(generate_checksum, debug= debug)
-        return self.header + body + self.chunk1 + self.chunk2 + self.chunk3
+        return self.header + body + \
+            self.chunk1.build(generate_checksum) + \
+            self.chunk2.build(generate_checksum) + \
+            self.chunk3.build(generate_checksum)
         pass
 
     def showinfo(self, ts='', index= None):
         print "%s%s %s spec %d ts %d type %d version %d size 0x%x (%d bytes)" % (
-            ts, blue("Dell PFSSection:"), green(fguid(self.uuid)),
+            ts, blue("Dell PFSSection:"), green(sguid(self.uuid)),
             self.spec, self.ts, self.type, self.version,
             self.section_size, self.section_size
         )
@@ -116,13 +119,13 @@ class PFSSection(FirmwareObject, BaseObject):
         pass
 
     def dump(self, parent= "", index= None):
-        path = os.path.join(parent, "%s" % fguid(self.uuid))
+        path = os.path.join(parent, "%s" % sguid(self.uuid))
         dump_data("%s.data" % path, self.section_data)
         if len(self.chunk1) > 0: dump_data("%s.c1" % path, self.chunk1)
         if len(self.chunk2) > 0: dump_data("%s.c2" % path, self.chunk2)
         if len(self.chunk3) > 0: dump_data("%s.c3" % path, self.chunk3)
 
-        path = os.path.join(parent, "section-%s" % fguid(self.uuid))
+        path = os.path.join(parent, "section-%s" % sguid(self.uuid))
         for sub_object in self.section_objects:
             sub_object.dump(path)
         pass
@@ -137,7 +140,7 @@ class PFSFile(FirmwareObject):
 
     def check_header(self):
         if len(self.data) < 32:
-            print "Data does not contain a header."
+            print_error("Data does not contain a header.")
             return False
 
         hdr = self.data[:16]
@@ -147,14 +150,14 @@ class PFSFile(FirmwareObject):
         self.size = size
 
         if magic != self.PFS_HEADER:
-            print "Data does not contain the header magic (%s)." % self.PFS_HEADER
+            print_error("Data does not contain the header magic (%s)." % self.PFS_HEADER)
             return False
         
         ftr = self.data[len(self.data)-16:]
         # U1 and U2 might be the same variable, a total CRC?
         _u1, _u2, ftr_magic = struct.unpack("<II8s", ftr)
         if ftr_magic != self.PFS_FOOTER:
-            print "Data does not container the footer magic (%s)." % self.PFS_FOOTER
+            print_error("Data does not container the footer magic (%s)." % self.PFS_FOOTER)
             return False
 
         return True
@@ -166,11 +169,9 @@ class PFSFile(FirmwareObject):
         chunk_num = 0
         offset = 16
         while True:
-
             section = PFSSection(data)
             section.process()
             self.sections.append(section)
-            #print "0x%X" % offset
 
             chunk_num += 1
             offset += section.section_size

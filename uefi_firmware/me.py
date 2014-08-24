@@ -85,7 +85,7 @@ class MeModule(MeObject):
 
         ### Must know the offset from given data (the start of the header) to find data
         self.offset = self.structure.Offset - offset
-        print "Debug: module data 0x%08X - 0x%08X" % (self.offset, self.offset + self.structure.Size)
+        #print "Debug: module data 0x%08X - 0x%08X" % (self.offset, self.offset + self.structure.Size)
         self.data = data[self.offset:self.offset + self.structure.Size]
 
     def process(self):
@@ -127,7 +127,7 @@ class MeModule(MeObject):
                 data = efi_compressor.LzmaDecompress(self.data, len(self.data))
                 dump_data("%s.module" % os.path.join(parent, self.name), data)
             except Exception, e:
-                print "Cannot extract GUID (%s), %s" % (fguid(self.guid), str(e))
+                print "Cannot extract GUID (%s), %s" % (sguid(self.guid), str(e))
                 return
             pass
         pass
@@ -150,7 +150,7 @@ class MeVariableModule(MeObject):
             return
 
         if len(hdr) < self.HEADER_SIZE or hdr[0] != '$':
-            print "Debug: invalid module header."
+            #print "Debug: invalid module header."
             self.valid_header = False
             return
 
@@ -170,7 +170,7 @@ class MeVariableModule(MeObject):
     def process(self):
         if self.tag == '$UDC':
             subtag, _hash, name, offset, size = struct.unpack(self.stype.udc_format, self.data[:self.type.udc_length])
-            print "Debug: update code found: (%s) (%s), length: %d" % (subtag, name, size)
+            #print "Debug: update code found: (%s) (%s), length: %d" % (subtag, name, size)
             self.add_update(subtag, name, offset, size)
         if self.size == 3:
             values = [struct.unpack("<I", self.data[:4])[0]]
@@ -248,7 +248,7 @@ class MeManifestHeader(MeObject):
         if data[:8] != "\x04\x00\x00\x00\xA1\x00\x00\x00":
             from .utils import hex_dump
             hex_dump(data[:32])
-            print "Debug: invalid partition."
+            #print "Debug: invalid partition."
             self.valid_header = False
             return
 
@@ -269,7 +269,8 @@ class MeManifestHeader(MeObject):
         #ModuleType, ModuleSubType, size, tag, num_modules, keysize, scratchsize, rsa
 
         self.partition_name = self.structure.PartitionName.rstrip("\0")
-        if not self.partition_name: self.partition_name = "(none)"
+        if not self.partition_name: 
+            self.partition_name = "(none)"
 
         self.modules = []
         self.partition_end = 0
@@ -338,7 +339,7 @@ class MeManifestHeader(MeObject):
 
     def _parse_module_files(self):
         file_offset = self.structure.Size*4
-        print "Debug: looking for module files at (%08X)." % file_offset
+        #print "Debug: looking for module files at (%08X)." % file_offset
         while True:
             module_file = MeModuleFile(self.data[file_offset:])
             if not module_file.valid_header:
@@ -346,7 +347,7 @@ class MeManifestHeader(MeObject):
             if module_file.name in module_map:
                 ### A module file header cooresponds to the module header
                 self.module_map[module_file.name].file = module_file
-            print "Debug: found module file (%s) size (%d)." % (module_file.name, module_file.size)
+            #print "Debug: found module file (%s) size (%d)." % (module_file.name, module_file.size)
             file_offset += module_file.size
         pass
 
@@ -374,7 +375,7 @@ class MeManifestHeader(MeObject):
         #if huffman_llut.valid_header:
             #print "Debug: huffman LLUT start (0x%08X) end (0x%08X)." % (huffman_llut.offset, huffman_llut.size + huffman_llut.start)
             #pass
-        print "Debug: LLUT end (%08X) partition end (%08X)." % (huffman_llut.size + huffman_offset, self.partition_end)
+        #print "Debug: LLUT end (%08X) partition end (%08X)." % (huffman_llut.size + huffman_offset, self.partition_end)
 
         self.huffman_llut = huffman_llut
         pass
@@ -401,9 +402,9 @@ class MeContainer(MeObject):
         while True:
             partition_manifest = MeManifestHeader(self.data[offset:], offset)
             if not partition_manifest.valid_header:
-                print "Debug: ending at (%08X)." % offset
+                #print "Debug: ending at (%08X)." % offset
                 return
-            print "Debug: Found valid partition (%08X)." % offset
+            #print "Debug: Found valid partition (%08X)." % offset
 
             partition_manifest.process()
             self.partitions.append(partition_manifest)

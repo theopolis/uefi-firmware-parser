@@ -53,8 +53,9 @@ class FlashRegion(FirmwareObject, BaseObject):
                 fv = FirmwareVolume(data[volume_index[0]-40:])
                 if fv.valid_header:
                     self.sections.append(fv)
-                    data = data[fv.size:]
-                data = data[volume_index[0] + 8:]
+                    data = data[volume_index[0]-40 + fv.size:]
+                else:
+                    data = data[volume_index[0]+8:]
         if self.name == "me":
             pass
         for section in self.sections:
@@ -87,7 +88,7 @@ class FlashDescriptor(FirmwareObject):
 
         self.valid_header = True
         if self.header != FLASH_HEADER:
-            print "Error: Invalid flash descriptor header."
+            print_error("Error: Invalid flash descriptor header.")
             self.valid_header = False
             return
 

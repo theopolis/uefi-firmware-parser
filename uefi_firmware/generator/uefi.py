@@ -9,7 +9,7 @@
 import struct
 from ..uefi import FirmwareVolume, FirmwareFile, FirmwareFileSystemSection
 from ..structs.uefi_structs import EFI_FILE_TYPES, EFI_SECTION_TYPES, EFI_COMPRESSION_TYPES
-from ..utils import fguid
+from ..utils import sguid
 
 FV_BUFFER = '''
 [FV.FV_{name}]
@@ -61,8 +61,7 @@ SECTION_LEAF_BUFFER = '''\
 '''
 
 def oguid(guid):
-    f_guid = fguid(guid)
-    return f_guid[:19] + f_guid[21:23] + f_guid[19:21] + f_guid[23:]
+    return sguid(guid)
 
 class GeneratorException(Exception):
     def __init__(self, _object):
