@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import struct
 
 def blue(msg):
@@ -11,6 +12,9 @@ def green(msg):
     return "\033[32m%s\033[1;m" % msg
 def purple(msg):
     return "\033[1;35m%s\033[1;m" % msg
+
+def print_error(msg):
+    print >> sys.stderr, msg
 
 def ascii_char(c):
     if ord(c) >= 32 and ord(c) <= 126: return c

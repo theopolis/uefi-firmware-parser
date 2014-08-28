@@ -3,7 +3,7 @@ import os
 
 from .base import FirmwareObject, RawObject, BaseObject
 from .uefi import FirmwareVolume
-from .utils import dump_data, sguid, green, blue
+from .utils import print_error, dump_data, sguid, green, blue
 
 PFS_GUIDS = {
     "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-a316-22dd0517c1e8",
@@ -140,7 +140,7 @@ class PFSFile(FirmwareObject):
 
     def check_header(self):
         if len(self.data) < 32:
-            print "Data does not contain a header."
+            print_error("Data does not contain a header.")
             return False
 
         hdr = self.data[:16]
@@ -150,14 +150,14 @@ class PFSFile(FirmwareObject):
         self.size = size
 
         if magic != self.PFS_HEADER:
-            print "Data does not contain the header magic (%s)." % self.PFS_HEADER
+            print_error("Data does not contain the header magic (%s)." % self.PFS_HEADER)
             return False
         
         ftr = self.data[len(self.data)-16:]
         # U1 and U2 might be the same variable, a total CRC?
         _u1, _u2, ftr_magic = struct.unpack("<II8s", ftr)
         if ftr_magic != self.PFS_FOOTER:
-            print "Data does not container the footer magic (%s)." % self.PFS_FOOTER
+            print_error("Data does not container the footer magic (%s)." % self.PFS_FOOTER)
             return False
 
         return True
@@ -169,11 +169,9 @@ class PFSFile(FirmwareObject):
         chunk_num = 0
         offset = 16
         while True:
-
             section = PFSSection(data)
             section.process()
             self.sections.append(section)
-            #print "0x%X" % offset
 
             chunk_num += 1
             offset += section.section_size

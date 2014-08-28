@@ -152,10 +152,17 @@ class CompressedSection(EfiSection):
         pass
     
     def process(self):
+        def bf_decompress(data):
+            return decompress([
+                efi_compressor.LzmaDecompress, 
+                efi_compressor.TianoDecompress, 
+                efi_compressor.EfiDecompress,
+            ], data)
         if self.type == 0x00:
             '''No compression.'''
             self.data = self.compressed_data
 
+        results = None
         if self.type == 0x01:
             ### Tiano or Efi compression, unfortunately these are identified by the same byte
             results = decompress([
@@ -163,13 +170,10 @@ class CompressedSection(EfiSection):
                 efi_compressor.TianoDecompress,
             ], self.compressed_data)
         if self.type == 0x02:
-            results = decompress([
-                efi_compressor.LzmaDecompress,
-                efi_compressor.EfiDecompress, efi_compressor.TianoDecompress
-            ], self.compressed_data)
-            ### This type is not well-defined, it may include a section header before the compressed data (Intel).
-            if results is None and len(self.compressed_data) > 4:
-                results = decompress([efi_compressor.LzmaDecompress], self.compressed_data[4:])
+            results = bf_decompress(self.compressed_data)
+            if results is None and len(bruteforce_data) > 4:
+                ### The type=2 is not spec-defined, may have an additional int (Intel).
+                results = bf_decompress(self.compressed_data[4:])
 
         if self.type > 0x00:
             if results is not None:
@@ -177,9 +181,10 @@ class CompressedSection(EfiSection):
                 self.data = results[1]
             else:
                 #raise Exception("Cannot EFI decompress GUID (%s)" % (sguid(self.guid)))
-                print "Cannot EFI decompress GUID (%s), type= (%d), decompressed_size= (%d)" % (
+                print_error("Cannot EFI decompress GUID (%s), type= (%d), decompressed_size= (%d)" % (
                     sguid(self.guid), self.type, self.decompressed_size
-                )
+                ))
+                self.subsections.append(RawObject(self.compressed_data))
 
         if self.data is None:
             '''No data was uncompressed.'''
@@ -190,8 +195,6 @@ class CompressedSection(EfiSection):
         pass
 
     def build(self, generate_checksum= False, debug= False):
-        #print "Building compression type=(%d, %d)" % (self.type, self.subtype)
-
         data = self._build_subsections()
 
         if self.type == 0x01:
@@ -323,8 +326,6 @@ class GuidDefinedSection(EfiSection):
         pass
 
     def build(self, generate_checksum= False, debug= False):
-        #print "Building GUID-defined: %s" % green(sguid(self.guid))
-
         data = self._build_subsections(generate_checksum)
 
         if sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
@@ -335,7 +336,6 @@ class GuidDefinedSection(EfiSection):
         return header + self.preamble + data
 
     def showinfo(self, ts='', index= 0):
-        #print "%sGUID: %s" % (ts, green(sguid(self.guid)))
         auth_status = "ATTR_UNKNOWN"
         if self.attrs["attrs"] == self.ATTR_AUTH_STATUS_VALID: 
             auth_status = "AUTH_VALID"
@@ -377,7 +377,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.size, self.type = struct.unpack("<3sB", header)
             self.size = struct.unpack("<I", self.size + "\x00")[0]
         except Exception, e:
-            print "%s: invalid FirmwareFileSystemSection header, expected size 4, got (%d)." % (red("Error"), len(header))
+            print_error("%s: invalid FirmwareFileSystemSection header, expected size 4, got (%d)." % (red("Error"), len(header)))
             self.valid_header = False 
             return          
             #raise e
@@ -389,7 +389,6 @@ class FirmwareFileSystemSection(EfiSection):
     @property
     def objects(self):
         return [self.parsed_object]
-        #return self.subsections
 
     def regen(self, data):
         ### Transitional method, should be adopted by other objects.
@@ -436,8 +435,6 @@ class FirmwareFileSystemSection(EfiSection):
         return status
 
     def build(self, generate_checksum= False, debug= False):
-        #print "Building section (%s): %s" % (_get_section_type(self.type)[1], green(sguid(self.guid)))
-
         data = ""
         ### Add section data (either raw, or a partitioned section)
         if self.parsed_object is not None:
@@ -503,10 +500,9 @@ class FirmwareFile(FirmwareObject):
             self.guid, self.checksum, self.type, self.attributes, self.size, self.state = struct.unpack("<16sHBB3sB", header)
             self.size = struct.unpack("<I", self.size + "\x00")[0]
         except Exception, e:
-            print "Error: invalid FirmwareFile header."
+            print_error("Error: invalid FirmwareFile header.")
             raise e
 
-        #print "Debug: Found file with size (%d)." % self.size
         self.attrs = {"size": self.size, "type": self.type, "attributes": self.attributes, "state": self.state ^ 0xFF}
         self.attrs["type_name"] = _get_file_type(self.type)[0]
         
@@ -522,7 +518,6 @@ class FirmwareFile(FirmwareObject):
 
     def regen(self, data):
         ### Transitional method, should be adopted by other objects.
-        #self._data = data
         self.__init__(data)
 
     def process(self):
@@ -570,7 +565,7 @@ class FirmwareFile(FirmwareObject):
                 return False
             if file_section.size <= 0:
                 '''This is not expected, something bad happened while parsing.'''
-                print "Error: file section size <= 0 (%d)." % file_section.size
+                print_error("Error: file section size <= 0 (%d)." % file_section.size)
                 return False
             
             status = file_section.process() and status
@@ -580,8 +575,6 @@ class FirmwareFile(FirmwareObject):
         return status
 
     def build(self, generate_checksum= False, debug= False):
-        #print "Building file: %s" % green(sguid(self.guid))
-        
         data = ""
         for i, section in enumerate(self.sections):
             section_size, section_data = section.build(generate_checksum)
@@ -686,8 +679,6 @@ class FirmwareFileSystem(FirmwareObject):
             
             status = firmware_file.process() and status
             self.files.append(firmware_file)
-            
-            #print "pos=%d, size=%s padd=%d" % (len(self._data)-len(data), firmware_file.size, ((firmware_file.size + 7) & (~7)) - firmware_file.size)
             data = data[(firmware_file.size + 7) & (~7):]
 
         if len(data) > 0:
@@ -714,7 +705,6 @@ class FirmwareFileSystem(FirmwareObject):
 
     def showinfo(self, ts= ''):
         for i, firmware_file in enumerate(self.files):
-            #print ts + "File %d:" % i
             firmware_file.showinfo(ts + ' ', index=i)
     
     def dump(self, parent= ""):
@@ -785,7 +775,7 @@ class FirmwareVolume(FirmwareObject):
             self.data = data[self.hdrlen:]
             self.block_map = data[self._HEADER_SIZE:self.hdrlen]
         except Exception, e:
-            print "Error invalid FV header data (%s)." % str(e)
+            print_error("Error invalid FV header data (%s)." % str(e))
             return
 
         self.valid_header = True
@@ -841,7 +831,6 @@ class FirmwareVolume(FirmwareObject):
         ### Generate block map from original block map (assume no size change)
         block_map = ""
         for block in self.blocks:
-            #print "Packing block"
             block_map += struct.pack("<II", block[0], block[1])
         ### Add a trailing-NULL to the block map
         block_map += "\x00"*8
