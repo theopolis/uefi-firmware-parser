@@ -34,6 +34,8 @@ def hex_dump(data, size= 16):
 
 def sguid(b, big=False): # fguid
     '''RFC4122 binary GUID as string.'''
+    if b is None or len(b) != 16:
+        return ""
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
     d = ''.join('%02x'%ord(c) for c in d)
     return "%08x-%04x-%04x-%s-%s" % (a, b, c, d[:4], d[4:])
@@ -57,6 +59,8 @@ def aguid(b, big=False): # rguid
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
     return [a, b, c] + [ord(c) for c in d]
 
+def bit_set(field, bit):
+    return (field & bit == bit)
 
 def dump_data(name, data):
     '''Write binary data to name.'''

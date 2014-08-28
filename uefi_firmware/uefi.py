@@ -4,7 +4,7 @@ import os
 import sys, struct
 import uuid
 
-from .base import FirmwareObject, RawObject, BaseObject
+from .base import FirmwareObject, StructuredObject, RawObject, BaseObject
 from .utils import *
 from .guids import get_guid_name
 from .structs.uefi_structs import *
@@ -62,13 +62,160 @@ def find_volumes(data, process= True):
             continue
         if volume_index > 0:
             objects.append(RawObject(data[:volume_index]))
-        if process: fv.process()
+        if process: 
+            fv.process()
         objects.append(fv)
         data = data[volume_index + fv.size:]
     if len(data) > 0:
         objects.append(RawObject(data))
     return objects
     pass
+
+class FirmwareVariableStore(FirmwareObject, StructuredObject):
+    """An firmware-related variable storage structure (think NVRAM)."""
+    variables = []
+
+    @property
+    def objects(self):
+        return self.variables
+
+class FirmwareVariable(FirmwareObject, StructuredObject):
+    """A firmware-related variable, found in a variable store."""
+    subsections = []
+
+    @property
+    def objects(self):
+        return self.subsections
+
+class NVARVariable(FirmwareVariable):
+    @classmethod
+    def valid_nvar(cls, data):
+        if data[:4] != "NVAR":
+            return False
+        return True
+    def _get_name(self, data, is_ascii=False):
+        tail = "\x00" if is_ascii else "\x00\x00"
+        size = data.find(tail)
+        if not is_ascii:
+            name = uefi_name(data[:size])
+        else:
+            name = data[:size]
+        return (name, size + len(tail))
+
+    def __init__(self, data):
+        self.subsections = []
+        self.name = None
+        self.guid = None
+        if not NVARVariable.valid_nvar(data):
+            return
+        self.data = data
+
+    def process(self):
+        if self.data is None:
+            return False
+        self.parse_structure(self.data, NVARVariableHeaderType)
+        self.size = self.structure.TotalSize
+        self.attrs = {"attrs": self.structure.Attributes}
+
+        ### Now with structure parsed, set bounds on the data
+        self.data = self.data[:self.size]
+        offset = self.structure_size
+        if bit_set(self.structure.Attributes, NVRAM_ATTRIBUTES["GUID"]):
+            self.guid = self.data[offset:offset+16]
+            offset += 16
+        else:
+            ### Increment data by 1!
+            offset += 1
+
+        if bit_set(self.structure.Attributes, NVRAM_ATTRIBUTES["DATA"]):
+            self.data_offset = self.size - self.structure_size
+            #self.subsections.append(RawObject(self.data[offset:]))
+            return True
+
+        ### Parse variable name.
+        var_name, var_name_size = self._get_name(self.data[offset:], 
+            bit_set(self.structure.Attributes, NVRAM_ATTRIBUTES["DESC_ASCII"]))
+        if var_name is not None:
+            self.name = var_name
+            offset += var_name_size
+
+        ### The variable's meta-data is the value.
+        self.data_offset = self.size - self.structure_size
+
+        #if self.data_offset+1 < self.size:
+        #    self.subsections.append(RawObject(self.data[offset:]))
+        return True
+
+    def build(self, generate_checksum= False, debug= False):
+        header = self.structure_data
+        data = ""
+        for section in self.subsections:
+            data += section.build(generate_checksum, debug)
+        ### Metadata includes optional guid/name.
+        meta_data = self.data[self.structure_size:self.data_offset]
+        return header + meta_data + data
+
+    def dump(self, parent, index=0):
+        path = os.path.join(parent, "variable%d.nvar" % index)
+        dump_data(path, self.data)
+        for i, section in enumerate(self.subsections):
+            section.dump(os.path.join(parent, "variable%d-data" % index), i)
+
+    def showinfo(self, ts="", index=0):
+        '''Potential for A LOT of variables.'''
+        if self.guid is not None and self.name is not None:
+            print "%s %s %s %s" % (blue("%sVariable:" % ts), 
+                green(sguid(self.guid)), purple(self.name), 
+                "attrs= %s" % self.attrs["attrs"])
+
+class NVARVariableStore(FirmwareVariableStore):
+    """NVAR has no header, only a series of variable headers."""
+    def __init__(self, data):
+        self.variables = []
+        self.valid_header = False
+        if not NVARVariable.valid_nvar(data):
+            return
+        self.data = data
+        self.valid_header = True
+
+    def process(self):
+        if not self.valid_header:
+            return False
+
+        var_offset = self.data
+        total_size = 0
+        while len(var_offset) > 4:
+            nvar = NVARVariable(var_offset)
+            if not nvar.process():
+                break
+            total_size += nvar.size
+            self.variables.append(nvar)
+            var_offset = var_offset[nvar.size:]
+
+        ### Scope data to just the parsed variables
+        self.data = self.data[:total_size]
+        self.attrs = {"variables": len(self.variables)}
+
+    def build(self, generate_checksum= False, debug= False):
+        data = ""
+        for variable in self.variables:
+            data += variable.build(generate_checksum, debug)
+        return data
+
+    def dump(self, parent, index=0):
+        path = os.path.join(parent, "nvar.vars")
+        dump_data(path, self.data)
+        for i, variable in enumerate(self.variables):
+            variable.dump(parent, i)
+        pass
+
+    def showinfo(self, ts="", index=0):
+        if not self.valid_header:
+            return
+        print "%s %s" % (blue("%sNVAR Variable Store:" % ts), 
+            "variables: %d" % self.attrs["variables"])
+        for i, variable in enumerate(self.variables):
+            variable.showinfo("%s  " % ts, i)
 
 class EfiSection(FirmwareObject):
     subsections = []
@@ -90,7 +237,8 @@ class EfiSection(FirmwareObject):
             if subsection_offset >= len(self.data): break
 
             try:
-                subsection = FirmwareFileSystemSection(self.data[subsection_offset:], self.guid)
+                subsection = FirmwareFileSystemSection(self.data[subsection_offset:], 
+                    self.guid)
             except struct.error, e:
                 return False
             if subsection.size == 0: 
@@ -104,8 +252,11 @@ class EfiSection(FirmwareObject):
     def build(self, generate_checksum= False, debug= False):
         raise Exception("Cannot build from unknown section type!")
 
-    def process(self): pass
-    def showinfo(self, ts= '', index=-1): pass
+    def process(self): 
+        pass
+
+    def showinfo(self, ts= '', index=-1): 
+        pass
 
     def dump(self, parent= "", index=0):
         for i, subsection in enumerate(self.subsections):
@@ -125,7 +276,6 @@ class EfiSection(FirmwareObject):
         if trailling_bytes > 0:
             data += '\x00' * trailling_bytes
         return data
-
 
 class CompressedSection(EfiSection):
     name = None
@@ -158,6 +308,7 @@ class CompressedSection(EfiSection):
                 efi_compressor.TianoDecompress, 
                 efi_compressor.EfiDecompress,
             ], data)
+
         if self.type == 0x00:
             '''No compression.'''
             self.data = self.compressed_data
@@ -171,7 +322,7 @@ class CompressedSection(EfiSection):
             ], self.compressed_data)
         if self.type == 0x02:
             results = bf_decompress(self.compressed_data)
-            if results is None and len(bruteforce_data) > 4:
+            if results is None and len(self.compressed_data) > 4:
                 ### The type=2 is not spec-defined, may have an additional int (Intel).
                 results = bf_decompress(self.compressed_data[4:])
 
@@ -181,9 +332,9 @@ class CompressedSection(EfiSection):
                 self.data = results[1]
             else:
                 #raise Exception("Cannot EFI decompress GUID (%s)" % (sguid(self.guid)))
-                print_error("Cannot EFI decompress GUID (%s), type= (%d), decompressed_size= (%d)" % (
-                    sguid(self.guid), self.type, self.decompressed_size
-                ))
+                print_error("Cannot EFI decompress GUID (%s), type= (%d), "
+                    "decompressed_size= (%d)" % (
+                        sguid(self.guid), self.type, self.decompressed_size))
                 self.subsections.append(RawObject(self.compressed_data))
 
         if self.data is None:
@@ -476,7 +627,6 @@ class FirmwareFileSystemSection(EfiSection):
         if self.parsed_object is not None:
             self.parsed_object.dump(os.path.join(parent, "section%d" % index))
 
-
 class FirmwareFile(FirmwareObject):
     """
     A firmware file is contained within a firmware file system and is comprised of firmware file sections.
@@ -489,7 +639,6 @@ class FirmwareFile(FirmwareObject):
         UINT8: Size[3]
         UINT8: State
     };
-      
     """
     _HEADER_SIZE = 0x18 # 24 byte header, always
     
@@ -514,7 +663,9 @@ class FirmwareFile(FirmwareObject):
 
     @property
     def objects(self):
-        return self.sections + [blob for blob in self.raw_blobs if type(blob) not in [bytes, str]]
+        invalid_types = [bytes, str, unicode]
+        valid_blobs = [b for b in self.raw_blobs if type(b) not in invalid_types]
+        return self.sections + valid_blobs
 
     def regen(self, data):
         ### Transitional method, should be adopted by other objects.
@@ -527,30 +678,15 @@ class FirmwareFile(FirmwareObject):
         if self.type == 0xf0: # ffs padding
             return True
 
+        if sguid(self.guid) == FIRMWARE_VOLUME_GUIDS["NVRAM_NVAR"]:
+            var_store = NVARVariableStore(self.data)
+            status = var_store.process()
+            self.raw_blobs.append(var_store)
+            return status
+
         status = True
-        has_object = False
         if self.type == 0x01: # raw file
-            ### File is raw, it should have no sections.
-            ### It may be a firmware volume (Lenovo or HP).
-            fv = FirmwareVolume(self.data, sguid(self.guid))
-            if fv.valid_header:
-                has_object = True
-                status = fv.process() and status
-                self.raw_blobs.append(fv)
-            elif self.data[0x10:0x10+4] == FLASH_HEADER:
-                ### Lenovo may also bundle a flash descriptor as raw content.
-                from .flash import FlashDescriptor
-                flash = FlashDescriptor(self.data)
-                if flash.valid_header:
-                    has_object = True
-                    status = flash.process() and status
-                    self.raw_blobs.append(flash)
-            ### If everything is normal (according to the FV/FF spec).
-            if not has_object:
-                status = True
-                ### There may be arbitrary firmware structures (Lenovo)
-                objects = find_volumes(self.data)
-                self.raw_blobs += objects
+            status = self._find_objects()
             return status
 
         if self.type == 0x00: # unknown
@@ -574,6 +710,34 @@ class FirmwareFile(FirmwareObject):
             section_data = section_data[(file_section.size + 3)&(~3):]
         return status
 
+    def _find_objects(self):
+        """Helper function for wacky raw type usages."""
+        has_object = False
+        status = True
+
+        ### It may be a firmware volume (Lenovo or HP).
+        fv = FirmwareVolume(self.data, sguid(self.guid))
+        if fv.valid_header:
+            has_object = True
+            status = fv.process() and status
+            self.raw_blobs.append(fv)
+        elif self.data[0x10:0x10+4] == FLASH_HEADER:
+            ### Lenovo may also bundle a flash descriptor as raw content.
+            from .flash import FlashDescriptor
+            flash = FlashDescriptor(self.data)
+            if flash.valid_header:
+                has_object = True
+                status = flash.process() and status
+                self.raw_blobs.append(flash)
+
+        ### If everything is normal (according to the FV/FF spec).
+        if not has_object:
+            ### There may be arbitrary firmware structures (Lenovo)
+            objects = find_volumes(self.data)
+            self.raw_blobs += objects
+            return True
+        return status
+
     def build(self, generate_checksum= False, debug= False):
         data = ""
         for i, section in enumerate(self.sections):
@@ -584,7 +748,7 @@ class FirmwareFile(FirmwareObject):
                 data += "\x00" * (((section_size + 3)&(~3)) - section_size)
 
         for blob in self.raw_blobs:
-            if type(blob) == FirmwareVolume:
+            if isinstance(blob, FirmwareObject):
                 data += blob.build(generate_checksum)
             elif type(blob) == RawObject:
                 data += blob.data
@@ -708,14 +872,13 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file.showinfo(ts + ' ', index=i)
     
     def dump(self, parent= ""):
-        dump_data(os.path.join(parent, "%s.ffs" % FIRMWARE_FFS_GUID), self._data)
+        dump_data(os.path.join(parent, "filesystem.ffs"), self._data)
 
         for _file in self.files:
             _file.dump(parent)
 
 class FirmwareVolume(FirmwareObject):
     """
-    
     struct EFI_FIRMWARE_VOLUME_HEADER {
         UINT8: Zeros[16]
         UCHAR: FileSystemGUID[16]
@@ -735,7 +898,6 @@ class FirmwareVolume(FirmwareObject):
     };
     
     The block map is a set of block followed by a zeroed block indicating the end of the map set.
-    
     """
     _HEADER_SIZE = 0x38
 
@@ -761,7 +923,7 @@ class FirmwareVolume(FirmwareObject):
             #print "Error: cannot parse FV header (%s)." % str(e)
             return
 
-        if sguid(self.guid) not in FIRMWARE_VOLUME_GUIDS:
+        if sguid(self.guid) not in FIRMWARE_VOLUME_GUIDS.values():
             #print "Error: invalid FV guid (%s)." % sguid(self.guid)
             return
 
@@ -809,19 +971,25 @@ class FirmwareVolume(FirmwareObject):
         self.firmware_filesystems = []
         self.raw_objects = []
         status = True
+
+        ffs_guids = [
+            FIRMWARE_VOLUME_GUIDS["FFS1"],
+            FIRMWARE_VOLUME_GUIDS["FFS2"],
+        ]
         for block in self.blocks:
-            ### If this is an NVRAM volume, there is no FFS/FFs.
-            if sguid(self.guid) in FIRMWARE_VOLUME_GUIDS[3:]:
-                self.raw_objects.append(data[:block[0]* block[1]])
-            else:
+            if sguid(self.guid) in ffs_guids:
                 firmware_filesystem = FirmwareFileSystem(data[:block[0] * block[1]])
                 status = firmware_filesystem.process() and status        
                 self.firmware_filesystems.append(firmware_filesystem)
+            elif sguid(self.guid) == FIRMWARE_VOLUME_GUIDS["NVRAM_EVSA"]:
+                ### If this is an NVRAM volume, there are no FFS/FFs.
+                self.raw_objects.append(NVARVariableStore(data[:block[0] * block[1]]))
+            else:
+                self.raw_objects.append(data[:block[0] * block[1]])
             data = data[block[0] * block[1]:]
         return status
 
     def build(self, generate_checksum= False, debug= False):
-        
         ### Generate blocks from FirmwareFileSystems
         data = ""
         for filesystem in self.firmware_filesystems:
