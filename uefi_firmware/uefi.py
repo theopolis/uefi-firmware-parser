@@ -203,6 +203,8 @@ class NVARVariableStore(FirmwareVariableStore):
         return data
 
     def dump(self, parent, index=0):
+        if not self.valid_header:
+            return
         path = os.path.join(parent, "nvar.vars")
         dump_data(path, self.data)
         for i, variable in enumerate(self.variables):
