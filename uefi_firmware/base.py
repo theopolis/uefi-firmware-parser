@@ -90,3 +90,6 @@ class RawObject(FirmwareObject, BaseObject):
     def dump(self, parent= '', index= None):
     	path = os.path.join(parent, "object.raw")
     	dump_data(path, self.data)
+
+    def __len__(self):
+	return len(self.data)

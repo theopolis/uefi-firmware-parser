@@ -121,9 +121,9 @@ class PFSSection(FirmwareObject, BaseObject):
     def dump(self, parent= "", index= None):
         path = os.path.join(parent, "%s" % sguid(self.uuid))
         dump_data("%s.data" % path, self.section_data)
-        if len(self.chunk1) > 0: dump_data("%s.c1" % path, self.chunk1)
-        if len(self.chunk2) > 0: dump_data("%s.c2" % path, self.chunk2)
-        if len(self.chunk3) > 0: dump_data("%s.c3" % path, self.chunk3)
+        if len(self.chunk1) > 0: dump_data("%s.c1" % path, self.chunk1.data)
+        if len(self.chunk2) > 0: dump_data("%s.c2" % path, self.chunk2.data)
+        if len(self.chunk3) > 0: dump_data("%s.c3" % path, self.chunk3.data)
 
         path = os.path.join(parent, "section-%s" % sguid(self.uuid))
         for sub_object in self.section_objects:
