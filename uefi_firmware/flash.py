@@ -88,7 +88,7 @@ class FlashDescriptor(FirmwareObject):
 
         self.valid_header = True
         if self.header != FLASH_HEADER:
-            print_error("Error: Invalid flash descriptor header.")
+            #print_error("Error: Invalid flash descriptor header.")
             self.valid_header = False
             return
 

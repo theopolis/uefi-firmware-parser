@@ -10,6 +10,7 @@ from uefi_firmware.flash import FlashDescriptor
 from uefi_firmware.me import MeContainer
 from uefi_firmware.pfs import PFSFile
 from uefi_firmware.generator import uefi as uefi_generator
+from uefi_firmware.misc import checker
 
 
 def _process_show_extract(parsed_object):
@@ -134,6 +135,15 @@ if __name__ == "__main__":
         except Exception, e:
             print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
             sys.exit(1)
+
+        if args.test:
+            firmware_type = None
+            for tester in checker.TESTERS:
+                if tester().match(input_data[:100]):
+                    firmware_type = tester().name
+                    break
+            print "%s: %s" % (file_name, red(firmware_type))
+            continue
 
         if args.brute:
             if args.flash:
