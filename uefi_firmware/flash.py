@@ -1,34 +1,33 @@
 # -*- coding: utf-8 -*-
 
 import os
-import sys, struct
-import uuid
+import struct
 
-from .base import FirmwareObject, RawObject, BaseObject, StructuredObject
+from .base import FirmwareObject, BaseObject, StructuredObject
 from .utils import *
-from .guids import get_guid_name
 from .structs.flash_structs import *
 
-### Inline imports
-#from .uefi import FirmwareVolume
 
 class RegionSection(StructuredObject):
     size = 20
+
     def __init__(self, data):
         self.parse_structure(data, FlashRegionSectionType)
-    pass
+
 
 class MasterSection(StructuredObject):
     size = 12
+
     def __init__(self, data):
         self.parse_structure(data, FlashMasterSectionType)
-    pass
+
 
 class DescriptorMap(StructuredObject):
     size = 16
+
     def __init__(self, data):
         self.parse_structure(data, FlashDescriptorMapType)
-    pass
+
 
 class FlashRegion(FirmwareObject, BaseObject):
     def __init__(self, data, region_name, region_details):
@@ -43,36 +42,36 @@ class FlashRegion(FirmwareObject, BaseObject):
 
     def process(self):
         from .uefi import FirmwareVolume
-        
+
         if self.name == "bios":
-            data= self.data
+            data = self.data
             while True:
-                volume_index = search_firmware_volumes(data, limit= 1)
+                volume_index = search_firmware_volumes(data, limit=1)
                 if len(volume_index) == 0:
                     break
-                fv = FirmwareVolume(data[volume_index[0]-40:])
+                fv = FirmwareVolume(data[volume_index[0] - 40:])
                 if fv.valid_header:
                     self.sections.append(fv)
-                    data = data[volume_index[0]-40 + fv.size:]
+                    data = data[volume_index[0] - 40 + fv.size:]
                 else:
-                    data = data[volume_index[0]+8:]
+                    data = data[volume_index[0] + 8:]
         if self.name == "me":
             pass
         for section in self.sections:
             section.process()
         pass
 
-    def showinfo(self, ts='', index= None):
+    def showinfo(self, ts='', index=None):
         print "%s%s type= %s, size= 0x%x (%d bytes) details[ %s ]" % (
             ts, blue("Flash Region"), green(self.name),
             len(self.data), len(self.data),
-            ", ".join(["%s: %s" % (k,v) for k,v in self.attrs.iteritems()])
+            ", ".join(["%s: %s" % (k, v) for k, v in self.attrs.iteritems()])
         )
         for section in self.sections:
-            section.showinfo(ts= "%s  " % ts)
+            section.showinfo(ts="%s  " % ts)
         pass
 
-    def dump(self, parent= ""):
+    def dump(self, parent=""):
         dump_data(os.path.join(parent, "region-%s.fd" % self.name), self.data)
 
         parent = os.path.join(parent, "region-%s" % self.name)
@@ -81,9 +80,10 @@ class FlashRegion(FirmwareObject, BaseObject):
         pass
     pass
 
+
 class FlashDescriptor(FirmwareObject):
     def __init__(self, data):
-        self.padding, self.header = struct.unpack("<16s4s", data[:16+4])
+        self.padding, self.header = struct.unpack("<16s4s", data[:16 + 4])
         #print self.header.encode("hex")
 
         self.valid_header = True
@@ -101,11 +101,14 @@ class FlashDescriptor(FirmwareObject):
 
     def process(self):
         def _region_size(base, limit):
-            if limit: return (limit + 1 - base) * 0x1000
+            if limit:
+                return (limit + 1 - base) * 0x1000
             return 0
+
         def _region_offset(base):
             return base * 0x1000
-        self.map = DescriptorMap(self.data[20:20+DescriptorMap.size])
+
+        self.map = DescriptorMap(self.data[20:20 + DescriptorMap.size])
         region_offset = (self.map.structure.RegionBase * 0x10)
         self.region = RegionSection(self.data[region_offset:region_offset + RegionSection.size])
         master_offset = (self.map.structure.MasterBase * 0x10)
@@ -113,10 +116,11 @@ class FlashDescriptor(FirmwareObject):
 
         bios_base = self.region.structure.BiosBase
         bios_limit = self.region.structure.BiosLimit
-        bios = self.data[_region_offset(bios_base): _region_offset(bios_base) + _region_size(bios_base, bios_limit)]
+        bios_size = _region_offset(bios_base) + _region_size(bios_base, bios_limit)
+        bios = self.data[_region_offset(bios_base): bios_size]
 
         bios_region = FlashRegion(bios, "bios", {
-            "base": bios_base, 
+            "base": bios_base,
             "limit": bios_limit,
             "id": self.master.structure.BiosId,
             "read": self.master.structure.BiosRead,
@@ -127,10 +131,11 @@ class FlashDescriptor(FirmwareObject):
 
         me_base = self.region.structure.MeBase
         me_limit = self.region.structure.MeLimit
-        me = self.data[_region_offset(me_base): _region_offset(me_base) + _region_size(me_base, me_limit)]
+        me_size = _region_offset(me_base) + _region_size(me_base, me_limit)
+        me = self.data[_region_offset(me_base): me_size]
 
         me_region = FlashRegion(me, "me", {
-            "base": me_base, 
+            "base": me_base,
             "limit": me_limit,
             "id": self.master.structure.MeId,
             "read": self.master.structure.MeRead,
@@ -141,10 +146,11 @@ class FlashDescriptor(FirmwareObject):
 
         gbe_base = self.region.structure.GbeBase
         gbe_limit = self.region.structure.GbeLimit
-        gbe = self.data[_region_offset(gbe_base): _region_offset(gbe_base) + _region_size(gbe_base, gbe_limit)]
+        gbe_size = _region_offset(gbe_base) + _region_size(gbe_base, gbe_limit)
+        gbe = self.data[_region_offset(gbe_base): gbe_size]
 
         gbe_region = FlashRegion(gbe, "gbe", {
-            "base": gbe_base, 
+            "base": gbe_base,
             "limit": gbe_limit,
             "id": self.master.structure.GbeId,
             "read": self.master.structure.GbeRead,
@@ -153,18 +159,21 @@ class FlashDescriptor(FirmwareObject):
         gbe_region.process()
         self.regions.append(gbe_region)
 
-    def showinfo(self, ts= '', index= None):
-        print "%s%s chips %d, regions %d, masters %d, PCH straps %d, PROC straps %d, ICC entries %d" % (
-            ts, blue("Flash Descriptor (Intel PCH)"),
-            self.map.structure.NumberOfFlashChips, 
-            self.map.structure.NumberOfRegions, self.map.structure.NumberOfMasters,
-            self.map.structure.NumberOfPchStraps, self.map.structure.NumberOfProcStraps,
-            self.map.structure.NumberOfIccTableEntries
+    def showinfo(self, ts='', index=None):
+        print (
+            "%s%s chips %d, regions %d, masters %d, " +
+            "PCH straps %d, PROC straps %d, ICC entries %d" % (
+                ts, blue("Flash Descriptor (Intel PCH)"),
+                self.map.structure.NumberOfFlashChips,
+                self.map.structure.NumberOfRegions, self.map.structure.NumberOfMasters,
+                self.map.structure.NumberOfPchStraps, self.map.structure.NumberOfProcStraps,
+                self.map.structure.NumberOfIccTableEntries
+            )
         )
         for region in self.regions:
-            region.showinfo(ts= "%s  " % ts)
+            region.showinfo(ts="%s  " % ts)
 
-    def dump(self, parent, index= None):
+    def dump(self, parent, index=None):
         dump_data(os.path.join(parent, "flash.fd"), self.data)
 
         parent = os.path.join(parent, "regions")
@@ -172,4 +181,3 @@ class FlashDescriptor(FirmwareObject):
             region.dump(parent)
 
     pass
-

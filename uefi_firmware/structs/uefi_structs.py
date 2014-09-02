@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import ctypes
 
-uint8_t  = ctypes.c_ubyte
-char     = ctypes.c_char
+uint8_t = ctypes.c_ubyte
+char = ctypes.c_char
 uint32_t = ctypes.c_uint
 uint64_t = ctypes.c_uint64
 uint16_t = ctypes.c_ushort
+guid_t = char * 16
 
 FIRMWARE_VOLUME_GUIDS = {
     "FFS1":        "7a9354d9-0468-444a-81ce-0bf617d890df",
@@ -18,10 +19,10 @@ FIRMWARE_VOLUME_GUIDS = {
 }
 
 FIRMWARE_CAPSULE_GUIDS = [
-    '3b6686bd-0d76-4030-b70e-b5519e2fc5a0', # EFI Capsule
-    '4a3ca68b-7723-48fb-3d80-578cc1fec44d', # EFI Capsule v2
-    '539182b9-abb5-4391-b69a-e3a943f72fcc', # UEFI Capsule
-    '6dcbd5ed-e82d-4c44-bda1-7194199ad92a', # Firmware Management Capsule
+    '3b6686bd-0d76-4030-b70e-b5519e2fc5a0',  # EFI Capsule
+    '4a3ca68b-7723-48fb-3d80-578cc1fec44d',  # EFI Capsule v2
+    '539182b9-abb5-4391-b69a-e3a943f72fcc',  # UEFI Capsule
+    '6dcbd5ed-e82d-4c44-bda1-7194199ad92a',  # Firmware Management Capsule
 ]
 
 FIRMWARE_GUIDED_GUIDS = {
@@ -68,10 +69,10 @@ EFI_SECTION_TYPES = {
     # Added from previous code (not in Phoenix spec
     0x14: ("Version section",           "version",      "VERSION"),
     0x15: ("User interface name",       "ui",           "UI"),
-    
+
     0x16: ("IA-32 16-bit image",        "ia32.16bit",   "COMPAT16"),
     0x17: ("Firmware volume image",     "fv",           "FV_IMAGE"),
-    ### See FdfParser.py in EDKII's GenFds 
+    ### See FdfParser.py in EDKII's GenFds
     0x18: ("Free-form GUID",            "freeform.guid", "SUBTYPE_GUID"),
     0x19: ("Raw",                       "raw",          "RAW"),
     0x1b: ("PEI dependency expression", "pie.depex",    "PEI_DEPEX"),
@@ -97,6 +98,7 @@ NVRAM_ATTRIBUTES = {
     "VLD":        0x80,
 }
 
+
 class UEFIVariableHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
         ("StartId", uint16_t),
@@ -105,16 +107,18 @@ class UEFIVariableHeaderType(ctypes.LittleEndianStructure):
         ("Attributes", uint32_t),
         ("NameSize", uint32_t),
         ("DataSize", uint32_t),
-        ("VendorGuid", char*16),
+        ("VendorGuid", guid_t),
     ]
+
 
 class NVARVariableHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("StartId", char*4), # NVAR
+        ("StartId", char * 4),  # NVAR
         ("TotalSize", uint16_t),
-        ("Reserved", char*3),
+        ("Reserved", char * 3),
         ("Attributes", uint8_t),
     ]
+
 
 class EFIVariableStoreType(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -126,9 +130,10 @@ class EFIVariableStoreType(ctypes.LittleEndianStructure):
         ("Reserved1", uint32_t),
     ]
 
+
 class VSSHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("VendorGuid", char*16),
+        ("VendorGuid", guid_t),
         ("StartId", uint16_t),
         ("State", uint8_t),
         ("Reserved", uint8_t),
@@ -137,17 +142,19 @@ class VSSHeaderType(ctypes.LittleEndianStructure):
         ("DataSize", uint32_t),
     ]
 
+
 class VSSNewHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("VendorGuid", char*16),
+        ("VendorGuid", guid_t),
         ("StartId", uint16_t),
         ("State", uint8_t),
         ("Reserved", uint8_t),
         ("Attributes", uint32_t),
-        ("Unknown", char*28), ## ???
+        ("Unknown", char * 28),  # ???
         ("NameSize", uint32_t),
         ("DataSize", uint32_t),
     ]
+
 
 class TLVHeaderType(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -156,26 +163,29 @@ class TLVHeaderType(ctypes.LittleEndianStructure):
         ("Size", uint16_t),
     ]
 
+
 class EVSARecordType(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("Signature", char*4),
+        ("Signature", char * 4),
         ("Unknown", uint32_t),
         ("Length", uint32_t),
         ("Unknown1", uint32_t),
     ]
 
+
 class GUIDRecordType(ctypes.LittleEndianStructure):
     _fields_ = [
         ("GuidId", uint16_t),
-        ("Guid", char*16),
+        ("Guid", guid_t),
     ]
+
 
 class FirmwareVolumeType(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("Reserved",   char*16),  # Zeros
-        ("Guid",       char*16),  #
-        ("Size",       uint64_t), 
-        ("Magic",      char*4),
+        ("Reserved",   char * 16),  # Zeros
+        ("Guid",       guid_t),  #
+        ("Size",       uint64_t),
+        ("Magic",      char * 4),
         ("Attributes", uint8_t),
         ("HeaderSize", uint32_t),
         ("Checksum",   uint16_t),

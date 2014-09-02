@@ -2,29 +2,30 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import os
 
 from uefi_firmware.uefi import *
-from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware.utils import dump_data, flatten_firmware_objects
 
 from uefi_firmware.pfs import PFSFile
 
+
 def brute_search(data):
     volumes = search_firmware_volumes(data)
-    
+
     for index in volumes:
-        _parse_firmware_volume(data[index-40:], name=index-40)
+        _parse_firmware_volume(data[index - 40:], name=index - 40)
     pass
+
 
 def parse_pfs(data):
     pfs = PFSFile(data)
     if not pfs.check_header():
         print "Error: Cannot parse file (%s) as a Dell PFS." % args.file
         return None
-    
+
     pfs.process()
     return pfs
+
 
 def parse_firmware_volume(data, name="volume"):
     print "Parsing FV at index (%s)." % name
@@ -37,66 +38,81 @@ def parse_firmware_volume(data, name="volume"):
     firmware_volume.process()
     return firmware_volume
 
+
 def parse_file(data):
     obj_references = []
+
     def _print_obj(obj):
         obj_references.append(obj["_self"])
         print "[%d] %s: %s" % (len(obj_references), str(obj["_self"]), str(obj["attrs"]))
         if "objects" in obj and len(obj["objects"]) > 0:
-            for sub_obj in obj["objects"]: _print_obj(sub_obj)
-    ff = FirmwareFile(data)
+            for sub_obj in obj["objects"]:
+                _print_obj(sub_obj)
 
+    ff = FirmwareFile(data)
     if not ff.process():
         print "[!] Error: Cannot parse FirmwareFile."
         return None
-    objects = ff.iterate_objects(include_content= False)
+
+    objects = ff.iterate_objects(include_content=False)
     for obj in objects:
         _print_obj(obj)
     selection = 0
+
     while True:
         selection = raw_input("[#] Replace what section: [1-%d]: " % len(obj_references))
-        try: 
-            selection = int(selection);
-            if selection < 1 or selection > len(obj_references): 
-                print "[!] Try again..."; continue
+        try:
+            selection = int(selection)
+            if selection < 1 or selection > len(obj_references):
+                print "[!] Try again..."
+                continue
             break
-        except: 
-            print "[!] Try again..."; continue
+        except:
+            print "[!] Try again..."
+            continue
         pass
     return (ff, obj_references, selection)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description= "Search a file for UEFI firmware volumes, parse and output.")
-    #parser.add_argument('-f', "--firmware", action="store_true", help='The input file is a firmware volume.')
-    #parser.add_argument('-b', "--brute", action="store_true", help= 'The input is a blob and may contain FV headers.')
-    parser.add_argument('-c', "--capsule", action="store_true", default=False, help='The input file is a firmware capsule.')
-    parser.add_argument('-p', "--pfs", action="store_true", default=False, help='The input file is a Dell PFS.')
-    parser.add_argument("-f", "--ff", action="store_true", default=False, help="Inject payload into firmware file.")
+    parser = argparse.ArgumentParser(
+        description="Search a file for UEFI firmware volumes, parse and output.")
+    parser.add_argument(
+        '-c', "--capsule", action="store_true", default=False,
+        help='The input file is a firmware capsule.')
+    parser.add_argument(
+        '-p', "--pfs", action="store_true", default=False,
+        help='The input file is a Dell PFS.')
+    parser.add_argument(
+        "-f", "--ff", action="store_true", default=False,
+        help="Inject payload into firmware file.")
 
     ### Injection options
-    parser.add_argument('--guid', default=None, help="GUID to replace (inject).")
-    parser.add_argument('--injection', required= True, help="Pre-generated EFI file to inject.")
-    parser.add_argument('-o', '--output', default= "injected.obj", help="Name of the output file.")
+    parser.add_argument(
+        '--guid', default=None,
+        help="GUID to replace (inject).")
+    parser.add_argument(
+        '--injection', required=True,
+        help="Pre-generated EFI file to inject.")
+    parser.add_argument(
+        '-o', '--output', default="injected.obj",
+        help="Name of the output file.")
 
     parser.add_argument("file", help="The file to work on")
     args = parser.parse_args()
-    
+
     try:
-        with open(args.file, 'rb') as fh: input_data = fh.read()
+        with open(args.file, 'rb') as fh:
+            input_data = fh.read()
     except Exception, e:
         print "Error: Cannot read file (%s) (%s)." % (args.file, str(e))
         sys.exit(1)
 
     try:
-        with open(args.injection, 'rb') as fh: injection_data = fh.read()
+        with open(args.injection, 'rb') as fh:
+            injection_data = fh.read()
     except Exception, e:
         print "Error: Cannot read file (%s) (%s)." % (args.injection, str(e))
         sys.exit(1)
-
-    #if args.brute:
-    #    parsed = brute_search(input_data)
-    #elif args.capsule:
-    #    pass
 
     ### Special case, regenerate a file.
     if args.ff:
@@ -106,9 +122,9 @@ if __name__ == "__main__":
         objects = parsed[1]
         index = parsed[2]
         print "[#] Regenerating firmware file with injected section payload."
-        objects[index-1].regen(injection_data)
+        objects[index - 1].regen(injection_data)
         print "[#] Re-parsing firmware file objects."
-        objects[index-1].process()
+        objects[index - 1].process()
         print "[#] Rebuilding firmware objects."
         output_object = firmware_file.build()
         print "[#] Rebuild complete, injection successful."
@@ -141,7 +157,3 @@ if __name__ == "__main__":
     print "[#] Rebuild complete, injection successful."
     dump_data(args.output, output_object)
     print "[#] Injected firmware written to %s." % args.output
-
-
-
-

@@ -35,11 +35,10 @@ setup(
                 os.path.join("uefi_firmware", "compression", "LZMA", "LzmaDecompress.c"),
 
                 os.path.join("uefi_firmware", "compression", "EfiCompressor.c")
-                ],
+            ],
             include_dirs=[
                 os.path.join("uefi_firmware", 'compression', 'Include')
-                ],
-            )
-        ],
-    )
-
+            ],
+        )
+    ],
+)

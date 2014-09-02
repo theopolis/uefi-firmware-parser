@@ -14,20 +14,21 @@ GUID_TABLES = [
     efiguids_asrock.GUIDs,
 ]
 
+
 def get_guid_name(guid):
     raw_guid = aguid(guid) if type(guid) is str else guid
 
     for guid_table in GUID_TABLES:
-      for name, match_guid in guid_table.iteritems():
-        match = True
-        for i, k in enumerate(raw_guid):
-            if match_guid[i] != k:
-                match = False
-                break
-        if match:
-            return name
+        for name, match_guid in guid_table.iteritems():
+            match = True
+            for i, k in enumerate(raw_guid):
+                if match_guid[i] != k:
+                    match = False
+                    break
+            if match:
+                return name
     return None
+
 
 def get_tables():
     return GUID_TABLES
-    pass
