@@ -717,13 +717,16 @@ class FirmwareFile(FirmwareObject):
         if self.type == 0xf0:  # ffs padding
             return True
 
+        status = True
         if sguid(self.guid) == FIRMWARE_VOLUME_GUIDS["NVRAM_NVAR"]:
             var_store = NVARVariableStore(self.data)
-            status = var_store.process()
-            self.raw_blobs.append(var_store)
+            if not var_store.valid_header:
+                self.raw_blobs.append(RawObject(self.data))
+            else:
+                status = var_store.process()
+                self.raw_blobs.append(var_store)
             return status
 
-        status = True
         if self.type == 0x01:  # raw file
             status = self._find_objects()
             return status
