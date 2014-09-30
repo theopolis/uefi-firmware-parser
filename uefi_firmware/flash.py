@@ -83,15 +83,15 @@ class FlashRegion(FirmwareObject, BaseObject):
 
 class FlashDescriptor(FirmwareObject):
     def __init__(self, data):
-        self.padding, self.header = struct.unpack("<16s4s", data[:16 + 4])
-        #print self.header.encode("hex")
-
-        self.valid_header = True
-        if self.header != FLASH_HEADER:
-            #print_error("Error: Invalid flash descriptor header.")
-            self.valid_header = False
+        self.valid_header = False
+        if len(data) < 20:
             return
 
+        self.padding, self.header = struct.unpack("<16s4s", data[:16 + 4])
+        if self.header != FLASH_HEADER:
+            return
+
+        self.valid_header = True
         self.regions = []
         self.data = data
 

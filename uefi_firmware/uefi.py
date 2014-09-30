@@ -497,8 +497,8 @@ class GuidDefinedSection(EfiSection):
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["FIRMWARE_VOLUME"]:
             status = parse_volume()
         else:
-            ### Undefined GUIDed-Section GUID, treat as a FV?
-            status = parse_volume()
+            ### Undefined GUIDed-Section GUID, treat as a FV, don't require status
+            parse_volume()
         return status
         pass
 

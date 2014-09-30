@@ -60,4 +60,4 @@ script:
   - python ./tests/test_compression.py
 
   # Run a test script against all samples
-  - python ./samples/test_samples.py
+  - (cd samples && python ./test_samples.py)
