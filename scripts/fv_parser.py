@@ -91,40 +91,26 @@ def parse_firmware_volume(data, name=0):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Parse, and optionally output, details and data on UEFI-related firmware.")
+    parser.add_argument("--type",
+        choices=set([
+            "UEFI_CAPSULE", "UEFI_FIRMWARE_FILE", "UEFI_VOLUME",
+            "FLASH", "INTEL_ME", "DELL_PFS"
+        ]),
+        help="Parse files as a specific firmware type.")
     parser.add_argument(
         '-b', "--brute", action="store_true",
         help='The input is a blob and may contain FV headers.')
-    parser.add_argument(
-        '-c', "--capsule", action="store_true",
-        help='The input file is a firmware capsule, do not search.')
-    parser.add_argument(
-        '-f', "--ff", action="store_true",
-        help='The input file is a firmware file.')
-    parser.add_argument(
-        '-d', "--flash", action="store_true",
-        help='The input file is a flash descriptor.')
-    parser.add_argument(
-        '-m', "--me", action="store_true",
-        help='The input file is an Intel ME container.')
-    parser.add_argument(
-        '-p', "--pfs", action="store_true",
-        help='The input file is a Dell PFS.HDR update.')
 
-    parser.add_argument(
-        '-q', "--quiet", default=False, action="store_true",
-        help="Do not show info.")
-    parser.add_argument(
-        '-o', "--output", default=".",
-        help="Dump EFI Files to this folder.")
-    parser.add_argument(
-        '-e', "--extract", action="store_true",
-        help="Extract all files/sections/volumes.")
-    parser.add_argument(
-        '-g', "--generate", default=None,
-        help="Generate a FDF, implies extraction")
-    parser.add_argument(
-        '-t', "--test", default=False, action='store_true',
-        help="Test file parsing, output name/success.")
+    parser.add_argument('-q', "--quiet",
+        default=False, action="store_true", help="Do not show info.")
+    parser.add_argument('-o', "--output",
+        default=".", help="Dump EFI Files to this folder.")
+    parser.add_argument('-e', "--extract",
+        action="store_true", help="Extract all files/sections/volumes.")
+    parser.add_argument('-g', "--generate",
+        default=None, help="Generate a FDF, implies extraction")
+    parser.add_argument("--test",
+        default=False, action='store_true', help="Test file parsing, output name/success.")
     parser.add_argument("file", nargs='+', help="The file(s) to work on")
     args = parser.parse_args()
 
@@ -134,33 +120,46 @@ if __name__ == "__main__":
                 input_data = fh.read()
         except Exception, e:
             print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
-            sys.exit(1)
+            continue
+
+        firmware_type = None
+        detected_parse_function = None
+        for tester in checker.TESTERS:
+            if tester().match(input_data[:100]):
+                firmware_type = tester().name
+                detected_parse_function = tester().parser
+                break
 
         if args.test:
-            firmware_type = None
-            for tester in checker.TESTERS:
-                if tester().match(input_data[:100]):
-                    firmware_type = tester().name
-                    break
             print "%s: %s" % (file_name, red(firmware_type))
             continue
 
         if args.brute:
-            if args.flash:
+            if args.type is "FLASH":
                 brute_search_flash(input_data)
-            else:
+            elif args.type is "UEFI_VOLUME":
                 brute_search_volumes(input_data)
             continue
 
-        if args.ff:
-            parse_file(input_data)
-        elif args.capsule:
-            parse_firmware_capsule(input_data)
-        elif args.flash:
-            parse_flash_descriptor(input_data)
-        elif args.me:
-            parse_me(input_data)
-        elif args.pfs:
-            parse_pfs(input_data)
+        selected_parse_function = None
+        if args.type is "UEFI_CAPSULE":
+            parse_function = parse_firmware_capsule
+        elif args.type is "UEFI_FIRMWARE_FILE":
+            parse_function = parse_file
+        elif args.type is "FLASH":
+            parse_function = parse_flash_descriptor
+        elif args.type is "INTEL_ME":
+            parse_function = parse_me
+        elif args.type is "DELL_PFS":
+            parse_function = parse_pfs
+        elif args.type is "UEFI_VOLUME":
+            parse_function = parse_firmware_volume
+
+        if selected_parse_function is not None:
+            firmware = selected_parse_function(input_data)
+            _process_show_extract(firmware)
+        elif detected_parse_function is not None:
+            firmware = detected_parse_function(input_data)
+            _process_show_extract(firmware)
         else:
-            parse_firmware_volume(input_data)
+            print "Error: cannot parse %s, could not detect firmware type." % (file_name)

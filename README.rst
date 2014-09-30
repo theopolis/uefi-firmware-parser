@@ -4,6 +4,7 @@ UEFI Firmware Parser
 .. image:: https://travis-ci.org/theopolis/uefi-firmware-parser.svg?branch=master
     :target: https://travis-ci.org/theopolis/uefi-firmware-parser
 
+
 The UEFI firmware parser is a simple module and set of scripts for parsing, extracting, 
 and recreating UEFI firmware volumes.
 This includes parsing modules for BIOS, OptionROM, Intel ME and other formats too. 
@@ -28,8 +29,8 @@ Example scripts are provided in ``/scripts``
 ::
 
   $ python ./scripts/fv_parser.py -h
-  usage: fv_parser.py [-h] [-b] [-c] [-f] [-d] [-m] [-p] [-q] [-o OUTPUT] [-e]
-                      [-g GENERATE] [-t]
+  usage: fv_parser.py [-h] [--type {VARIOUS_TYPES}]
+                      [-b] [-q] [-o OUTPUT] [-e] [-g GENERATE] [--test]
                       file [file ...]
 
   Parse, and optionally output, details and data on UEFI-related firmware.
@@ -39,19 +40,35 @@ Example scripts are provided in ``/scripts``
 
   optional arguments:
     -h, --help            show this help message and exit
+    --type {VARIOUS_TYPES}
+                          Parse files as a specific firmware type.
     -b, --brute           The input is a blob and may contain FV headers.
-    -c, --capsule         The input file is a firmware capsule, do not search.
-    -f, --ff              The input file is a firmware file.
-    -d, --flash           The input file is a flash descriptor.
-    -m, --me              The input file is an Intel ME container.
-    -p, --pfs             The input file is a Dell PFS.HDR update.
     -q, --quiet           Do not show info.
     -o OUTPUT, --output OUTPUT
                           Dump EFI Files to this folder.
     -e, --extract         Extract all files/sections/volumes.
     -g GENERATE, --generate GENERATE
                           Generate a FDF, implies extraction
-    -t, --test            Test file parsing, output name/success.
+    --test                Test file parsing, output name/success.
+
+To test a file or directory of files:
+
+::
+
+  $ python ./scripts/fv_parser.py --test ~/firmware/*
+  ~/firmware/970E32_1.40: UEFIFirmwareVolume
+  ~/firmware/CO5975P.BIO: EFICapsule
+  ~/firmware/me-03.obj: IntelME
+  ~/firmware/O990-A03.exe: None
+  ~/firmware/O990-A03.exe.hdr: DellPFS
+
+The firmware-type checker will decide how to best parse the file or you may
+set the type manually:
+
+::
+
+  $ python ./scripts/fv_parser.py --type UEFI_VOLUME ~/firmware/970E32_1.40
+  $ python ./scripts/fv_parser.py ~/firmware/970E32_1.40
 
 **Features**
 
