@@ -149,6 +149,9 @@ class PFSFile(FirmwareObject):
     def __init__(self, data):
         self.sections = []
         self.data = data
+        self.valid_header = False
+        if self.check_header():
+            self.valid_header = True
 
     def check_header(self):
         if len(self.data) < 32:
@@ -191,6 +194,7 @@ class PFSFile(FirmwareObject):
 
             if len(data) < 64:
                 break
+        return True
 
     @property
     def objects(self):
