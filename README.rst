@@ -1,5 +1,9 @@
 UEFI Firmware Parser
 ====================
+
+.. image:: https://travis-ci.org/theopolis/uefi-firmware-parser.svg?branch=master
+    :target: https://travis-ci.org/theopolis/uefi-firmware-parser
+
 The UEFI firmware parser is a simple module and set of scripts for parsing, extracting, 
 and recreating UEFI firmware volumes.
 This includes parsing modules for BIOS, OptionROM, Intel ME and other formats too. 
