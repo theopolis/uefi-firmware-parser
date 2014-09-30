@@ -1,0 +1,63 @@
+language: python
+python:
+  - "2.7"
+
+before_install:
+  # Install dependencies 
+   - sudo apt-get install python-dev -qq
+
+install:
+  - pip install -r requirements.txt
+  - python setup.py install
+
+env:
+  global:
+    - SAMPLES_REPO="git@github.com:theopolis/uefi-firmware-samples.git"
+    # Private SSH Deploy key for samples repo
+    - secure: "jB6HC/A5S2FMt4h+RlwfkJK9ATdkU3E95t16y4ub8mZhITKYA8KluSIJ/67wO9VUSNLIawzvmOoa5y8lV7Hj5+6INrihb/aYqc7GrzFB4TYuAsvQV7gycirT85+wCOPJJwQ2JQkk77mtEBcfefiBJee0DKEROeflN5zEmbnj7f0="
+    - secure: "F5R2kNfj2vWQAp8A9TW6+kh0PoPD1Qm9f0asM2a2eNKKJ3OKguajVX4MU9jdw1KZWwGxIPFButdxMzh+nL+me7Wg63XncDTHzCkYS11IXU/8mJCa5EnvgB0j+FtHW9vX3eq/vVPmg9wWB7YT/4oftvzd8yu46GbEMwws+oHIgR4="
+    - secure: "JTbSQJWIgIVMmfI4yv7PK6U/Bns0IC3+rjPpeXVmw2UoXLQsceP/DJ4rOzdiJxMfUdNG8JMbuOjhM0yjAK4XJh0ZO3qalgCDh4+1nslhREgZaJOOntA6OwVksTAIjjrqvvN61Y/uh//9ZDyg2PEkKWOCBIdAwGcdCrSETo2YIV0="
+    - secure: "MJ9xvIflcZ4CTaKAVH5H2TUDCyWmr5cavzSXSrhzmkngOnv1G3qk80WDsTgN7CL4wz4t8AVlzuleUle4HRgzzc9PBxHC1qOgjpjsby4MSdd11QPPo5kW+IPZX2gqmavGo5d5GNxMUMRLDncp+Lv4ErFP3g31c/hT/+a8Qut9+ug="
+    - secure: "ZgsTBnnnedbjkrO4wUMkjPiKJQ5LbsY6kuwkWde3C/5vU/bpzp9PVcnmhlZsraareQ0QbMpVeW1w/6YLbtQlJDwsFpjGxszLvw6Fi49OQwgdfTTeWO4Ap/bRA+rFPy/Tv/nu4BTCBYqnDdDt/d1/rjMYDgS8/WWbFI1Qq2v4Oi0="
+    - secure: "I8XompHYdiJE7h+IMrBdcUzKh2pqa753QBckfuC4pRTJlY2otlnFXntfHKJi3sgmr8+ns9iROCN2vHQJOIq216me93QhgYJzDvOpfNWGe2edD1QEACkUUeDv2r0xatQ58uJuvViwDCTDrPd4TYg6Cjl7NznUEPHm6peDT/a2m78="
+    - secure: "dPuTrZ8shEdr8Htx/+03mgd+xGxfDNk5SQgHYdH3wo9qbyTTFyP0cRqJpo81gU/S67zFLxgmjEMClT5T6cQPmlO2Itz+D94qfjqqbmp1wDIKV5XZgYV5XBBZieAbzKj11+UCj81fRVJMEIW1MhMbmAYMxe/T190dhNfjy/2JJ8Y="
+    - secure: "JbQCxDRHJ5lq2vGQ2x9HxN/8ru587Lo41ETwiHOdrcWBtI+NB2fUCrgi4HrrMq4hlnwVyRbGd+oM1TvZu4a+4KtHbDtYchy15Zl0Nw0pFsij0EF87DNnKKbQuyNlaM8iqmUOBjpPyFuWWFn8HooYCRzwtdXfLuThU/Du8dzH4vU="
+    - secure: "ALWa3VM20c1dYcSD99DDqKqAjnGh+2pixKnmVEu1V+PsOiwwRfvVR5epgt1+eKaWBLg/LK8/dzhSgN/IngZLTFBbTjTmUjYW+TVV5BLhXFtZnVNhDkJTYCNRuQ0yVvrqIAIxpyG9N6kPN+JNHLDS/anIj9gn+hcX5P9BUdQvtL0="
+    - secure: "WMMdo1kFoeiY0TRLgvszF8Le06/Ot7JIWI8ZFVnxsSwcfnDCPQn7l/SxJdpvjg4vMt3J/ie1eSHh2bkwwNmLnL/hHq8TkJgQ156QlNdW5PYxKmzwiyNOI6pUUqqAJG1wQLgqx7mLTiYpRlF1i3gczIqzFAQUq89UPcehXFlb7fo="
+    - secure: "J95DLDITBL2JAkt1LZwtbqFeyLVTxzqk2EVEQxBzpdl3M6EafjZgy8UR8dKRs1yMRdPkQr/HfNtxqILcSgt/7AY62EXkHPLBbdOrMRsJlNvfqnipB+Md1aW5UxaiAljscQA/Ku6IKTIgNDX7j0YmxGU3JZy2bzHHv7q7+CEFL/A="
+    - secure: "LrBIvzg8Kyqq3U6sW19iIE1vzCsdartchRSARcs6UqEDxTpT5qP3I5p+BUWA9Gk61rbUgNUk1yJr7NJvzqn+96ir32e6/QEmtzfx10lJV3+sIHNg6OFOXuNj3BLZDrZzPGvbXttzxFeHORjUYCuFQ52FzHvO1ChY8+++GHHO0No="
+    - secure: "CBfqN9W9mVRpwpL/qThKccG/yJ6rdeFdHO7zkurDBlgBWcBE/0B3n47QScGENhkI0pofL8E6HaYzC4j7jJiPRrUrRLrvpMBHiJ19vCMlv6D7Q3YNteNMGEVrYSFW+gjPNzzky44+1kPuy7yp9EzW33bZx9DqGpZ7Lkq2HvTQLEw="
+    - secure: "SIIPDlCBi1Z3WY4GYJ2rW37uLJW8JCWqJZn0clBxcX+WwbXJychGGQOtNRwJ/aSBA2l+ggLjlvoL/yNZXLejwSGkEQS6qslQNnc0ht+MeD03qcm1bGZ6kgdiKWIO4fD6s5PrmUgAtORD7y7zvbghL5BPsDZ7m4Aw7rytdfVLrtY="
+    - secure: "SFy2K4uhkcZbm6+CxHWWlA/9/kSMnxakGwPYQqR+t+HZrGbOXQLpq4UEhvxZBVaHB3dYts5Mc3PKKtQgLyD0JO5LiZ75lB5at/E5Aj+NAI++jVNJD5XnXTpp7/DMjItUuoIzl5FaUx/Yksbe+qL7H7nBKBPix//MTOnAbLVIFis="
+    - secure: "lJw9siI8WmwqKBcs+4bpg7pg+mWVRFRHSkBVBnSmdiXrXArldFOsY/oHOfjmsYG9kdMoZGnSkSmm5qgDaIA3NcofrTvshUxulIO+caZPy0Slf4+d4dmixGtDtmvGTnnoQm7+mMmnd0R/DwFtv0uIrjxMcSu848L4uv9xGNZauxY="
+    - secure: "Bn0uQu1Nqb84hyZE3azMzZWZHKn5rcQreegyNWlcfHclIWU1/9bj/CHF6dtrzl0sLt4Ih09uypTDsDAR0qr8xjfESr/YPg8ra7Nur8Cg0wiL+Gyt9l8sYuwcC1IlNGZ61CclQDVbrXEtQ23n1QDUqxC43bERkxWmjes17SOVBHQ="
+    - secure: "KWmJy7rk+qQyX4qoKKvteeD1023LqXy5iF2VvG1AiYnSAp68s2HaQX3/t/1at8Tj3bZBShyd+iQ9QBjetsTCpyFENJ7xgNg4HbRAurl+GMs8teQgTew2QL7eGd5jdylZRqSpCgaB3Wv9SlaCdtpSOV2qc9HrSlM5zNRM0RHSazA="
+    - secure: "pU81NCfSp/pqcyg21M8rs0pW33R5c7UuHZMtcYWhPf/hC3A5Pl157W/Ik5yIdhDSwNZwaoFX8LtPtBQBRrYlUd6WRgmynt6nSKnUTfyYVvJV1vjmNske35wY03+N8+Xu4RIS6XTXcS6NKHgcmPWcKp/jnZbPXQ8ivv6iDHQeuOg="
+    - secure: "lFDidnsvOXUNh1Npjk91/jnzbssv0wPzwpdRCxZism1KEzpoNu/uOevZCwNEHYpgoTQHlZjI1/L6USdKDFKokYP9rhONrllOgXOJOFNDL1TPGFbIwQls7b7FvyqBM0EruGrmtTayBBOxmj+3dvmWh8taVIrhfEnZkbA/Dmr7A9A="
+    - secure: "TvIG3jWPUa8YNmarwzGxBpTwnP9p7Rr/g1EHvkCudiHWgR1eQ+cbHBmSslmetXQ8YSEO5asmPsmIWMzUYV29RhHERJE6twJjc++WSgwJDRdZVraZ9p8LYpO4ueFuQPmin+SHhUIdM+JRWy0qxejgr3vcKrQ3iwnDFsJLGsKmnSA="
+    - secure: "bdLc0PqhRxAQovYyhPAEr+L38tubD8OMjLpkRw6hXqYon7q9evwLvB5BFTLohUM6hbWvG0lNGa0G8it+9MwbNXQp4YFIIUtG3pD6TeErEXXwBjGGvF4u9i8LJu2CkY2Tk2GryrmgtqPvzptloxaAFh3kf8Oaj0G058fsp1gpiw0="
+    - secure: "ou1QjJU8CJKDnAFbEH62gFKVWz7SLEV3ddXxQRbMTGGuWYjGlAXfEbv50UmLM79RceojYuZHy5W8Mxk+m8IGkqSu+1aa07bF1mPZZ6EsEmljMb6XPkZ86Sf4LnzVzx2BpHZW6ofSLtj47z+Ltofq4lzOqOYGuowR+PHfhGmKmhQ="
+    - secure: "W3Oq/5tdJ+tTc4IWuT3tPfysDbwCfjdSoqBnbO6D9O1V1jYZuwwFDjMC538tJRVssVf/L0F9HPOx0up/kAtVsg+4q5o/Tgo8rB5VuVZRwX8hQEzy8Z29aN8swo/VIDWpVNE4UxrHcq9WvPua4Zsq+oqwzNhMiW5xBcFo/a6T8KM="
+    - secure: "sZsGlZHM8gGMDiOaGzvOfBaqO7KZj1NQLcSxtpQ6lmy3x3wIEo6xGoLGRT7IHBzK37CtWqBeM6DzUTx90KJZzsVeYMBQXgam7uPZjK0GtcP12NDxIRCb24U/RkV8mQWCe3nnTSG6ibVpvqcv3Aib9NBZWhfS5nG2nlZIWlQ/RDA="
+    - secure: "OJEft9AE0jN5y11RMpWO8N7DnfY86lxOCnyIC+ymyUUV7ttUzoU4jTAS3aA09PIRNGshL4gX6DFv5ksZact5SLgir88tAIJOoY0yXcS/uTbKE/RuATPpkuKfqjciPj/voZAK7iFfCn1np3L+QyxZxpwkGjE9i3H4lLnCEhpRLfo="
+    - secure: "URKNtsb+mu5RjEpF4xrGjW6qgXDbGnMRdHWNqqBlQV7qjDhrMeJOw9HGdkp1JfINV4QI+dB8HjL5ng6Wf7KMmZ9DuycppezMbQxJUCXbdfZ457klFKw8zMwN6mkqJy6j1289lKxbQ4Fxap3l+VVzJc45AwSTBsG9YWGLGo6es7E="
+    - secure: "qszsrj8Gn2pExnx9h/8dit52vX1xmSnU3loXtbXlNuSttRFYo2ffa6ztPKAUYwRWhybTXF4lZTihDDx1twGwwhkCrpuEA8b0mcOF7ymJk+ZM/44VnfyIYi8bHzbOIxrKrrhmPqqL6bn9pBzXiipj/WTf+nRDTStk3l2vN+w2gjs="
+    - secure: "Y1EIbiWpfqj/TuRCRf80E4DxN0DG0hetAS/nyM5Mofir0wnhjx+E3smR3coCb9iVX8SBodcarHu19XDjlotDJYP48l1lGlhWlZTeL5jwJL4nn87gqzjfR8toirJxAVB+q9SFNkrbzVDmYgbaBjnY1J6Tp2mbLU8rDlks/sJpWyI="
+
+before_script:
+  # Reconstruct private key  
+  - for i in {0..30}; do eval $(printf "echo \$s%02d\n" $i) >> ~/.ssh/id_rsa_base64; done
+  - base64 --decode ~/.ssh/id_rsa_base64 > ~/.ssh/id_rsa
+  - md5sum ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+
+  # Clone non-public samples (not private)
+  - git clone $SAMPLES_REPO samples
+
+script:
+  # Run the unittests
+  - python ./tests/test_compression.py
+
+  # Run a test script against all samples
+  - python ./samples/test_samples.py
