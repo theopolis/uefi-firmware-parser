@@ -59,7 +59,7 @@ class FlashRegion(FirmwareObject, BaseObject):
             pass
         for section in self.sections:
             section.process()
-        pass
+        return True
 
     def showinfo(self, ts='', index=None):
         print "%s%s type= %s, size= 0x%x (%d bytes) details[ %s ]" % (
@@ -158,18 +158,18 @@ class FlashDescriptor(FirmwareObject):
         })
         gbe_region.process()
         self.regions.append(gbe_region)
+        return True
 
     def showinfo(self, ts='', index=None):
-        print (
-            "%s%s chips %d, regions %d, masters %d, " +
-            "PCH straps %d, PROC straps %d, ICC entries %d" % (
+        print (("%s%s chips %d, regions %d, masters %d, PCH straps %d, "
+            "PROC straps %d, ICC entries %d") % (
                 ts, blue("Flash Descriptor (Intel PCH)"),
                 self.map.structure.NumberOfFlashChips,
-                self.map.structure.NumberOfRegions, self.map.structure.NumberOfMasters,
-                self.map.structure.NumberOfPchStraps, self.map.structure.NumberOfProcStraps,
-                self.map.structure.NumberOfIccTableEntries
-            )
-        )
+                self.map.structure.NumberOfRegions,
+                self.map.structure.NumberOfMasters,
+                self.map.structure.NumberOfPchStraps,
+                self.map.structure.NumberOfProcStraps,
+                self.map.structure.NumberOfIccTableEntries))
         for region in self.regions:
             region.showinfo(ts="%s  " % ts)
 
