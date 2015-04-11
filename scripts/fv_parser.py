@@ -135,25 +135,25 @@ if __name__ == "__main__":
             continue
 
         if args.brute:
-            if args.type is "FLASH":
+            if args.type == "FLASH":
                 brute_search_flash(input_data)
             elif args.type is "UEFI_VOLUME":
                 brute_search_volumes(input_data)
             continue
 
         selected_parse_function = None
-        if args.type is "UEFI_CAPSULE":
-            parse_function = parse_firmware_capsule
-        elif args.type is "UEFI_FIRMWARE_FILE":
-            parse_function = parse_file
-        elif args.type is "FLASH":
-            parse_function = parse_flash_descriptor
-        elif args.type is "INTEL_ME":
-            parse_function = parse_me
-        elif args.type is "DELL_PFS":
-            parse_function = parse_pfs
-        elif args.type is "UEFI_VOLUME":
-            parse_function = parse_firmware_volume
+        if args.type == "UEFI_CAPSULE":
+            selected_parse_function = parse_firmware_capsule
+        elif args.type == "UEFI_FIRMWARE_FILE":
+            selected_parse_function = parse_file
+        elif args.type == "FLASH":
+            selected_parse_function = parse_flash_descriptor
+        elif args.type == "INTEL_ME":
+            selected_parse_function = parse_me
+        elif args.type == "DELL_PFS":
+            selected_parse_function = parse_pfs
+        elif args.type == "UEFI_VOLUME":
+            selected_parse_function = parse_firmware_volume
 
         if selected_parse_function is not None:
             firmware = selected_parse_function(input_data)
