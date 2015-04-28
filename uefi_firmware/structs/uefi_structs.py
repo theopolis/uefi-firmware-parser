@@ -11,6 +11,7 @@ guid_t = char * 16
 FIRMWARE_VOLUME_GUIDS = {
     "FFS1":        "7a9354d9-0468-444a-81ce-0bf617d890df",
     "FFS2":        "8c8ce578-8a3d-4f1c-9935-896185c32dd3",
+    "FFS3":        "5473C07A-3DCB-4dca-BD6F-1E9689E7349A",
     "NVRAM_EVSA":  "fff12b8d-7696-4c8b-a985-2747075b4f50",
     "NVRAM_NVAR":  "cef5b9a3-476d-497f-9fdc-e98143e0422c",
     "NVRAM_EVSA2": "00504624-8a59-4eeb-bd0f-6b36e96128e0",
