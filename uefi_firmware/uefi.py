@@ -594,6 +594,9 @@ class FirmwareFileSystemSection(EfiSection):
 
         elif self.type == 0x17:  # firmware-volume
             fv = FirmwareVolume(self.data, sguid(self.guid))
+            if not fv.valid_header:
+                ### Could be a FFSv3 section (Kairos sample)
+                fv = FirmwareVolume(self.data[4:], sguid(self.guid))
             self.parsed_object = fv
 
         elif self.type == 0x18:  # freeform GUID
@@ -1036,6 +1039,7 @@ class FirmwareVolume(FirmwareObject):
         ffs_guids = [
             FIRMWARE_VOLUME_GUIDS["FFS1"],
             FIRMWARE_VOLUME_GUIDS["FFS2"],
+            FIRMWARE_VOLUME_GUIDS["FFS3"],
         ]
         for block in self.blocks:
             if sguid(self.guid) in ffs_guids:
