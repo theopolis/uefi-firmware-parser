@@ -85,11 +85,14 @@ def list_uefi_guids(base_object):
             if generated_label is not None or args.unknowns:
                 if args.unknowns and generated_label is None:
                     generated_label = "__UNKNOWN__"
-                debug("\"%s\": %s," % (generated_label, s2aguid(guid)), True, True)
+                debug("\"%s\": %s," %
+                      (generated_label, s2aguid(guid)), True, True)
 
         debug(green(guid), False)
-        debug(", ".join([purple(_label) for _label in guids[guid]["labels"]]), False)
-        debug(", ".join([blue(guid_type) for guid_type in guids[guid]["types"]]))
+        debug(", ".join([purple(_label)
+                         for _label in guids[guid]["labels"]]), False)
+        debug(", ".join([blue(guid_type)
+                         for guid_type in guids[guid]["types"]]))
     pass
 
 

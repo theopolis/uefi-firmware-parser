@@ -54,8 +54,8 @@ EFI_FILE_TYPES = {
     0x0b: ("firmware volume image",      "vol",         "FV_IMAGE"),
     0x0c: ("combined smm/driver",        "smm.dxe",     "COMBO_SMM_DRIVER"),
     0x0d: ("smm core",                   "smm.core",    "SMM_CORE"),
-    #0xc0: ("oem min"),
-    #0xdf: ("oem max"),
+    # 0xc0: ("oem min"),
+    # 0xdf: ("oem max"),
     0xf0: ("ffs padding",                "pad",         "0xf0")
 }
 
@@ -73,7 +73,7 @@ EFI_SECTION_TYPES = {
 
     0x16: ("IA-32 16-bit image",        "ia32.16bit",   "COMPAT16"),
     0x17: ("Firmware volume image",     "fv",           "FV_IMAGE"),
-    ### See FdfParser.py in EDKII's GenFds
+    # See FdfParser.py in EDKII's GenFds
     0x18: ("Free-form GUID",            "freeform.guid", "SUBTYPE_GUID"),
     0x19: ("Raw",                       "raw",          "RAW"),
     0x1b: ("PEI dependency expression", "pie.depex",    "PEI_DEPEX"),
@@ -82,9 +82,9 @@ EFI_SECTION_TYPES = {
 
 EFI_COMPRESSION_TYPES = {
     0x00: "",
-    #0x01: "EFI_STANDARD_COMPRESSION",
+    # 0x01: "EFI_STANDARD_COMPRESSION",
     0x01: "PI_STD",
-    #0x02: "EFI_CUSTOMIZED_COMPRESSION"
+    # 0x02: "EFI_CUSTOMIZED_COMPRESSION"
     0x02: "PI_STD"
 }
 

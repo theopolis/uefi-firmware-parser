@@ -23,16 +23,25 @@ setup(
         Extension(
             'uefi_firmware.efi_compressor',
             sources=[
-                os.path.join("uefi_firmware", "compression", "Tiano", "EfiCompress.c"),
-                os.path.join("uefi_firmware", "compression", "Tiano", "TianoCompress.c"),
-                os.path.join("uefi_firmware", "compression", "Tiano", "Decompress.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "Tiano", "EfiCompress.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "Tiano", "TianoCompress.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "Tiano", "Decompress.c"),
 
-                os.path.join("uefi_firmware", "compression", "LZMA", "SDK", "C", "Bra86.c"),
-                os.path.join("uefi_firmware", "compression", "LZMA", "SDK", "C", "LzFind.c"),
-                os.path.join("uefi_firmware", "compression", "LZMA", "SDK", "C", "LzmaDec.c"),
-                os.path.join("uefi_firmware", "compression", "LZMA", "SDK", "C", "LzmaEnc.c"),
-                os.path.join("uefi_firmware", "compression", "LZMA", "LzmaCompress.c"),
-                os.path.join("uefi_firmware", "compression", "LZMA", "LzmaDecompress.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "Bra86.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "LzFind.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "LzmaDec.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "LzmaEnc.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "LZMA", "LzmaCompress.c"),
+                os.path.join(
+                    "uefi_firmware", "compression", "LZMA", "LzmaDecompress.c"),
 
                 os.path.join("uefi_firmware", "compression", "EfiCompressor.c")
             ],

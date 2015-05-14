@@ -32,7 +32,8 @@ class PFSSection(FirmwareObject, BaseObject):
         # Version is static except for the first section in a PFS
         spec, ts, ctype, version, _u1 = struct.unpack("<IIhh4s", hdr[16:32])
         # U1, U2 might be flag containers
-        _u2, csize, size1, size2, size3 = struct.unpack("<8sIIII", hdr[32:32 + 24])
+        _u2, csize, size1, size2, size3 = struct.unpack(
+            "<8sIIII", hdr[32:32 + 24])
 
         self.spec = spec
         self.ts = ts
@@ -41,7 +42,8 @@ class PFSSection(FirmwareObject, BaseObject):
 
         # This seems to be a set of 8byte CRCs for each chunk (4 total)
         self.crcs = hdr[32 + 24:self.HEADER_SIZE]
-        self.section_data = self.data[self.HEADER_SIZE:self.HEADER_SIZE + csize]
+        self.section_data = self.data[
+            self.HEADER_SIZE:self.HEADER_SIZE + csize]
 
         # Not yet sure what the following three partitions are
         chunk1_offset = self.HEADER_SIZE + csize
@@ -65,7 +67,8 @@ class PFSSection(FirmwareObject, BaseObject):
             # This is a series of firmware volumes
             fv_offset = 0
             while fv_offset < len(self.section_data):
-                fv = FirmwareVolume(self.section_data[fv_offset:], hex(fv_offset))
+                fv = FirmwareVolume(
+                    self.section_data[fv_offset:], hex(fv_offset))
                 if not fv.valid_header:
                     break
                 fv.process()
@@ -119,7 +122,8 @@ class PFSSection(FirmwareObject, BaseObject):
         #     len(self.section_data),
         #     len(self.chunk1), len(self.chunk2), len(self.chunk3))
         # print "CRCs (0x%s)" % self.crcs.encode("hex")
-        # print "Unknowns (%s)" % ", ".join([u.encode("hex") for u in self.unknowns])
+        # print "Unknowns (%s)" % ", ".join([u.encode("hex") for u in
+        # self.unknowns])
         for sub_object in self.section_objects:
             sub_object.showinfo("%s  " % ts)
         pass
@@ -128,7 +132,8 @@ class PFSSection(FirmwareObject, BaseObject):
         path = os.path.join(parent, "%s" % sguid(self.uuid))
         dump_data("%s.data" % path, self.section_data)
 
-        # Instead of calling dump on each chunk RawObject, dump with a better name.
+        # Instead of calling dump on each chunk RawObject, dump with a better
+        # name.
         if len(self.chunk1.data) > 0:
             dump_data("%s.c1" % path, self.chunk1.data)
         if len(self.chunk2.data) > 0:
@@ -165,14 +170,16 @@ class PFSFile(FirmwareObject):
         self.size = size
 
         if magic != self.PFS_HEADER:
-            print_error("Data does not contain the header magic (%s)." % self.PFS_HEADER)
+            print_error(
+                "Data does not contain the header magic (%s)." % self.PFS_HEADER)
             return False
 
         ftr = self.data[len(self.data) - 16:]
         # U1 and U2 might be the same variable, a total CRC?
         _u1, _u2, ftr_magic = struct.unpack("<II8s", ftr)
         if ftr_magic != self.PFS_FOOTER:
-            print_error("Data does not container the footer magic (%s)." % self.PFS_FOOTER)
+            print_error(
+                "Data does not container the footer magic (%s)." % self.PFS_FOOTER)
             return False
 
         return True

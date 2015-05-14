@@ -60,7 +60,8 @@ def parse_file(data):
     selection = 0
 
     while True:
-        selection = raw_input("[#] Replace what section: [1-%d]: " % len(obj_references))
+        selection = raw_input(
+            "[#] Replace what section: [1-%d]: " % len(obj_references))
         try:
             selection = int(selection)
             if selection < 1 or selection > len(obj_references):
@@ -86,7 +87,7 @@ if __name__ == "__main__":
         "-f", "--ff", action="store_true", default=False,
         help="Inject payload into firmware file.")
 
-    ### Injection options
+    # Injection options
     parser.add_argument(
         '--guid', default=None,
         help="GUID to replace (inject).")
@@ -114,7 +115,7 @@ if __name__ == "__main__":
         print "Error: Cannot read file (%s) (%s)." % (args.injection, str(e))
         sys.exit(1)
 
-    ### Special case, regenerate a file.
+    # Special case, regenerate a file.
     if args.ff:
         print "[#] Opening firmware file."
         parsed = parse_file(input_data)
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     if parsed is None:
         sys.exit(0)
 
-    ### Iterate over each file object.
+    # Iterate over each file object.
     objects = flatten_firmware_objects(parsed.iterate_objects(True))
     print "[#] Firmware objects parsed."
     for firmware_object in objects:

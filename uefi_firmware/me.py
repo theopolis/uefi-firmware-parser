@@ -35,16 +35,21 @@ from .utils import dump_data
 from uefi_firmware import efi_compressor
 from uefi_firmware.base import StructuredObject
 
-MeModulePowerTypes = ["POWER_TYPE_RESERVED", "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
-MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED", "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
+MeModulePowerTypes = ["POWER_TYPE_RESERVED",
+                      "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
+MeCompressionTypes = ["COMP_TYPE_NOT_COMPRESSED",
+                      "COMP_TYPE_HUFFMAN", "COMP_TYPE_LZMA", "<unknown>"]
 COMP_TYPE_NOT_COMPRESSED = 0
 COMP_TYPE_HUFFMAN = 1
 COMP_TYPE_LZMA = 2
-MeModuleTypes      = ["DEFAULT", "PRE_ME_KERNEL", "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
-MeApiTypes         = ["API_TYPE_DATA", "API_TYPE_ROMAPI", "API_TYPE_KERNEL", "<unknown>"]
+MeModuleTypes = ["DEFAULT", "PRE_ME_KERNEL",
+                 "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
+MeApiTypes = ["API_TYPE_DATA", "API_TYPE_ROMAPI",
+              "API_TYPE_KERNEL", "<unknown>"]
 
 
 class MeObject(StructuredObject):
+
     """
     An ME Object is a combination of a parsing/extraction class and a ctype
     definding structure object.
@@ -55,6 +60,7 @@ class MeObject(StructuredObject):
 
 
 class MeModule(MeObject):
+
     def __init__(self, data, structure_type, offset):
         self.attrs = {}
         self.parse_structure(data, structure_type)
@@ -78,23 +84,29 @@ class MeModule(MeObject):
         self.attrs["load_base"] = self.structure.LoadBase
         self.attrs["flags"] = self.structure.Flags
         if structure_type == MeModuleHeader2Type:
-            self.attrs["power_type"] = (self.structure.Flags >> 1) & 3  # MeModulePowerTypes
-            self.attrs["compression"] = (self.structure.Flags >> 4) & 7  # MeCompressionTypes
-            self.attrs["module_stage"] = (self.structure.Flags >> 7) & 0xF  # MeModuleTypes (optional)
-            self.attrs["api_type"] = (self.structure.Flags >> 11) & 7  # MeApiTypes
+            self.attrs["power_type"] = (
+                self.structure.Flags >> 1) & 3  # MeModulePowerTypes
+            self.attrs["compression"] = (
+                self.structure.Flags >> 4) & 7  # MeCompressionTypes
+            # MeModuleTypes (optional)
+            self.attrs["module_stage"] = (self.structure.Flags >> 7) & 0xF
+            self.attrs["api_type"] = (
+                self.structure.Flags >> 11) & 7  # MeApiTypes
             self.attrs["privileged"] = ((self.structure.Flags >> 16) & 1)
         # There are unknown flags to parse, todo: revisit
         pass
 
-        # Must know the offset from given data (the start of the header) to find data
+        # Must know the offset from given data (the start of the header) to
+        # find data
         self.offset = self.structure.Offset - offset
-        #print "Debug: module data 0x%08X - 0x%08X" % (
+        # print "Debug: module data 0x%08X - 0x%08X" % (
         #    self.offset, self.offset + self.structure.Size)
         self.data = data[self.offset:self.offset + self.structure.Size]
 
     def process(self):
         if self.compression == COMP_TYPE_HUFFMAN:
-            # The individual modules are compressed together in a partition chunk
+            # The individual modules are compressed together in a partition
+            # chunk
             return
 
         if self.structure_type == MeModuleHeader1Type:
@@ -130,7 +142,8 @@ class MeModule(MeObject):
         if self.compression == COMP_TYPE_HUFFMAN:
             pass
         else:
-            dump_data("%s.module.lzma" % os.path.join(parent, self.name), self.data)
+            dump_data("%s.module.lzma" %
+                      os.path.join(parent, self.name), self.data)
             try:
                 data = efi_compressor.LzmaDecompress(self.data, len(self.data))
                 dump_data("%s.module" % os.path.join(parent, self.name), data)
@@ -159,12 +172,12 @@ class MeVariableModule(MeObject):
             return
 
         if len(hdr) < self.HEADER_SIZE or hdr[0] != '$':
-            #print "Debug: invalid module header."
+            # print "Debug: invalid module header."
             self.valid_header = False
             return
 
         self.tag = hdr[:4]
-        ### Note the elen size includes the header size
+        # Note the elen size includes the header size
         self.size = struct.unpack("<I", hdr[4:])[0] * 4 - self.HEADER_SIZE
         self.data = data[self.HEADER_SIZE:self.size]
         pass
@@ -180,7 +193,8 @@ class MeVariableModule(MeObject):
         if self.tag == '$UDC':
             subtag, _hash, name, offset, size = struct.unpack(
                 self.stype.udc_format, self.data[:self.type.udc_length])
-            #print "Debug: update code found: (%s) (%s), length: %d" % (subtag, name, size)
+            # print "Debug: update code found: (%s) (%s), length: %d" %
+            # (subtag, name, size)
             self.add_update(subtag, name, offset, size)
         if self.size == 3:
             values = [struct.unpack("<I", self.data[:4])[0]]
@@ -201,6 +215,7 @@ class MeVariableModule(MeObject):
 
 
 class MeModuleFile(MeObject):
+
     def __init__(self, data):
         self.size = 0
         tag = data[:4]
@@ -217,6 +232,7 @@ class MeModuleFile(MeObject):
 
 
 class MeLLUT(MeObject):
+
     def __init__(self, data, relative_offset):
         #self.tag = data[:4]
 
@@ -225,13 +241,14 @@ class MeLLUT(MeObject):
             self.valid_header = False
 
         #hdr = data[4:52]
-        #chunkcount, decompbase, unk0c, size, start, a,b,c,d,e,f, chunksize = struct.unpack(
+        # chunkcount, decompbase, unk0c, size, start, a,b,c,d,e,f, chunksize = struct.unpack(
         #    "<IIIIIIIIIIII", hdr)
         self.parse_structure(data, HuffmanLUTHeader)
         self.size = self.structure.Size
 
-        ### The start and end addresses are relative to the manifest.
-        ### The relative offset references the start of the manifest data (not header).
+        # The start and end addresses are relative to the manifest.
+        # The relative offset references the start of the manifest data (not
+        # header).
         self.start = self.structure.DataStart
         self.offset = relative_offset
 
@@ -239,16 +256,18 @@ class MeLLUT(MeObject):
         self.chunksize = self.structure.ChunkSize
         self.decompression_base = self.structure.DecompBase
 
-        self.data = data[self.start - relative_offset:self.start - relative_offset + self.size]
-        ### The huffman look up table is stored following the header data.
-        self.lut_data = data[self.structure_size:self.structure_size + self.chunkcount * 4]
+        self.data = data[
+            self.start - relative_offset:self.start - relative_offset + self.size]
+        # The huffman look up table is stored following the header data.
+        self.lut_data = data[
+            self.structure_size:self.structure_size + self.chunkcount * 4]
 
     def showinfo(self, ts=''):
         print "%sLLUT chunks (%d), chunk size (%d), start (%d), size (%d), base (%08X)." % (
             ts, self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
 
     def dump(self, parent='PART'):
-        #print "Debug: relative (%d) absolute start (%d) len (%d)." % (
+        # print "Debug: relative (%d) absolute start (%d) len (%d)." % (
         #    self.offset, self.start, len(self.data))
         dump_data("%s.llut.table" % parent, self.lut_data)
         dump_data("%s.llut.compressed" % parent, self.data)
@@ -264,12 +283,12 @@ class MeManifestHeader(MeObject):
         if data[:8] != "\x04\x00\x00\x00\xA1\x00\x00\x00":
             from .utils import hex_dump
             hex_dump(data[:32])
-            #print "Debug: invalid partition."
+            # print "Debug: invalid partition."
             self.valid_header = False
             return
 
         self.parse_structure(data, MeManifestHeaderType)
-        ### Save the container offset as LLUT start is an absolute reference
+        # Save the container offset as LLUT start is an absolute reference
         self.container_offset = container_offset
         self.data = data[self.partition_offset:]
 
@@ -315,17 +334,20 @@ class MeManifestHeader(MeObject):
         self.huffman_llut.showinfo(ts="  %s" % ts)
 
     def _parse_mods(self):
-        ### Parse the module headers (two types of headers, specified by the manifest).
+        # Parse the module headers (two types of headers, specified by the
+        # manifest).
         module_offset = 0
         huffman_offset = 0
         for module_index in xrange(self.structure.NumModules):
             module = MeModule(
                 self.data[module_offset:],
                 self.header_type, module_offset + self.partition_offset)
-            #print "Debug: found me module header (%s) at (%d)." % (module.tag, module_offset)
+            # print "Debug: found me module header (%s) at (%d)." %
+            # (module.tag, module_offset)
             if module.compression == COMP_TYPE_HUFFMAN:
-                ### Todo: skipped precondition for huffman offsets.
-                #print "Debug: Setting huffman offset: %d" % module.structure.Offset
+                # Todo: skipped precondition for huffman offsets.
+                # print "Debug: Setting huffman offset: %d" %
+                # module.structure.Offset
                 huffman_offset = module.structure.Offset
             module.process()
             self.modules.append(module)
@@ -333,29 +355,31 @@ class MeManifestHeader(MeObject):
             module_offset += module.size
 
         #additional_header = self.structure.Size*4 - module_offset
-        #print "Debug: Remaining header: %d - %d = %d" % (
+        # print "Debug: Remaining header: %d - %d = %d" % (
         #    self.structure.Size*4, module_offset, additional_header)
 
         self.module_offset = module_offset
         self.huffman_offset = huffman_offset
 
     def _parse_variable_mods(self, module_offset):
-        ### Parse additional tagged modules.
+        # Parse additional tagged modules.
         self.variable_modules = []
         partition_end = 0
         while module_offset < self.structure.Size * 4:
-            ### There is more module header to process.
-            module = MeVariableModule(self.data[module_offset:], self.header_type)
+            # There is more module header to process.
+            module = MeVariableModule(
+                self.data[module_offset:], self.header_type)
             if not module.valid_header:
                 break
             module_offset += module.HEADER_SIZE
             if module.header_blank:
                 continue
 
-            #print "Debug: found module (%s) size (%d)." % (module.tag, module.size)
+            # print "Debug: found module (%s) size (%d)." % (module.tag,
+            # module.size)
             module.process()
             if module.tag == '$MCP':
-                ### The end of a manifest partition is stored in MCP
+                # The end of a manifest partition is stored in MCP
                 partition_end = module.values[0] + module.values[1]
             self.variable_modules.append(module)
             module_offset += module.size
@@ -364,15 +388,16 @@ class MeManifestHeader(MeObject):
 
     def _parse_module_files(self):
         file_offset = self.structure.Size * 4
-        #print "Debug: looking for module files at (%08X)." % file_offset
+        # print "Debug: looking for module files at (%08X)." % file_offset
         while True:
             module_file = MeModuleFile(self.data[file_offset:])
             if not module_file.valid_header:
                 break
             if module_file.name in module_map:
-                ### A module file header cooresponds to the module header
+                # A module file header cooresponds to the module header
                 self.module_map[module_file.name].file = module_file
-            #print "Debug: found module file (%s) size (%d)." % (module_file.name, module_file.size)
+            # print "Debug: found module file (%s) size (%d)." %
+            # (module_file.name, module_file.size)
             file_offset += module_file.size
         pass
 
@@ -381,7 +406,7 @@ class MeManifestHeader(MeObject):
         self.module_map = {}
 
         if self.structure.Tag == '$MN2':
-            #print "...processing module header2"
+            # print "...processing module header2"
             self.header_type = MeModuleHeader2Type
         elif self.structure.Tag == '$MAN':
             self.header_type = MeModuleHeader1Type
@@ -389,18 +414,20 @@ class MeManifestHeader(MeObject):
             #'''Cannot parsing modules...'''
             return
 
-        ### Parse the module headers (two types of headers, specified by the manifest).
+        # Parse the module headers (two types of headers, specified by the
+        # manifest).
         self._parse_mods()
         self._parse_variable_mods(self.module_offset)
         self._parse_module_files()
 
-        ### Parse optional huffman LLUT.
+        # Parse optional huffman LLUT.
         huffman_offset = self.huffman_offset - self.partition_offset
-        huffman_llut = MeLLUT(self.data[huffman_offset:], huffman_offset + self.absolute_offset)
-        #if huffman_llut.valid_header:
+        huffman_llut = MeLLUT(
+            self.data[huffman_offset:], huffman_offset + self.absolute_offset)
+        # if huffman_llut.valid_header:
         #    print "Debug: huffman LLUT start (0x%08X) end (0x%08X)." % (
         #        huffman_llut.offset, huffman_llut.size + huffman_llut.start)
-        #print "Debug: LLUT end (%08X) partition end (%08X)." % (
+        # print "Debug: LLUT end (%08X) partition end (%08X)." % (
         #    huffman_llut.size + huffman_offset, self.partition_end)
 
         self.huffman_llut = huffman_llut
@@ -409,18 +436,20 @@ class MeManifestHeader(MeObject):
     def dump(self, parent=""):
         #huffman_end = self.huffman_llut.size + self.huffman_llut.start
         for module in self.modules:
-            #if module.compression == COMP_TYPE_HUFFMAN:
-                #print "Huffman module data: %r %08X/%08X" % (
+            # if module.compression == COMP_TYPE_HUFFMAN:
+                # print "Huffman module data: %r %08X/%08X" % (
                 #    module.name, self.huffman_llut.start, self.huffman_llut.size)
-            #else:
+            # else:
                 #huffman_end = (min(huffman_end, module.structure.Offset))
-                #print "Debug: decrementing huffman to %d" % huffman_end
+                # print "Debug: decrementing huffman to %d" % huffman_end
             module.dump(parent)
-        self.huffman_llut.dump(os.path.join(parent, self.structure.PartitionName))
+        self.huffman_llut.dump(
+            os.path.join(parent, self.structure.PartitionName))
         pass
 
 
 class MeContainer(MeObject):
+
     def __init__(self, data):
         self.partitions = []
         self.data = data
@@ -430,9 +459,9 @@ class MeContainer(MeObject):
         while True:
             partition_manifest = MeManifestHeader(self.data[offset:], offset)
             if not partition_manifest.valid_header:
-                #print "Debug: ending at (%08X)." % offset
+                # print "Debug: ending at (%08X)." % offset
                 return
-            #print "Debug: Found valid partition (%08X)." % offset
+            # print "Debug: Found valid partition (%08X)." % offset
 
             partition_manifest.process()
             self.partitions.append(partition_manifest)
@@ -445,4 +474,5 @@ class MeContainer(MeObject):
 
     def dump(self, parent=""):
         for partition in self.partitions:
-            partition.dump(os.path.join(parent, partition.structure.PartitionName))
+            partition.dump(
+                os.path.join(parent, partition.structure.PartitionName))

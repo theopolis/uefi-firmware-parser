@@ -39,8 +39,8 @@ def hex_dump(data, size=16):
         )
         pass
 
-    for i in xrange(0, len(data)/size):
-        data_line = data[i*size:i*size + size]
+    for i in xrange(0, len(data) / size):
+        data_line = data[i * size:i * size + size]
         print_line(data_line)
 
     if not len(data) % size == 0:
@@ -58,7 +58,8 @@ def sguid(b, big=False):  # fguid
 
 def s2aguid(s):  # brguid
     '''RFC4122 string GUID as int array.'''
-    guid = [s[:8], s[8+1:9+4], s[13+1:14+4], s[18+1:19+4] + s[-12:]]
+    guid = [s[:8], s[8 + 1:9 + 4], s[13 + 1:14 + 4],
+            s[18 + 1:19 + 4] + s[-12:]]
     return aguid("".join([part.decode("hex") for part in guid]), True)
 
 
@@ -105,7 +106,7 @@ def search_firmware_volumes(data, byte_align=16, limit=None):
                 return potential_volumes
         magic = data[(aligned + byte_align / 2):(aligned + byte_align / 2 + 4)]
         if magic == '_FVH':
-            potential_volumes.append(aligned+byte_align/2)
+            potential_volumes.append(aligned + byte_align / 2)
             if limit and limit == len(potential_volumes):
                 return potential_volumes
     return potential_volumes

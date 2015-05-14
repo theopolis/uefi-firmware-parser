@@ -30,6 +30,7 @@ class DescriptorMap(StructuredObject):
 
 
 class FlashRegion(FirmwareObject, BaseObject):
+
     def __init__(self, data, region_name, region_details):
         self.sections = []
         self.data = data
@@ -82,6 +83,7 @@ class FlashRegion(FirmwareObject, BaseObject):
 
 
 class FlashDescriptor(FirmwareObject):
+
     def __init__(self, data):
         self.valid_header = False
         if len(data) < 20:
@@ -110,13 +112,16 @@ class FlashDescriptor(FirmwareObject):
 
         self.map = DescriptorMap(self.data[20:20 + DescriptorMap.size])
         region_offset = (self.map.structure.RegionBase * 0x10)
-        self.region = RegionSection(self.data[region_offset:region_offset + RegionSection.size])
+        self.region = RegionSection(
+            self.data[region_offset:region_offset + RegionSection.size])
         master_offset = (self.map.structure.MasterBase * 0x10)
-        self.master = MasterSection(self.data[master_offset:master_offset + MasterSection.size])
+        self.master = MasterSection(
+            self.data[master_offset:master_offset + MasterSection.size])
 
         bios_base = self.region.structure.BiosBase
         bios_limit = self.region.structure.BiosLimit
-        bios_size = _region_offset(bios_base) + _region_size(bios_base, bios_limit)
+        bios_size = _region_offset(
+            bios_base) + _region_size(bios_base, bios_limit)
         bios = self.data[_region_offset(bios_base): bios_size]
 
         bios_region = FlashRegion(bios, "bios", {
@@ -162,14 +167,14 @@ class FlashDescriptor(FirmwareObject):
 
     def showinfo(self, ts='', index=None):
         print (("%s%s chips %d, regions %d, masters %d, PCH straps %d, "
-            "PROC straps %d, ICC entries %d") % (
-                ts, blue("Flash Descriptor (Intel PCH)"),
-                self.map.structure.NumberOfFlashChips,
-                self.map.structure.NumberOfRegions,
-                self.map.structure.NumberOfMasters,
-                self.map.structure.NumberOfPchStraps,
-                self.map.structure.NumberOfProcStraps,
-                self.map.structure.NumberOfIccTableEntries))
+                "PROC straps %d, ICC entries %d") % (
+            ts, blue("Flash Descriptor (Intel PCH)"),
+            self.map.structure.NumberOfFlashChips,
+            self.map.structure.NumberOfRegions,
+            self.map.structure.NumberOfMasters,
+            self.map.structure.NumberOfPchStraps,
+            self.map.structure.NumberOfProcStraps,
+            self.map.structure.NumberOfIccTableEntries))
         for region in self.regions:
             region.showinfo(ts="%s  " % ts)
 
