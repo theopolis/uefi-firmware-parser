@@ -5,6 +5,7 @@ from .utils import dump_data, sguid, blue
 
 
 class BaseObject(object):
+
     '''A base object can be used to access direct content.'''
 
 
@@ -69,6 +70,7 @@ class FirmwareObject(object):
 
 
 class StructuredObject(object):
+
     def parse_structure(self, data, structure):
         '''Construct an instance object of the provided structure.'''
         struct_instance = structure()
@@ -76,7 +78,8 @@ class StructuredObject(object):
 
         struct_data = data[:struct_size]
         struct_length = min(len(struct_data), struct_size)
-        ctypes.memmove(ctypes.addressof(struct_instance), struct_data, struct_length)
+        ctypes.memmove(
+            ctypes.addressof(struct_instance), struct_data, struct_length)
         self.structure = struct_instance
         self.structure_data = struct_data
         self.structure_fields = [field[0] for field in structure._fields_]
@@ -88,6 +91,7 @@ class StructuredObject(object):
 
 
 class RawObject(FirmwareObject, BaseObject):
+
     def __init__(self, data):
         self.data = data
 

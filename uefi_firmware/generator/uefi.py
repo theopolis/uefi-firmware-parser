@@ -4,7 +4,8 @@
 # 1. Download, and setup your edk2
 # 2. make -C <edk2>/BaseTools/Source/C
 # 3. The needed binaries are at <edk2>/BaseTools/Source/C/bin/
-# 4. GenFds  -f Testing/testing.fdf -o Testing -t GCC46 -b DEBUG -a X64 -p OvmfPkg/OvmfPkgX64.dsc
+# 4. GenFds  -f Testing/testing.fdf -o Testing -t GCC46 -b DEBUG -a X64 -p
+# OvmfPkg/OvmfPkgX64.dsc
 
 
 from ..uefi import FirmwareVolume, FirmwareFile, FirmwareFileSystemSection
@@ -66,12 +67,14 @@ def oguid(guid):
 
 
 class GeneratorException(Exception):
+
     def __init__(self, _object):
         message = "Cannot generate from unsupported type (%s)." % type(_object)
         Exception.__init__(self, message)
 
 
 class RawSectionGenerator(object):
+
     def __init__(self, path, ts=''):
         self.embedded = []
         template = SECTION_LEAF_BUFFER
@@ -85,6 +88,7 @@ class RawSectionGenerator(object):
 
 
 class SectionGenerator(object):
+
     def __init__(self, firmware_section=None, ts=''):
         self.subsections = []
         self.embedded = []
@@ -102,7 +106,8 @@ class SectionGenerator(object):
 
         if firmware_section.type == 0x17:  # firmware volume
             name = oguid(firmware_section.guid).replace("-", "_")
-            self.embedded.append(FirmwareVolumeGenerator(firmware_section.parsed_object, name))
+            self.embedded.append(
+                FirmwareVolumeGenerator(firmware_section.parsed_object, name))
             value = "FV_%s" % name
             pass
 
@@ -120,7 +125,8 @@ class SectionGenerator(object):
         template = SECTION_COMPRESSED_BUFFER
 
         for subsection in firmware_section.parsed_object.subsections:
-            self.subsections.append(SectionGenerator(subsection, ts="  %s" % self.ts))
+            self.subsections.append(
+                SectionGenerator(subsection, ts="  %s" % self.ts))
 
         subsection_output = ""
         for subsection in self.subsections:
@@ -138,7 +144,8 @@ class SectionGenerator(object):
         template = SECTION_GUIDED_BUFFER
 
         for subsection in firmware_section.parsed_object.subsections:
-            self.subsections.append(SectionGenerator(subsection, ts="  %s" % self.ts))
+            self.subsections.append(
+                SectionGenerator(subsection, ts="  %s" % self.ts))
 
         subsection_output = ""
         for subsection in self.subsections:
@@ -164,6 +171,7 @@ class SectionGenerator(object):
 
 
 class FirmwareFileGenerator(object):
+
     def __init__(self, firmware_file=None, type_label=None, guid=None):
         self.embedded = []
         self.sections = []
@@ -183,7 +191,7 @@ class FirmwareFileGenerator(object):
         self.output = ""
 
         if firmware_file.type == 0xf0:
-            ### Do not add FFS padding files
+            # Do not add FFS padding files
             return
 
         self.type_label = EFI_FILE_TYPES[firmware_file.type][2]
@@ -191,7 +199,8 @@ class FirmwareFileGenerator(object):
 
         if firmware_file.type == 0x01:
             #self.sections = [RawSectionGenerator(blob) for blob in firmware_file.raw_blobs]
-            self.sections.append(RawSectionGenerator(firmware_file.path, ts='  '))
+            self.sections.append(
+                RawSectionGenerator(firmware_file.path, ts='  '))
         else:
             for section in firmware_file.sections:
                 self.add_section(section)
@@ -214,6 +223,7 @@ class FirmwareFileGenerator(object):
 
 
 class FirmwareVolumeGenerator(object):
+
     def __init__(self, volume=None, name="GENERIC"):
         self.files = []
 
@@ -231,7 +241,7 @@ class FirmwareVolumeGenerator(object):
         '''Generate buffer using volume object.'''
         self.output = ""
 
-        ### Do not generate separate block sets
+        # Do not generate separate block sets
         for filesystem in volume.firmware_filesystems:
             for firmware_file in filesystem.files:
                 self.add_file(firmware_file)

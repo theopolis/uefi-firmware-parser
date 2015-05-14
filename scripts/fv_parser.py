@@ -92,25 +92,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Parse, and optionally output, details and data on UEFI-related firmware.")
     parser.add_argument("--type",
-        choices=set([
-            "UEFI_CAPSULE", "UEFI_FIRMWARE_FILE", "UEFI_VOLUME",
-            "FLASH", "INTEL_ME", "DELL_PFS"
-        ]),
-        help="Parse files as a specific firmware type.")
+                        choices=set([
+                            "UEFI_CAPSULE", "UEFI_FIRMWARE_FILE", "UEFI_VOLUME",
+                            "FLASH", "INTEL_ME", "DELL_PFS"
+                        ]),
+                        help="Parse files as a specific firmware type.")
     parser.add_argument(
         '-b', "--brute", action="store_true",
         help='The input is a blob and may contain FV headers.')
 
     parser.add_argument('-q', "--quiet",
-        default=False, action="store_true", help="Do not show info.")
+                        default=False, action="store_true", help="Do not show info.")
     parser.add_argument('-o', "--output",
-        default=".", help="Dump EFI Files to this folder.")
+                        default=".", help="Dump EFI Files to this folder.")
     parser.add_argument('-e', "--extract",
-        action="store_true", help="Extract all files/sections/volumes.")
+                        action="store_true", help="Extract all files/sections/volumes.")
     parser.add_argument('-g', "--generate",
-        default=None, help="Generate a FDF, implies extraction")
+                        default=None, help="Generate a FDF, implies extraction")
     parser.add_argument("--test",
-        default=False, action='store_true', help="Test file parsing, output name/success.")
+                        default=False, action='store_true', help="Test file parsing, output name/success.")
     parser.add_argument("file", nargs='+', help="The file(s) to work on")
     args = parser.parse_args()
 
