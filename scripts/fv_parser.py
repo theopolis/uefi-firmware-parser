@@ -30,13 +30,6 @@ def brute_search_volumes(data):
     pass
 
 
-def brute_search_flash(data):
-    descriptors = search_flash_descriptor(data)
-    for index in descriptors:
-        parse_flash_descriptor(data[index:])
-    pass
-
-
 def parse_firmware_capsule(data, name=0):
     print "Parsing FC at index (%s)." % hex(name)
     firmware_capsule = FirmwareCapsule(data, name)
@@ -135,10 +128,7 @@ if __name__ == "__main__":
             continue
 
         if args.brute:
-            if args.type == "FLASH":
-                brute_search_flash(input_data)
-            elif args.type is "UEFI_VOLUME":
-                brute_search_volumes(input_data)
+            brute_search_volumes(input_data)
             continue
 
         selected_parse_function = None
