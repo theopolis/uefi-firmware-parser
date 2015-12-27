@@ -612,7 +612,8 @@ class FirmwareFileSystemSection(EfiSection):
             if not fv.valid_header:
                 # Could be a FFSv3 section (Kairos sample)
                 fv = FirmwareVolume(self.data[4:], sguid(self.guid))
-            self.parsed_object = fv
+            if fv.valid_header:
+                self.parsed_object = fv
 
         elif self.type == 0x18:  # freeform GUID
             freeform_guid = FreeformGuidSection(self.data)
