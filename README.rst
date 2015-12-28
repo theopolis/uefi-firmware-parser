@@ -150,3 +150,4 @@ or extraction from the distribution update mechanism (typically a PE).
 - HP
 - MSI
 - VMware
+- Apple
