@@ -12,7 +12,8 @@ import efi_compressor
 
 
 def _get_file_type(file_type):
-    return EFI_FILE_TYPES[file_type] if file_type in EFI_FILE_TYPES else ("unknown", "unknown")
+    return EFI_FILE_TYPES[file_type] if file_type in EFI_FILE_TYPES else (
+        "unknown", "unknown")
 
 
 def _get_section_type(section_type):
@@ -702,7 +703,7 @@ class FirmwareFile(FirmwareObject):
             self.guid, self.checksum, self.type, self.attributes, \
                 self.size, self.state = struct.unpack("<16sHBB3sB", header)
             self.size = struct.unpack("<I", self.size + "\x00")[0]
-        except Exception, e:
+        except Exception as e:
             print_error("Error: invalid FirmwareFile header.")
             raise e
 
@@ -814,7 +815,7 @@ class FirmwareFile(FirmwareObject):
         for blob in self.raw_blobs:
             if isinstance(blob, FirmwareObject):
                 data += blob.build(generate_checksum)
-            elif type(blob) == RawObject:
+            elif isinstance(blob, RawObject):
                 data += blob.data
             else:
                 data += blob
@@ -876,7 +877,8 @@ class FirmwareFile(FirmwareObject):
             section.showinfo(ts + "  ", index=i)
 
     def _guessinfo(self, ts, data, index="N/A"):
-        if data[:4] == "\x01\x00\x00\x00" and data[20:24] == "\x01\x00\x00\x00":
+        if data[:4] == "\x01\x00\x00\x00" and data[
+                20:24] == "\x01\x00\x00\x00":
             print "%s Might contain CPU microcodes" % (blue("%sBlob %d:" % (ts, index)))
 
     def dump(self, parent=""):
@@ -1023,7 +1025,7 @@ class FirmwareVolume(FirmwareObject):
             self._data = data
             self.data = data[self.hdrlen:]
             self.block_map = data[self._HEADER_SIZE:self.hdrlen]
-        except Exception, e:
+        except Exception as e:
             print_error("Error invalid FV header data (%s)." % str(e))
             return
 
