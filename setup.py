@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages, Extension, Command
 import os
+import re
+from setuptools import setup, find_packages, Extension, Command
 
 
 class LintCommand(Command):
@@ -39,19 +40,30 @@ class LintCommand(Command):
         ))
 
 with open('README.rst') as f:
-    readme = f.read()
+    README = f.read()
 
 with open('LICENSE') as f:
-    license = f.read()
+    LICENSE = f.read()
+
+with open("uefi_firmware/__init__.py", "r") as f:
+    __INIT__ = f.read()
+
+TITLE = re.search(r'^__title__\s*=\s*[\'"]([^\'"]*)[\'"]',
+                  __INIT__, re.MULTILINE).group(1)
+VERSION = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
+                    __INIT__, re.MULTILINE).group(1)
+AUTHOR = re.search(r'^__author__\s*=\s*[\'"]([^\'"]*)[\'"]',
+                   __INIT__, re.MULTILINE).group(1)
 
 setup(
+    title=TITLE,
     name='UEFI Firmware Parser',
-    version='0.2',
+    version=VERSION,
     description='Various data structures and parsing tools for UEFI firmware.',
-    long_description=readme,
-    author='Teddy Reed',
+    long_description=README,
+    author=AUTHOR,
     author_email='teddy@prosauce.org',
-    license=license,
+    license=LICENSE,
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",
     cmdclass={
