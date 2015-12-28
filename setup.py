@@ -48,16 +48,13 @@ with open('LICENSE') as f:
 with open("uefi_firmware/__init__.py", "r") as f:
     __INIT__ = f.read()
 
-TITLE = re.search(r'^__title__\s*=\s*[\'"]([^\'"]*)[\'"]',
-                  __INIT__, re.MULTILINE).group(1)
 VERSION = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
                     __INIT__, re.MULTILINE).group(1)
 AUTHOR = re.search(r'^__author__\s*=\s*[\'"]([^\'"]*)[\'"]',
                    __INIT__, re.MULTILINE).group(1)
 
 setup(
-    title=TITLE,
-    name='UEFI Firmware Parser',
+    name='uefi_firmware',
     version=VERSION,
     description='Various data structures and parsing tools for UEFI firmware.',
     long_description=README,
