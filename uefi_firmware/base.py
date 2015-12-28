@@ -1,3 +1,10 @@
+'''Base provides basic firmware object structures.
+'''
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os
 import ctypes
 
@@ -5,16 +12,19 @@ from .utils import dump_data, sguid, blue
 
 
 class BaseObject(object):
-
     '''A base object can be used to access direct content.'''
 
 
 class FirmwareObject(object):
-    data = None
+    def __init__(self):
+        self.data = None
+        self.name = None
+        self.attrs = None
+        self.guid = None
 
     @property
     def content(self):
-        if hasattr(self, "data"):
+        if hasattr(self, "data") and self.data is not None:
             return self.data
         return ""
 
@@ -24,7 +34,7 @@ class FirmwareObject(object):
 
     @property
     def label(self):
-        if hasattr(self, "name"):
+        if hasattr(self, "name") and self.name is not None:
             if self.name is None:
                 return ""
             return self.name
@@ -32,7 +42,7 @@ class FirmwareObject(object):
 
     @property
     def guid_label(self):
-        if not hasattr(self, "guid"):
+        if not hasattr(self, "guid") or self.guid is None:
             return ""
         return sguid(self.guid)
 
@@ -42,7 +52,7 @@ class FirmwareObject(object):
 
     @property
     def attrs_label(self):
-        if hasattr(self, "attrs"):
+        if hasattr(self, "attrs") and self.attrs is not None:
             return self.attrs
         return {}
 
@@ -70,6 +80,8 @@ class FirmwareObject(object):
 
 
 class StructuredObject(object):
+    def __init__(self):
+        self.fields = []
 
     def parse_structure(self, data, structure):
         '''Construct an instance object of the provided structure.'''
@@ -87,7 +99,7 @@ class StructuredObject(object):
 
     def show_structure(self):
         for field in self.fields:
-            print "%s: %s" % (field, getattr(self.structure, field, None))
+            print ("%s: %s" % (field, getattr(self.structure, field, None)))
 
 
 class RawObject(FirmwareObject, BaseObject):
@@ -99,9 +111,9 @@ class RawObject(FirmwareObject, BaseObject):
         return self.data
 
     def showinfo(self, ts='', index=None):
-        print "%s%s size= %d " % (
+        print ("%s%s size= %d " % (
             ts, blue("RawObject:"), len(self.data)
-        )
+        ))
 
     def dump(self, parent='', index=None):
         path = os.path.join(parent, "object.raw")

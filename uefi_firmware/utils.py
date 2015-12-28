@@ -92,7 +92,7 @@ def dump_data(name, data):
         with open(name, 'wb') as fh:
             fh.write(data)
         print "Wrote: %s" % (red(name))
-    except Exception, e:
+    except Exception as e:
         print "Error: could not write (%s), (%s)." % (name, str(e))
 
 

@@ -152,7 +152,7 @@ class MeModule(MeObject):
             try:
                 data = efi_compressor.LzmaDecompress(self.data, len(self.data))
                 dump_data("%s.module" % os.path.join(parent, self.name), data)
-            except Exception, e:
+            except Exception as e:
                 print "Cannot extract GUID (%s), %s" % (sguid(self.guid), str(e))
                 return
             pass
@@ -417,7 +417,7 @@ class MeManifestHeader(MeObject):
         elif self.structure.Tag == '$MAN':
             self.header_type = MeModuleHeader1Type
         else:
-            #Cannot parse modules...
+            # Cannot parse modules...
             return False
 
         # Parse the module headers (two types of headers, specified by the

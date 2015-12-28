@@ -95,7 +95,7 @@ class SectionGenerator(object):
         self.ts = ts
 
         if firmware_section is not None:
-            if type(firmware_section) is not FirmwareFileSystemSection:
+            if not isinstance(firmware_section, FirmwareFileSystemSection):
                 raise GeneratorException(firmware_section)
             self._generate(firmware_section)
         pass
@@ -179,7 +179,7 @@ class FirmwareFileGenerator(object):
         self.type_label = type
         self.guid_label = guid
         if firmware_file is not None:
-            if type(firmware_file) is not FirmwareFile:
+            if not isinstance(firmware_file, FirmwareFile):
                 raise GeneratorException(firmware_file)
             self._generate(firmware_file)
         pass
@@ -229,7 +229,7 @@ class FirmwareVolumeGenerator(object):
 
         self.name = name
         if volume is not None:
-            if type(volume) != FirmwareVolume:
+            if not isinstance(volume, FirmwareVolume):
                 raise GeneratorException(volume)
             self._generate(volume)
         pass
