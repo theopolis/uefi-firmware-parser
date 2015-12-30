@@ -42,9 +42,6 @@ class LintCommand(Command):
 with open('README.rst') as f:
     README = f.read()
 
-with open('LICENSE') as f:
-    LICENSE = f.read()
-
 with open("uefi_firmware/__init__.py", "r") as f:
     __INIT__ = f.read()
 
@@ -53,6 +50,15 @@ VERSION = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
 AUTHOR = re.search(r'^__author__\s*=\s*[\'"]([^\'"]*)[\'"]',
                    __INIT__, re.MULTILINE).group(1)
 
+COMPRESSION_SOURCES = []
+COMPRESSION_HEADERS = []
+for root, directory, paths in os.walk('uefi_firmware/compression'):
+    for path in paths:
+        if os.path.splitext(path)[1][1:] == 'h':
+            COMPRESSION_HEADERS.append(os.path.join(root, path))
+        else:
+            COMPRESSION_SOURCES.append(os.path.join(root, path))
+
 setup(
     name='uefi_firmware',
     version=VERSION,
@@ -60,39 +66,18 @@ setup(
     long_description=README,
     author=AUTHOR,
     author_email='teddy@prosauce.org',
-    license=LICENSE,
+    url='https://github.com/theopolis/uefi-firmware-parser',
+    license='BSD',
     packages=find_packages(exclude=('tests', 'docs')),
     test_suite="tests",
     cmdclass={
         "lint": LintCommand,
     },
-
+    headers=COMPRESSION_HEADERS,
     ext_modules=[
         Extension(
             'uefi_firmware.efi_compressor',
-            sources=[
-                os.path.join(
-                    "uefi_firmware", "compression", "Tiano", "EfiCompress.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "Tiano", "TianoCompress.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "Tiano", "Decompress.c"),
-
-                os.path.join(
-                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "Bra86.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "LzFind.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "LzmaDec.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "LZMA", "SDK", "C", "LzmaEnc.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "LZMA", "LzmaCompress.c"),
-                os.path.join(
-                    "uefi_firmware", "compression", "LZMA", "LzmaDecompress.c"),
-
-                os.path.join("uefi_firmware", "compression", "EfiCompressor.c")
-            ],
+            sources=COMPRESSION_SOURCES,
             include_dirs=[
                 os.path.join("uefi_firmware", 'compression', 'Include')
             ],
