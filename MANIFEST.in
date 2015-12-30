@@ -1,0 +1,3 @@
+include uefi_firmware/compression/*/*.h
+include uefi_firmware/compression/*/*/*.h
+include uefi_firmware/compression/*/*/*/*.h

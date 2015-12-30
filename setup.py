@@ -81,6 +81,7 @@ setup(
             include_dirs=[
                 os.path.join("uefi_firmware", 'compression', 'Include')
             ],
+            depends=COMPRESSION_HEADERS,
         )
     ],
 
