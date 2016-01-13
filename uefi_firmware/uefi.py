@@ -1130,9 +1130,9 @@ class FirmwareVolume(FirmwareObject):
             self.size,
             self.size
         ))
-        print (blue("%s  Firmware Volume Blocks: " % (ts)), end=False)
+        print (blue("%s  Firmware Volume Blocks: " % (ts)))
         for block_size, block_length in self.blocks:
-            print ("(%d, 0x%x)" % (block_size, block_length), end=False)
+            print ("(%d, 0x%x)" % (block_size, block_length))
         print ("")
 
         for _ffs in self.firmware_filesystems:
