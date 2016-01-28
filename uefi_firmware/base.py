@@ -16,6 +16,7 @@ class BaseObject(object):
 
 
 class FirmwareObject(object):
+    '''A pseudo-abstract type providing common firmware member facilities.'''
     def __init__(self):
         self.data = None
         self.name = None
@@ -24,16 +25,19 @@ class FirmwareObject(object):
 
     @property
     def content(self):
+        '''The object content is the 'data' stream.'''
         if hasattr(self, "data") and self.data is not None:
             return self.data
         return ""
 
     @property
     def objects(self):
+        '''Objects are the child firmware objects found via 'processing'.'''
         return []
 
     @property
     def label(self):
+        '''An overload for an object 'name'.'''
         if hasattr(self, "name") and self.name is not None:
             if self.name is None:
                 return ""
@@ -42,21 +46,37 @@ class FirmwareObject(object):
 
     @property
     def guid_label(self):
+        '''A string representation of an optional 'guid' field.'''
         if not hasattr(self, "guid") or self.guid is None:
             return ""
         return sguid(self.guid)
 
     @property
     def type_label(self):
+        '''The string representation of the object's class name.'''
         return self.__class__.__name__
 
     @property
     def attrs_label(self):
+        '''An overload for the 'attrs' field.'''
         if hasattr(self, "attrs") and self.attrs is not None:
             return self.attrs
         return {}
 
     def info(self, include_content=False):
+        '''Firmwae objects define a common interface for information.
+
+        This defines: label, guid, type, content, attrs-- as common between
+        most firmware objects.
+
+        Args:
+            include_content (Optional[bool]): Include a pointer to the 'data'
+            or content stream.
+
+        Return:
+            dict: Return a pointer to this object "_self" and the defines listed
+                above with an optional pointer to the data stream.
+        '''
         return {
             "_self": self,
             "label": self.label,
@@ -67,6 +87,19 @@ class FirmwareObject(object):
         }
 
     def iterate_objects(self, include_content=False):
+        '''Flatten this object's children into a list.
+
+        This mis-named as an interation. Each object within the children list
+        is recursively 'iterated', meaning its 'iterate_objects' method is
+        called. The object is represented via the 'info' method. Access to the
+        object is possible via the "_self" key.
+
+        The output list does not include this object but each entry sets a
+        "_parent" key with a pointer to this object.
+
+        Return:
+            list: flattened list of firmware objects.
+        '''
         objects = []
         for _object in self.objects:
             if _object is None:
