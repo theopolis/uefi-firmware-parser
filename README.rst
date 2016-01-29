@@ -12,6 +12,15 @@ Please use the example scripts for parsing tutorials.
 
 Installation
 ------------
+
+This module is included within PyPy as `uefi_firmware <https://pypi.python.org/pypi/uefi_firmware>`_
+
+::
+
+  $ sudo pip install uefi_firmware
+
+To install from Github, checkout this repo and use:
+
 ::
 
   $ sudo python ./setup.py install
@@ -24,6 +33,29 @@ Installation
 
 Usage
 -----
+
+The simplest way to use the module to detect or parse firmware is through the ``AutoParser`` class.
+
+::
+
+  import uefi_firmware
+  with open('/path/to/firmware.rom', 'r') as fh:
+    file_content = fh.read()
+  parser = uefi_firmware.AutoParser(file_content)
+  if parser.type() != 'unknown':
+    firmware = parser.parse()
+    firmware.showinfo()
+
+There are several classes within the **uefi**, **pfs**, **me**, and **flash** packages that
+accept file contents in their constructor. In all cases there are abstract methods implemented:
+
+- ``process()`` performs parsing work and returns a ``True`` or ``False``
+- ``showinfo()`` print a heirarchy of information about the structure
+- ``dump()`` walk the heirarchy and write each to a file
+
+Scripts
+-------
+
 Example scripts are provided in ``/scripts``
 
 ::
@@ -40,15 +72,13 @@ Example scripts are provided in ``/scripts``
 
   optional arguments:
     -h, --help            show this help message and exit
-    --type {VARIOUS_TYPES}
-                          Parse files as a specific firmware type.
     -b, --brute           The input is a blob and may contain FV headers.
     -q, --quiet           Do not show info.
     -o OUTPUT, --output OUTPUT
                           Dump EFI Files to this folder.
     -e, --extract         Extract all files/sections/volumes.
     -g GENERATE, --generate GENERATE
-                          Generate a FDF, implies extraction
+                          Generate a FDF, implies extraction (volumes only).
     --test                Test file parsing, output name/success.
 
 To test a file or directory of files:
@@ -67,7 +97,7 @@ set the type manually:
 
 ::
 
-  $ python ./scripts/fv_parser.py --type UEFI_VOLUME ~/firmware/970E32_1.40
+  $ python ./scripts/fv_parser.py -b ~/firmware/970E32_1.40
   $ python ./scripts/fv_parser.py ~/firmware/970E32_1.40
 
 **Features**

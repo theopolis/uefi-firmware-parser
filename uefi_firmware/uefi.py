@@ -32,6 +32,7 @@ def _get_section_type(section_type):
 
 
 def uefi_name(s):
+    '''Return the utf-16le encoded string name for a UEFIFile.'''
     try:
         name = s.decode("utf-16le").split("\0")[0]
         if len(name) == 0:
@@ -55,6 +56,15 @@ def compare(data1, data2):
 
 
 def decompress(algorithms, compressed_data):
+    '''Attempt to decompress using a set of algorithms.
+
+    Args:
+        algorithms (list): A set of decompression methods.
+        compressed_data (binary): A compressed data stream.
+
+    Return:
+        pair (int, binary): Return the algorithm index, and decompressed stream.
+    '''
     for i, algorithm in enumerate(algorithms):
         try:
             data = algorithm(compressed_data, len(compressed_data))
@@ -65,7 +75,22 @@ def decompress(algorithms, compressed_data):
 
 
 def find_volumes(data, process=True):
-    '''Search for arbitary firmware volumes within data, used for Raw files and sections.'''
+    '''Search for arbitary firmware volumes within data.
+
+    This is helpful within Raw files and sections.
+
+    Some firmware vendors will implement custom checksums or metadata within
+    UEFIFiles. It is often helpful to 'lose' this information and continue to
+    discovery volumnes and other structures. In these cases it is ultimately
+    helpful if folks/contributors will add support for representing each
+    proprietary structure.
+
+    Args:
+        process (Optional[bool]): Call process on each discovered volumn.
+
+    Return:
+        list: The set of discovered firmware objects.
+    '''
     objects = []
     while True:
         volume_index = data.find("_FVH")
@@ -89,7 +114,7 @@ def find_volumes(data, process=True):
 
 class FirmwareVariableStore(FirmwareObject, StructuredObject):
 
-    """An firmware-related variable storage structure (think NVRAM)."""
+    '''An firmware-related variable storage structure (think NVRAM).'''
     variables = []
 
     @property
@@ -99,7 +124,7 @@ class FirmwareVariableStore(FirmwareObject, StructuredObject):
 
 class FirmwareVariable(FirmwareObject, StructuredObject):
 
-    """A firmware-related variable, found in a variable store."""
+    '''A firmware-related variable, found in a variable store.'''
     subsections = []
 
     @property
@@ -197,8 +222,7 @@ class NVARVariable(FirmwareVariable):
 
 
 class NVARVariableStore(FirmwareVariableStore):
-
-    """NVAR has no header, only a series of variable headers."""
+    '''NVAR has no header, only a series of variable headers.'''
 
     def __init__(self, data):
         self.variables = []
@@ -373,7 +397,6 @@ class CompressedSection(EfiSection):
                 self.subtype = results[0] + 1
                 self.data = results[1]
             else:
-                #raise Exception("Cannot EFI decompress GUID (%s)" % (sguid(self.guid)))
                 print_error(
                     "Cannot EFI decompress GUID (%s), type= (%d), decompressed_size= (%d)" % (
                         sguid(self.guid),
@@ -423,12 +446,10 @@ class VersionSection(EfiSection):
 
 
 class FreeformGuidSection(EfiSection):
-
-    """
-    A firmware file section type (free-form GUID)
+    '''A firmware file section type (free-form GUID)
 
     struct { UCHAR GUID[16]; }
-    """
+    '''
 
     name = None
 
@@ -455,12 +476,10 @@ class FreeformGuidSection(EfiSection):
 
 
 class GuidDefinedSection(EfiSection):
-
-    """
-    A firmware file section type (GUID-defined)
+    '''A firmware file section type (GUID-defined)
 
     struct { UCHAR GUID[16]; short offset; short attrs; }
-    """
+    '''
 
     ATTR_PROCESSING_REQUIRED = 0x01
     ATTR_AUTH_STATUS_VALID = 0x02
@@ -561,12 +580,10 @@ class GuidDefinedSection(EfiSection):
 
 
 class FirmwareFileSystemSection(EfiSection):
-
-    """
-    A firmware file section
+    '''A firmware file section
 
     struct { UINT8 Size[3]; EFI_SECTION_TYPE Type; } EFI_COMMON_SECTION_HEADER;
-    """
+    '''
 
     parsed_object = None
     '''For object sections, keep track of each.'''
@@ -690,9 +707,7 @@ class FirmwareFileSystemSection(EfiSection):
 
 
 class FirmwareFile(FirmwareObject):
-
-    """
-    A firmware file is contained within a firmware file system and is comprised of firmware file
+    '''A firmware file is contained within a firmware file system and is comprised of firmware file
     sections.
 
     struct {
@@ -703,7 +718,7 @@ class FirmwareFile(FirmwareObject):
         UINT8: Size[3]
         UINT8: State
     };
-    """
+    '''
     _HEADER_SIZE = 0x18  # 24 byte header, always
 
     def __init__(self, data):
@@ -725,7 +740,7 @@ class FirmwareFile(FirmwareObject):
         }
         self.attrs["type_name"] = _get_file_type(self.type)[0]
 
-        '''The size includes the header bytes.'''
+        # The size includes the header bytes.
         self._data = data[:self.size]
         self.data = data[self._HEADER_SIZE:self.size]
         self.raw_blobs = []
@@ -743,9 +758,7 @@ class FirmwareFile(FirmwareObject):
         self.__init__(data)
 
     def process(self):
-        """
-        Parse the file and file sections if appropriate.
-        """
+        '''Parse the file and file sections if appropriate.'''
         if self.type == 0xf0:  # ffs padding
             return True
 
@@ -774,7 +787,7 @@ class FirmwareFile(FirmwareObject):
             if not file_section.valid_header:
                 return False
             if file_section.size <= 0:
-                '''This is not expected, something bad happened while parsing.'''
+                # This is not expected, something bad happened while parsing.
                 print_error("Error: file section size <= 0 (%d)." %
                             file_section.size)
                 return False
@@ -786,7 +799,7 @@ class FirmwareFile(FirmwareObject):
         return status
 
     def _find_objects(self):
-        """Helper function for wacky raw type usages."""
+        '''Helper function for wacky raw type usages.'''
         has_object = False
         status = True
 
@@ -905,11 +918,10 @@ class FirmwareFile(FirmwareObject):
 
 
 class FirmwareFileSystem(FirmwareObject):
+    '''A potential UEFI firmware filesystem (FFS) data stream.
 
-    """
-    A potential UEFI firmware filesystem data stream, comprised of fimrware file system (FSS)
-    sections. The FFS is a specific GUID within the FirmwareVolume.
-    """
+    The FFS is a specific GUID within the FirmwareVolume.
+    '''
 
     def __init__(self, data):
         self.files = []
@@ -931,7 +943,7 @@ class FirmwareFileSystem(FirmwareObject):
             firmware_file = FirmwareFile(data)
 
             if firmware_file.size < 24:
-                '''This is a problem, the file was corrupted.'''
+                # This is a problem, the file was corrupted.
                 break
 
             status = firmware_file.process() and status
@@ -976,8 +988,8 @@ class FirmwareFileSystem(FirmwareObject):
 
 
 class FirmwareVolume(FirmwareObject):
+    '''Describes the features and layout of the firmware volume.
 
-    """
     struct EFI_FIRMWARE_VOLUME_HEADER {
         UINT8: Zeros[16]
         UCHAR: FileSystemGUID[16]
@@ -991,23 +1003,29 @@ class FirmwareVolume(FirmwareObject):
         [<BlockMap>]+, <BlockMap(0,0)>
     };
 
+    The block map is a set of blocks followed by a zeroed block indicating the
+    end of the map set.
+
     struct BLOCK_MAP {
         UINT32: Block count
         UINT32: Block size
     };
 
-    The block map is a set of block followed by a zeroed block indicating the end of the map set.
-    """
+    '''
+
     _HEADER_SIZE = 0x38
 
     name = None
-    '''An optional name or offset of the firmware volume.'''
+    '''string: An optional name or offset of the firmware volume.'''
 
     block_map = None
-    '''An empty block set.'''
+    '''list: An empty block set.'''
 
     firmware_filesystems = None
+    '''list: Set of FirmwareFileSystems discovered in volume.'''
+
     raw_objects = None
+    '''list: Set of RawObjects discovered in volume.'''
 
     def __init__(self, data, name="volume"):
         self.name = name
@@ -1130,9 +1148,9 @@ class FirmwareVolume(FirmwareObject):
             self.size,
             self.size
         ))
-        print (blue("%s  Firmware Volume Blocks: " % (ts)))
+        print (blue("%s  Firmware Volume Blocks: " % (ts)), end="")
         for block_size, block_length in self.blocks:
-            print ("(%d, 0x%x)" % (block_size, block_length))
+            print ("(%d, 0x%x)" % (block_size, block_length), end="")
         print ("")
 
         for _ffs in self.firmware_filesystems:
@@ -1152,8 +1170,8 @@ class FirmwareVolume(FirmwareObject):
 
 
 class FirmwareCapsule(FirmwareObject):
+    '''EFI Capsule Header.
 
-    """
     struct EFI_CAPSULE_HEADER {
         UCHAR:  CapsuleGUID[16]
         UINT32: HeaderSize
@@ -1170,8 +1188,10 @@ class FirmwareCapsule(FirmwareObject):
         UINT32: OffsetToLongDescription
         UINT32: OffsetToApplicableDevices
     }
-    """
+    '''
+
     capsule_body = None
+    '''binary: Data string of the capsule content.'''
 
     def __init__(self, data, name="Capsule"):
         self.name = name
