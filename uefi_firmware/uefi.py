@@ -153,12 +153,10 @@ class NVARVariable(FirmwareVariable):
         self.subsections = []
         self.name = None
         self.guid = None
-        if not NVARVariable.valid_nvar(data):
-            return
         self.data = data
 
     def process(self):
-        if self.data is None:
+        if not NVARVariable.valid_nvar(self.data):
             return False
         self.parse_structure(self.data, NVARVariableHeaderType)
         self.size = self.structure.TotalSize
@@ -249,6 +247,7 @@ class NVARVariableStore(FirmwareVariableStore):
         # Scope data to just the parsed variables
         self.data = self.data[:total_size]
         self.attrs = {"variables": len(self.variables)}
+        return True
 
     def build(self, generate_checksum=False, debug=False):
         data = ""
