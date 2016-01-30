@@ -216,11 +216,11 @@ class PFSSection(FirmwareObject, BaseObject):
 
         # Instead of calling dump on each chunk RawObject, dump with a better
         # name.
-        if len(self.chunk1.data) > 0:
+        if len(self.rsa1.data) > 0:
             dump_data("%s.rsa1" % path, self.rsa1.data)
-        if len(self.chunk2.data) > 0:
+        if len(self.pmim.data) > 0:
             dump_data("%s.pmim" % path, self.pmim.data)
-        if len(self.chunk3.data) > 0:
+        if len(self.rsa2.data) > 0:
             dump_data("%s.rsa2" % path, self.rsa2.data)
 
         path = os.path.join(parent, "section-%s" % sguid(self.uuid))
