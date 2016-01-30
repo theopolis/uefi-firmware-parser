@@ -132,6 +132,6 @@ class MultiVolumeContainer(FirmwareObject):
             self.volumes[i].dump(path)
 
 __title__ = "uefi_firmware"
-__version__ = "1.3"
+__version__ = "1.4"
 __author__ = "Teddy Reed"
 __license__ = "BSD"
