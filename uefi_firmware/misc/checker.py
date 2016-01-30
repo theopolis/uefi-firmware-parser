@@ -4,6 +4,8 @@ The TypeTester may be useful if parsing a large number of UEFI-related binaries.
 """
 
 from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import re
 

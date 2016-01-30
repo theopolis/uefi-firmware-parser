@@ -15,9 +15,9 @@ def debug(text, cr=True, gen=False):
     if args.generate is None and gen:
         return
     elif cr:
-        print text
+        print(text)
     else:
-        print text,
+        print(text, end=' ')
 
 
 def label_as_guid_name(label):
@@ -30,7 +30,7 @@ def label_as_guid_name(label):
         return False
 
     producer = ""
-    for i in xrange(len(label)):
+    for i in range(len(label)):
         if label[i] == '_':
             continue
         if i > 0:
@@ -53,12 +53,12 @@ def list_uefi_guids(base_object):
         guid = firmware_object["guid"] if "guid" in firmware_object else None
         if guid is None:
             continue
-        if firmware_object["guid"] in [v for k, v in FIRMWARE_GUIDED_GUIDS.iteritems()]:
+        if firmware_object["guid"] in [v for k, v in FIRMWARE_GUIDED_GUIDS.items()]:
             guid = firmware_object["parent"]["parent"]["guid"]
 
         if len(guid) == 0:
             continue
-        if guid not in guids.keys():
+        if guid not in list(guids.keys()):
             guids[guid] = {"labels": [], "types": []}
 
         if len(firmware_object["label"]) > 0 and \
@@ -67,7 +67,7 @@ def list_uefi_guids(base_object):
         if firmware_object["type"] not in guids[guid]["types"]:
             guids[guid]["types"].append(firmware_object["type"])
 
-    guid_list = guids.keys()
+    guid_list = list(guids.keys())
     guid_list.sort()
 
     for guid in guid_list:
@@ -157,8 +157,8 @@ if __name__ == "__main__":
     try:
         with open(args.file, 'rb') as fh:
             input_data = fh.read()
-    except Exception, e:
-        print "Error: Cannot read file (%s) (%s)." % (args.file, str(e))
+    except Exception as e:
+        print("Error: Cannot read file (%s) (%s)." % (args.file, str(e)))
         sys.exit(1)
 
     if args.brute:

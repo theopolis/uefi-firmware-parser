@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import struct
 import os
 
@@ -87,9 +91,9 @@ class PFSPartitionedSection(FirmwareObject, BaseObject):
         return self.section_objects
 
     def showinfo(self, ts='', index=None):
-        print "%s%s %s partitions %d size 0x%x (%d bytes)" % (
+        print("%s%s %s partitions %d size 0x%x (%d bytes)" % (
             ts, blue("Dell PFSPartitionedSection:"), green(sguid(self.uuid)),
-            self.partitions, len(self.section_data), len(self.section_data))
+            self.partitions, len(self.section_data), len(self.section_data)))
         for sub_object in self.section_objects:
             sub_object.showinfo("%s  " % ts)
 
@@ -201,10 +205,9 @@ class PFSSection(FirmwareObject, BaseObject):
         pass
 
     def showinfo(self, ts='', index=None):
-        print "%s%s %s spec %d version %s size 0x%x (%d bytes)" % (
+        print("%s%s %s spec %d version %s size 0x%x (%d bytes)" % (
             ts, blue("Dell PFSSection:"), green(sguid(self.uuid)),
-            self.spec, self.version, self.section_size, self.section_size
-        )
+            self.spec, self.version, self.section_size, self.section_size))
 
         for sub_object in self.section_objects:
             sub_object.showinfo("%s  " % ts)
@@ -300,10 +303,9 @@ class PFSFile(FirmwareObject):
         pass
 
     def showinfo(self, ts='', index=None):
-        print "%s%s spec 0x%x size 0x%x (%d bytes)" % (
+        print("%s%s spec 0x%x size 0x%x (%d bytes)" % (
             ts, blue("DellPFS:"),
-            self.spec, self.size, self.size
-        )
+            self.spec, self.size, self.size))
         for section in self.sections:
             section.showinfo("%s  " % ts)
 

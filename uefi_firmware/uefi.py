@@ -747,7 +747,7 @@ class FirmwareFile(FirmwareObject):
 
     @property
     def objects(self):
-        invalid_types = [bytes, str, unicode]
+        invalid_types = [bytes, str, str]
         valid_blobs = [
             b for b in self.raw_blobs if type(b) not in invalid_types]
         return self.sections + valid_blobs
@@ -1039,7 +1039,7 @@ class FirmwareVolume(FirmwareObject):
             # print "Error: cannot parse FV header (%s)." % str(e)
             return
 
-        if sguid(self.guid) not in FIRMWARE_VOLUME_GUIDS.values():
+        if sguid(self.guid) not in list(FIRMWARE_VOLUME_GUIDS.values()):
             # print "Error: invalid FV guid (%s)." % sguid(self.guid)
             return
 
