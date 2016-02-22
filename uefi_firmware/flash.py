@@ -163,6 +163,18 @@ class FlashDescriptor(FirmwareObject):
         })
         gbe_region.process()
         self.regions.append(gbe_region)
+        
+        pdr_base = self.region.structure.PdrBase
+        pdr_limit = self.region.structure.PdrLimit
+        pdr_size = _region_offset(pdr_base) + _region_size(pdr_base, pdr_limit)
+        pdr = self.data[_region_offset(pdr_base): pdr_size]
+
+        pdr_region = FlashRegion(pdr, "pdr", {
+            "base": pdr_base,
+            "limit": pdr_limit,
+        })
+        pdr_region.process()
+        self.regions.append(pdr_region)
         return True
 
     def showinfo(self, ts='', index=None):
