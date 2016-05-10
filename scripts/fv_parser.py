@@ -14,7 +14,7 @@ def _process_show_extract(parsed_object):
         parsed_object.showinfo('')
 
     if args.extract:
-        print "Dumping..."
+        print("Dumping...")
         parsed_object.dump(args.output)
 
 
@@ -32,7 +32,7 @@ def parse_firmware_volume(data, name=0):
     _process_show_extract(firmware_volume)
 
     if args.generate is not None:
-        print "Generating FDF..."
+        print("Generating FDF...")
         firmware_volume.dump(args.generate)
         generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
         path = os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name))
@@ -63,8 +63,8 @@ if __name__ == "__main__":
         try:
             with open(file_name, 'rb') as fh:
                 input_data = fh.read()
-        except Exception, e:
-            print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
+        except Exception as e:
+            print("Error: Cannot read file (%s) (%s)." % (file_name, str(e)))
             continue
 
         if args.brute:
@@ -73,11 +73,11 @@ if __name__ == "__main__":
 
         parser = AutoParser(input_data)
         if args.test:
-            print "%s: %s" % (file_name, red(parser.type()))
+            print("%s: %s" % (file_name, red(parser.type())))
             continue
 
         if parser.type() is 'unknown':
-            print "Error: cannot parse %s, could not detect firmware type." % (file_name)
+            print("Error: cannot parse %s, could not detect firmware type." % (file_name))
             continue
 
         firmware = parser.parse()

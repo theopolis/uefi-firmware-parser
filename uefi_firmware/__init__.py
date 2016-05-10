@@ -1,14 +1,18 @@
 '''UEFI Firmware parser utils.
 '''
 
-import uefi
-import pfs
-import me
-import flash
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
-from misc import checker
-from base import FirmwareObject
-from utils import search_firmware_volumes
+from . import uefi
+from . import pfs
+from . import me
+from . import flash
+
+from .misc import checker
+from .base import FirmwareObject
+from .utils import search_firmware_volumes
 
 
 class AutoParser(object):
