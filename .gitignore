@@ -49,4 +49,6 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
-
+# Virtualenv dev
+env
+samples
