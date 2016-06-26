@@ -590,6 +590,12 @@ class PartitionEntry(MeObject):
             self.has_content = False
         self.data = data[self.structure.Offset:partition_end]
 
+    @property
+    def objects(self):
+        if self.manifest is not None:
+            return [self.manifest]
+        return []
+
     def process(self):
         if not self.has_content:
             return True
