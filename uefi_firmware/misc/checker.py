@@ -10,7 +10,7 @@ import re
 from ..uefi import FirmwareVolume, FirmwareCapsule
 from ..pfs import PFSFile
 from ..flash import FlashDescriptor
-from ..me import MeContainer
+from ..me import MeContainer, MeManifestHeader
 
 
 class TypeTester(object):
@@ -59,9 +59,17 @@ class UEFICapsuleTester(TypeTester):
     parser = FirmwareCapsule
 
 
-class IntelMETester(TypeTester):
+class IntelMEPartitionManifestTester(TypeTester):
     static = "".join("04 00 00 00 A1 00 00 00".split(" ")).decode('hex')
+    parser = MeManifestHeader
+
+
+class IntelMETester(TypeTester):
     parser = MeContainer
+
+    def match(self, data):
+        me = MeContainer(data)
+        return me.valid_header
 
 
 class DellPFSTester(TypeTester):
@@ -85,6 +93,7 @@ TESTERS = [
     FlashDescriptorTester,
     UEFICapsuleTester,
     EFICapsuleTester,
+    IntelMEPartitionManifestTester,
     IntelMETester,
     DellPFSTester,
     DellUpdateBinaryTester,

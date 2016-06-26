@@ -1,29 +1,31 @@
-# Intel ME ROM image dumper/extractor
-# Copyright (c) 2012 Igor Skochinsky
-# Version 0.1 2012-10-10
-# Version 0.2 2013-08-15
-#
-# This software is provided 'as-is', without any express or implied
-# warranty. In no event will the authors be held liable for any damages
-# arising from the use of this software.
-#
-# Permission is granted to anyone to use this software for any purpose,
-# including commercial applications, and to alter it and redistribute it
-# freely, subject to the following restrictions:
-#
-#    1. The origin of this software must not be misrepresented; you must not
-#    claim that you wrote the original software. If you use this software
-#    in a product, an acknowledgment in the product documentation would be
-#    appreciated but is not required.
-#
-#    2. Altered source versions must be plainly marked as such, and must not be
-#    misrepresented as being the original software.
-#
-#    3. This notice may not be removed or altered from any source
-#    distribution.
-#
-# Modified version 2013-12-29 Damien Zammit
-# Modified version 2014-01-10 Teddy Reed
+'''
+  Modified version 2014-01-10 Teddy Reed
+  Modified version 2013-12-29 Damien Zammit
+
+  Based on the original work from:
+    Intel ME ROM image dumper/extractor
+    Copyright (c) 2012 Igor Skochinsky
+    Version 0.1 2012-10-10
+    Version 0.2 2013-08-15
+
+    This software is provided 'as-is', without any express or implied warranty.
+    In no event will the authors be held liable for any damages arising from the
+    use of this software.
+
+    Permission is granted to anyone to use this software for any purpose,
+    including commercial applications, and to alter it and redistribute it
+    freely, subject to the following restrictions:
+
+    1. The origin of this software must not be misrepresented; you must not
+    claim that you wrote the original software. If you use this software in a
+    product, an acknowledgment in the product documentation would be appreciated
+    but is not required.
+
+    2. Altered source versions must be plainly marked as such, and must not be
+    misrepresented as being the original software.
+
+    3. This notice may not be removed or altered from any source distribution.
+'''
 
 import ctypes
 import struct
@@ -31,7 +33,7 @@ import os
 import array
 
 from .structs.intel_me_structs import *
-from .utils import dump_data
+from .utils import *
 from uefi_firmware import efi_compressor
 from uefi_firmware.base import FirmwareObject, StructuredObject
 
@@ -103,10 +105,6 @@ class MeModule(MeObject):
         #    self.offset, self.offset + self.structure.Size)
         self.data = data[self.offset:self.offset + self.structure.Size]
 
-    @property
-    def objects(self):
-        return [self.data]
-
     def process(self):
         if self.compression == COMP_TYPE_HUFFMAN:
             # The individual modules are compressed together in a partition
@@ -134,8 +132,13 @@ class MeModule(MeObject):
             return (self.structure.Flags >> 4) & 7
 
     def showinfo(self, ts=''):
-        print "%sModule %s, GUID: %s, Version: %s, Size: %s" % (
-            ts, self.name, self.guid, self.attrs["version"], self.attrs["module_size"]),
+        guid = self.guid
+        if self.guid != "(none)":
+            guid = green(sguid(self.guid))
+        print "%s%s name= %s, guid= %s, version= %s, size= %s" % (
+            ts, blue("ME Module"),
+            purple(self.name),
+            guid, self.attrs["version"], self.attrs["module_size"]),
         if self.compression == COMP_TYPE_HUFFMAN:
             print " (huffman)"
         elif self.compression == COMP_TYPE_LZMA:
@@ -212,10 +215,13 @@ class MeVariableModule(MeObject):
         return True
 
     def showinfo(self, ts=''):
-        print "%sVModule Tag: %s, size: %d" % (ts, self.tag, self.size)
+        print "%s%s tag= %s, size= %d" % (
+            ts, blue("VModule"), purple(self.tag), self.size)
         if self.tag == '$UDC':
-            print "%s  Update Tag: %s, name: %s, offset: %d, size: %s" % (
-                self.update["tag"], self.update["name"], self.update["offset"], self.update["size"])
+            print "%s%s name= %s, offset= %d, size= %s" % (
+                ts, blue("%s Update" % self.update["tag"]),
+                purple(self.update["name"]),
+                self.update["offset"], self.update["size"])
         pass
 
 
@@ -268,8 +274,9 @@ class MeLLUT(MeObject):
             self.structure_size:self.structure_size + self.chunkcount * 4]
 
     def showinfo(self, ts=''):
-        print "%sLLUT chunks (%d), chunk size (%d), start (%d), size (%d), base (%08X)." % (
-            ts, self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
+        print "%s%s chunks= %d, chunk size= %d, start= %d, size= %d, base= 0x%08X" % (
+            ts, blue("LLUT"),
+            self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
 
     def dump(self, parent='PART'):
         # print "Debug: relative (%d) absolute start (%d) len (%d)." % (
@@ -286,9 +293,6 @@ class MeManifestHeader(MeObject):
 
         self.valid_header = True
         if data[:8] != "\x04\x00\x00\x00\xA1\x00\x00\x00":
-            from .utils import hex_dump
-            hex_dump(data[:32])
-            # print "Debug: invalid partition."
             self.valid_header = False
             return
 
@@ -319,7 +323,9 @@ class MeManifestHeader(MeObject):
             self.partition_name = "(none)"
 
         self.modules = []
+        self.variable_modules = []
         self.partition_end = 0
+        self.huffman_llut = None
 
     @property
     def absolute_offset(self):
@@ -329,14 +335,24 @@ class MeManifestHeader(MeObject):
     def partition_offset(self):
         return self.structure.HeaderLen * 4 + self._DATA_OFFSET
 
+    @property
+    def objects(self):
+        _objects = self.modules + self.variable_modules
+        if self.huffman_llut is not None:
+            _objects.append(self.huffman_llut)
+        return _objects
+
     def showinfo(self, ts=''):
-        print "Module Manifest type: %d, subtype: %d, partition name: %s" % (
-            self.structure.ModuleType, self.structure.ModuleSubType, self.structure.PartitionName)
+        print "%s%s type= %d, subtype= %d, partition name= %s" % (
+            ts, blue("ME Module Manifest"),
+            self.structure.ModuleType, self.structure.ModuleSubType,
+            purple(self.structure.PartitionName))
         for module in self.modules:
             module.showinfo(ts="  %s" % ts)
         for module in self.variable_modules:
             module.showinfo(ts="  %s" % ts)
-        self.huffman_llut.showinfo(ts="  %s" % ts)
+        if self.huffman_llut is not None:
+            self.huffman_llut.showinfo(ts="  %s" % ts)
 
     def _parse_mods(self):
         # Parse the module headers (two types of headers, specified by the
@@ -370,7 +386,6 @@ class MeManifestHeader(MeObject):
 
     def _parse_variable_mods(self, module_offset):
         # Parse additional tagged modules.
-        self.variable_modules = []
         self.partition_end = 0
         while module_offset < self.structure.Size * 4:
             # There is more module header to process.
@@ -410,6 +425,7 @@ class MeManifestHeader(MeObject):
 
     def process(self):
         self.modules = []
+        self.variable_modules = []
         self.module_map = {}
 
         if self.structure.Tag == '$MN2':
@@ -433,13 +449,12 @@ class MeManifestHeader(MeObject):
         huffman_offset = self.huffman_offset - self.partition_offset
         huffman_llut = MeLLUT(
             self.data[huffman_offset:], huffman_offset + self.absolute_offset)
-        # if huffman_llut.valid_header:
+        if huffman_llut.valid_header:
+            self.huffman_llut = huffman_llut
         #    print "Debug: huffman LLUT start (0x%08X) end (0x%08X)." % (
         #        huffman_llut.offset, huffman_llut.size + huffman_llut.start)
         # print "Debug: LLUT end (%08X) partition end (%08X)." % (
         #    huffman_llut.size + huffman_offset, self.partition_end)
-
-        self.huffman_llut = huffman_llut
         return True
 
     def dump(self, parent=""):
@@ -452,10 +467,62 @@ class MeManifestHeader(MeObject):
                 #huffman_end = (min(huffman_end, module.structure.Offset))
                 # print "Debug: decrementing huffman to %d" % huffman_end
             module.dump(parent)
-        self.huffman_llut.dump(
-            os.path.join(parent, self.structure.PartitionName))
-        pass
+        if self.huffman_llut is not None:
+            self.huffman_llut.dump(
+                os.path.join(parent, self.structure.PartitionName))
 
+
+class PartitionEntry(MeObject):
+    size = 0x20
+
+    def __init__(self, data, offset):
+        self.manifest = None
+        self.parse_structure(data[offset:], MeFptEntryType)
+
+        self.has_content = True
+        if self.structure.Owner == "\xFF\xFF\xFF\xFF":
+            # A blank owner is filled in with 0xFF.
+            self.structure.Owner = ''
+        if self.structure.Offset == 0xFFFFFFFF:
+            # A (blank) offset usually means flags = 0x02.
+            self.has_content = False
+            return
+
+        # Set the partition data based on an offset and size determined within
+        # the partition entry metadata.
+        if self.structure.Offset > len(data):
+            # This partition is invalid
+            self.has_content = False
+
+        partition_end = self.structure.Offset + self.structure.Size
+        if partition_end > len(data):
+            # This partition is invalid
+            self.has_content = False
+        self.data = data[self.structure.Offset:partition_end]
+
+    def process(self):
+        if not self.has_content:
+            return True
+        manifest = MeManifestHeader(self.data, self.structure.Offset)
+        if manifest.valid_header:
+            if manifest.process():
+                self.manifest = manifest
+        return True
+
+    def showinfo(self, ts=''):
+        print "%s%s name= %s owner= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
+            ts, blue("ME Partition Entry"),
+            purple(self.structure.Name), purple(self.structure.Owner),
+            self.structure.Offset, self.structure.Size, self.structure.Size, self.structure.Flags)
+        if self.manifest is not None:
+            self.manifest.showinfo("%s  " % ts)
+
+    def dump(self, parent=""):
+        if self.has_content:
+            dump_data(os.path.join(parent, "%s.partition" % self.structure.Name),
+                self.data)
+        if self.manifest is not None:
+            self.manifest.dump(os.path.join(parent, self.structure.Name))
 
 class MeContainer(MeObject):
 
@@ -463,23 +530,27 @@ class MeContainer(MeObject):
         self.partitions = []
         self.data = data
 
+        self.valid_header = False
+        if data[0x0:len(ME_HEADER)] == ME_HEADER:
+            self.partition_offset = 0x00
+            self.valid_header = True
+        if data[0x0:20] == ("\x00" * 16) + ME_PARTITION_HEADER:
+            self.partition_offset = 0x00
+            self.valid_header = True
+
     @property
     def objects(self):
         return self.partitions
 
     def process(self):
-        offset = 0
-        while True:
-            partition_manifest = MeManifestHeader(self.data[offset:], offset)
-            if not partition_manifest.valid_header:
-                # print "Debug: ending at (%08X)." % offset
-                break
-            # print "Debug: Found valid partition (%08X)." % offset
+        self.parse_structure(self.data, MePartitionTable)
 
-            if not partition_manifest.process():
-                return False
-            self.partitions.append(partition_manifest)
-            offset += partition_manifest.partition_end
+        for i in xrange(self.structure.Entries):
+            offset = self.partition_offset + 0x30
+            offset += i * PartitionEntry.size
+            entry = PartitionEntry(self.data, offset)
+            if entry.process():
+                self.partitions.append(entry)
         return True
 
     def showinfo(self, ts=''):
@@ -487,6 +558,6 @@ class MeContainer(MeObject):
             partition.showinfo("  %s" % ts)
 
     def dump(self, parent=""):
+        dump_data(os.path.join(parent, "me-container.me"), self.data)
         for partition in self.partitions:
-            partition.dump(
-                os.path.join(parent, partition.structure.PartitionName))
+            partition.dump(os.path.join(parent, "partitions"))

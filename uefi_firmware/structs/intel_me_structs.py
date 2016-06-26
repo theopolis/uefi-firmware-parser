@@ -7,6 +7,8 @@ uint32_t = ctypes.c_uint
 uint64_t = ctypes.c_uint64
 uint16_t = ctypes.c_ushort
 
+ME_HEADER = "\x20\x20\x80\x0F\x40\x00\x00\x24"
+ME_PARTITION_HEADER = "$FPT"
 
 def replace_bad(value, deletechars):
     for c in deletechars:
@@ -150,6 +152,23 @@ class MeManifestHeaderType(ctypes.LittleEndianStructure):
         ("RsaSig",         uint32_t * 64),  # 184
         ("PartitionName",  char * 12),  # 284
         # 290
+    ]
+
+
+class MePartitionTable(ctypes.LittleEndianStructure):
+    _fields_ = [
+        ("_blank",          char * 16),
+        ("Magic",           char * 4), # $FPT
+        ("Entries",         uint32_t),
+        ("Version",         uint8_t),
+        ("Type",            uint8_t),
+        ("Size",            uint8_t),
+        ("Checksum",        uint8_t),
+        ("LIFE",            uint16_t),
+        ("LIM",             uint16_t),
+        ("UMASize",         uint32_t),
+        ("Flags",           uint32_t),
+        ("Unknown1",         char * 8),
     ]
 
 
