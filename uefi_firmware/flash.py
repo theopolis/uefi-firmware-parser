@@ -4,6 +4,7 @@ import os
 import struct
 
 from .base import FirmwareObject, BaseObject, StructuredObject
+from .me import MeContainer
 from .utils import *
 from .structs.flash_structs import *
 
@@ -57,7 +58,10 @@ class FlashRegion(FirmwareObject, BaseObject):
                 else:
                     data = data[volume_index[0] + 8:]
         if self.name == "me":
-            pass
+            data = self.data
+            me = MeContainer(data)
+            if me.valid_header:
+                self.sections.append(me)
         for section in self.sections:
             section.process()
         return True

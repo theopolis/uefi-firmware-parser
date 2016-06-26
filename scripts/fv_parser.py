@@ -9,7 +9,6 @@ from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware import AutoParser
 
 def _process_show_extract(parsed_object):
-    parsed_object.process()
     if not args.quiet:
         parsed_object.showinfo('')
 
