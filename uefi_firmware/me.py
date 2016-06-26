@@ -554,6 +554,11 @@ class MeContainer(MeObject):
         return True
 
     def showinfo(self, ts=''):
+        print "%s%s type= 0x%x version= 0x%x size= 0x%x (%d bytes) entires= %d flags= 0x%x" % (
+            ts, blue("ME Container"),
+            self.structure.Type, self.structure.Version,
+            self.structure.Size, self.structure.Size,
+            self.structure.Entries, self.structure.Flags)
         for partition in self.partitions:
             partition.showinfo("  %s" % ts)
 

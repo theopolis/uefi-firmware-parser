@@ -151,3 +151,38 @@ class RawObject(FirmwareObject, BaseObject):
     def dump(self, parent='', index=None):
         path = os.path.join(parent, "object.raw")
         dump_data(path, self.data)
+
+
+class AutoRawObject(RawObject):
+    '''A RawObject that applies AutoParser logic for embedded object discovery.
+    '''
+
+    def __init__(self, data):
+        self.object = None
+        self.data = data
+
+    @property
+    def objects(self):
+        if self.object is not None:
+            return [self.object]
+        return []
+
+    def process(self):
+        from . import AutoParser
+        parser = AutoParser(self.data)
+        self.object = parser.parse()
+
+    def showinfo(self, ts='', index=None):
+        if self.object is None:
+            print ("%s%s size= %d " % (
+                ts, blue("RawObject:"), len(self.data)
+            ))
+            return
+        self.object.showinfo(ts)
+
+    def dump(self, parent='', index=None):
+        if self.object is None:
+            path = os.path.join(parent, "object.raw")
+            dump_data(path, self.data)
+            return
+        self.object.dump(parent)
