@@ -1,7 +1,7 @@
 import struct
 import os
 
-from .base import FirmwareObject, RawObject, BaseObject
+from .base import FirmwareObject, RawObject, BaseObject, AutoRawObject
 from .uefi import FirmwareVolume
 from .utils import print_error, dump_data, sguid, green, blue
 
@@ -168,7 +168,9 @@ class PFSSection(FirmwareObject, BaseObject):
                 return False
             self.section_objects += volumes
         else:
-            self.section_objects.append(RawObject(self.section_data))
+            raw = AutoRawObject(self.section_data)
+            raw.process()
+            self.section_objects.append(raw)
 
     @property
     def objects(self):
