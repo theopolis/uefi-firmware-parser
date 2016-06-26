@@ -211,3 +211,25 @@ class AcManifestHeaderType(ctypes.LittleEndianStructure):
         ("RsaSig",         uint32_t * 64),  # 184
         # 284
     ]
+
+
+class MeCpdEntryType(ctypes.LittleEndianStructure):
+    size = 0x18
+
+    _fields_ = [
+        ("Name",            char * 12),
+        ("Offset",          uint32_t),
+        ("Size",            uint32_t),
+        ("Flags",           uint32_t),
+    ]
+
+
+class MeCpdHeaderType(ctypes.LittleEndianStructure):
+    size = 0x10
+
+    _fields_ = [
+        ("Tag",             char * 4),
+        ("NumModules",      uint32_t),
+        ("Flags",           uint32_t),
+        ("PartitionName",   char * 4),
+    ]

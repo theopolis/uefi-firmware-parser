@@ -52,13 +52,32 @@ MeApiTypes = ["API_TYPE_DATA", "API_TYPE_ROMAPI",
 
 class MeObject(StructuredObject, FirmwareObject):
 
-    """
-    An ME Object is a combination of a parsing/extraction class and a ctype
+    '''An ME Object is a combination of a parsing/extraction class and a ctype
     definding structure object.
 
     This follows the same ctor, process, showinfo, dump calling convention.
-    """
-    pass
+    '''
+
+    def show_compression(self):
+        if self.compression == COMP_TYPE_HUFFMAN:
+            print " (huffman)"
+        elif self.compression == COMP_TYPE_LZMA:
+            print " (lzma)"
+        else:
+            print ""
+
+    def dump_module(self, parent):
+        if self.compression == COMP_TYPE_LZMA:
+            dump_data("%s.module.lzma" %
+                      os.path.join(parent, self.name), self.data)
+            try:
+                data = efi_compressor.LzmaDecompress(self.data, len(self.data))
+                dump_data("%s.module" % os.path.join(parent, self.name), data)
+            except Exception as e:
+                print "Cannot extract (%s), %s" % (self.name, str(e))
+                return
+        elif self.compression == COMP_TYPE_NOT_COMPRESSED:
+            dump_data("%s.module" % os.path.join(parent, self.name), self.data)
 
 
 class MeModule(MeObject):
@@ -139,28 +158,10 @@ class MeModule(MeObject):
             ts, blue("ME Module"),
             purple(self.name),
             guid, self.attrs["version"], self.attrs["module_size"]),
-        if self.compression == COMP_TYPE_HUFFMAN:
-            print " (huffman)"
-        elif self.compression == COMP_TYPE_LZMA:
-            print " (lzma)"
-        else:
-            print ""
+        self.show_compression()
 
     def dump(self, parent=""):
-        if self.compression == COMP_TYPE_HUFFMAN:
-            pass
-        else:
-            dump_data("%s.module.lzma" %
-                      os.path.join(parent, self.name), self.data)
-            try:
-                data = efi_compressor.LzmaDecompress(self.data, len(self.data))
-                dump_data("%s.module" % os.path.join(parent, self.name), data)
-            except Exception as e:
-                print "Cannot extract GUID (%s), %s" % (sguid(self.guid), str(e))
-                return
-            pass
-        pass
-
+        self.dump_module(parent)
 
 class MeVariableModule(MeObject):
     HEADER_SIZE = 8
@@ -416,7 +417,7 @@ class MeManifestHeader(MeObject):
             if not module_file.valid_header:
                 break
             if module_file.name in module_map:
-                # A module file header cooresponds to the module header
+                # A module file header corresponds to the module header
                 self.module_map[module_file.name].file = module_file
             # print "Debug: found module file (%s) size (%d)." %
             # (module_file.name, module_file.size)
@@ -472,6 +473,95 @@ class MeManifestHeader(MeObject):
                 os.path.join(parent, self.structure.PartitionName))
 
 
+class CPDEntry(MeObject):
+
+    def __init__(self, data, header_offset):
+        self.parse_structure(data[header_offset:], MeCpdEntryType)
+        self.valid_header = False
+        if self.structure.Offset > len(data):
+            # This is invalid, offset (start) out of bounds
+            return
+        end = self.structure.Offset + self.structure.Size
+        if end > len(data):
+            # This is invalid, end of data out of bounds
+            return
+        self.valid_header = True
+        self.data = data[self.structure.Offset:end]
+
+    def process(self):
+        if not self.valid_header:
+            return False
+        self.name = self.structure.Name.rstrip('\0')
+
+        # Not sure why the placement of data determines compression type.
+        compression = self.structure.Offset >> 24
+        if self.name.find('.met') > 0:
+            self.compression = COMP_TYPE_NOT_COMPRESSED
+        elif compression == 0x02:
+            self.compression = COMP_TYPE_HUFFMAN
+        elif compression == 0x00:
+            self.compression = COMP_TYPE_LZMA
+        else:
+            self.compression = COMP_TYPE_NOT_COMPRESSED
+        return True
+
+    def showinfo(self, ts):
+        print "%s%s name= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
+            ts, blue("ME CDP Entry"), purple(self.name),
+            self.structure.Offset, self.structure.Size, self.structure.Size,
+            self.structure.Flags),
+        self.show_compression()
+
+    def dump(self, parent):
+        if self.compression == COMP_TYPE_LZMA:
+            # There is an odd state to check for that includes an additional
+            # \x00\x00\x00 after the initial LZMA header block.
+            if self.data[0x0e:0x11] == '\x00\x00\x00':
+                self.data = self.data[:0x0e] + self.data[0x11:]
+        self.dump_module(parent)
+
+
+class CPDManifestHeader(MeObject):
+
+    def __init__(self, data, container_offset=0):
+        self.valid_header = True
+        self.parse_structure(data, MeCpdHeaderType)
+
+        # Save the container offset as LLUT start is an absolute reference
+        self.container_offset = container_offset
+        self.data = data
+
+        self.partition_name = self.structure.PartitionName.rstrip("\0")
+        if not self.partition_name:
+            self.partition_name = "(none)"
+
+        self.modules = []
+
+    @property
+    def objects(self):
+        return self.modules
+
+    def process(self):
+        offset = MeCpdHeaderType.size
+        for i in xrange(self.structure.NumModules - 1):
+            offset += MeCpdEntryType.size
+            entry = CPDEntry(self.data, offset)
+            if entry.process():
+                self.modules.append(entry)
+        return True
+
+    def showinfo(self, ts):
+        print "%s%s name= %s modules= %d flags= 0x%x" % (
+            ts, blue("ME CDP Entry"), purple(self.partition_name),
+            self.structure.NumModules, self.structure.Flags)
+        for entry in self.modules:
+            entry.showinfo("%s  " % ts)
+
+    def dump(self, parent):
+        for entry in self.modules:
+            entry.dump(parent)
+
+
 class PartitionEntry(MeObject):
     size = 0x20
 
@@ -503,7 +593,10 @@ class PartitionEntry(MeObject):
     def process(self):
         if not self.has_content:
             return True
-        manifest = MeManifestHeader(self.data, self.structure.Offset)
+        if self.data[0:0x04] == '$CPD':
+            manifest = CPDManifestHeader(self.data, self.structure.Offset)
+        else:
+            manifest = MeManifestHeader(self.data, self.structure.Offset)
         if manifest.valid_header:
             if manifest.process():
                 self.manifest = manifest
