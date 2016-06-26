@@ -10,7 +10,7 @@ from __future__ import print_function
 import os
 import struct
 
-from .base import FirmwareObject, StructuredObject, RawObject
+from .base import FirmwareObject, StructuredObject, RawObject, AutoRawObject
 from .utils import *
 from .guids import get_guid_name
 from .structs.uefi_structs import *
@@ -403,7 +403,9 @@ class CompressedSection(EfiSection):
                         self.decompressed_size
                     )
                 )
-                self.subsections.append(RawObject(self.compressed_data))
+                raw = AutoRawObject(self.compressed_data)
+                raw.process()
+                self.subsections.append(raw)
 
         if self.data is None:
             '''No data was uncompressed.'''
@@ -532,7 +534,9 @@ class GuidDefinedSection(EfiSection):
                 # There were no subsections parsed, treat as a firmware volume
                 status = parse_volume()
                 if not status:
-                    self.subsections.append(RawObject(self.data))
+                    raw = AutoRawObject(self.data)
+                    raw.process()
+                    self.subsections.append(raw)
             pass
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["FIRMWARE_VOLUME"]:
             status = parse_volume()
@@ -650,6 +654,13 @@ class FirmwareFileSystemSection(EfiSection):
                 # HP adds a strange header to nested FVs.
                 fv = FirmwareVolume(self.data[12:], sguid(self.guid))
                 self.parsed_object = fv
+            else:
+                # For a raw section, we can cheat and assign the parsed object
+                # as the AutoRawObject's managed object
+                raw = AutoRawObject(self.data)
+                raw.process()
+                if raw.object is not None:
+                    self.parsed_object = raw.object
 
         self.attrs = {"type": self.type, "size": self.size}
         self.attrs["type_name"] = _get_section_type(self.type)[0]
@@ -765,7 +776,9 @@ class FirmwareFile(FirmwareObject):
         if sguid(self.guid) == FIRMWARE_VOLUME_GUIDS["NVRAM_NVAR"]:
             var_store = NVARVariableStore(self.data)
             if not var_store.valid_header:
-                self.raw_blobs.append(RawObject(self.data))
+                raw = AutoRawObject(self.data)
+                raw.process()
+                self.raw_blobs.append(raw)
             else:
                 status = var_store.process()
                 self.raw_blobs.append(var_store)
@@ -776,7 +789,9 @@ class FirmwareFile(FirmwareObject):
             return status
 
         if self.type == 0x00:  # unknown
-            self.raw_blobs.append(RawObject(self.data))
+            raw = AutoRawObject(self.data)
+            raw.process()
+            self.raw_blobs.append(raw)
             return True
 
         section_data = self.data
@@ -837,7 +852,7 @@ class FirmwareFile(FirmwareObject):
         for blob in self.raw_blobs:
             if isinstance(blob, FirmwareObject):
                 data += blob.build(generate_checksum)
-            elif isinstance(blob, RawObject):
+            elif isinstance(blob, AutoRawObject) or isinstance(blob, RawObject):
                 data += blob.data
             else:
                 data += blob

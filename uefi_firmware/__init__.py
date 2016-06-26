@@ -23,7 +23,7 @@ class AutoParser(object):
       - Flash Descriptors and Regions
 
     If the input file format is unknown the AutoParser can attempt to discover
-    the type by appling basic checks for known headers.
+    the type by applying basic checks for known headers.
     '''
 
     def __init__(self, data, search=True):
@@ -31,7 +31,7 @@ class AutoParser(object):
 
         Args:
             data (binary): The entire input file contents.
-            search (Optiona[bool]): Allow brute-force discovery of volumes.
+            search (Optional[bool]): Allow brute-force discovery of volumes.
         '''
         self.data = data
         self.data_type = 'unknown'
@@ -130,6 +130,7 @@ class MultiVolumeContainer(FirmwareObject):
         for i in range(self.volumes):
             path = os.path.join(parent, "volume-%d" % i)
             self.volumes[i].dump(path)
+
 
 __title__ = "uefi_firmware"
 __version__ = "1.4"
