@@ -17,6 +17,15 @@ def _process_show_extract(parsed_object):
         parsed_object.dump(args.output)
 
 
+def superbrute_search(data):
+    for i in xrange(len(data)):
+        bdata = data[i:]
+        parser = AutoParser(bdata)
+        if parser.type() is not 'unknown':
+            _process_show_extract(parser.parse())
+            break
+
+
 def brute_search_volumes(data):
     volumes = search_firmware_volumes(data)
     for index in volumes:
@@ -44,6 +53,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '-b', "--brute", action="store_true",
         help='The input is a blob and may contain FV headers.')
+    parser.add_argument(
+        '--superbrute', action="store_true",
+        help='The input is a blob and may contain any sort of firmware object')
 
     parser.add_argument('-q', "--quiet",
                         default=False, action="store_true", help="Do not show info.")
@@ -64,6 +76,10 @@ if __name__ == "__main__":
                 input_data = fh.read()
         except Exception, e:
             print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
+            continue
+
+        if args.superbrute:
+            superbrute_search(input_data)
             continue
 
         if args.brute:

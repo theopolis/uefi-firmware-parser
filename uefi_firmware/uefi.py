@@ -1035,13 +1035,15 @@ class FirmwareVolume(FirmwareObject):
     block_map = None
     '''list: An empty block set.'''
 
-    firmware_filesystems = None
+    firmware_filesystems = []
     '''list: Set of FirmwareFileSystems discovered in volume.'''
 
-    raw_objects = None
+    raw_objects = []
     '''list: Set of RawObjects discovered in volume.'''
 
     def __init__(self, data, name="volume"):
+        self.firmware_filesystems = []
+        self.raw_objects = []
         self.name = name
         self.valid_header = False
 
