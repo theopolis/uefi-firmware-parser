@@ -84,6 +84,9 @@ setup(
             depends=COMPRESSION_HEADERS,
         )
     ],
+    scripts=[
+        'bin/uefi-firmware-parser',
+    ],
 
     classifiers=[
         # https://pypi.python.org/pypi?%3Aaction=list_classifiers
