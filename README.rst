@@ -50,20 +50,20 @@ There are several classes within the **uefi**, **pfs**, **me**, and **flash** pa
 accept file contents in their constructor. In all cases there are abstract methods implemented:
 
 - ``process()`` performs parsing work and returns a ``True`` or ``False``
-- ``showinfo()`` print a heirarchy of information about the structure
-- ``dump()`` walk the heirarchy and write each to a file
+- ``showinfo()`` print a hierarchy of information about the structure
+- ``dump()`` walk the hierarchy and write each to a file
 
 Scripts
 -------
 
-Example scripts are provided in ``/scripts``
+A Python script is installed ``uefi-firmware-parser``
 
 ::
 
-  $ python ./scripts/fv_parser.py -h
-  usage: fv_parser.py [-h] [--type {VARIOUS_TYPES}]
-                      [-b] [-q] [-o OUTPUT] [-e] [-g GENERATE] [--test]
-                      file [file ...]
+  $ uefi-firmware-parser -h
+  usage: uefi-firmware-parser [-h] [-b] [--superbrute] [-q] [-o OUTPUT] [-O]
+                              [-c] [-e] [-g GENERATE] [--test]
+                              file [file ...]
 
   Parse, and optionally output, details and data on UEFI-related firmware.
 
@@ -73,42 +73,49 @@ Example scripts are provided in ``/scripts``
   optional arguments:
     -h, --help            show this help message and exit
     -b, --brute           The input is a blob and may contain FV headers.
+    --superbrute          The input is a blob and may contain any sort of
+                          firmware object
     -q, --quiet           Do not show info.
     -o OUTPUT, --output OUTPUT
-                          Dump EFI Files to this folder.
+                          Dump firmware objects to this folder.
+    -O, --outputfolder    Dump firmware objects to a folder based on filename
+                          ${FILENAME}_output/
+    -c, --echo            Echo the filename before parsing or extracting.
     -e, --extract         Extract all files/sections/volumes.
     -g GENERATE, --generate GENERATE
-                          Generate a FDF, implies extraction (volumes only).
+                          Generate a FDF, implies extraction (volumes only)
     --test                Test file parsing, output name/success.
 
 To test a file or directory of files:
 
 ::
 
-  $ python ./scripts/fv_parser.py --test ~/firmware/*
+  $ uefi-firmware-parser --test ~/firmware/*
   ~/firmware/970E32_1.40: UEFIFirmwareVolume
   ~/firmware/CO5975P.BIO: EFICapsule
   ~/firmware/me-03.obj: IntelME
   ~/firmware/O990-A03.exe: None
   ~/firmware/O990-A03.exe.hdr: DellPFS
 
-The firmware-type checker will decide how to best parse the file or you may
-set the type manually:
+If you need to parse and extract a large number of firmware files check out the ``-O`` option to auto-generate an output folder per file. If parsing and searching for internals in a shell the ``--echo`` option will print the input filename before parsing.
 
+The firmware-type checker will decide how to best parse the file. If the ``--test`` option fails to identify the type, or calls it ``unknown``, try to use the ``-b`` or ``--superbrute`` option. The later performs a byte-by-byte type checker.
 ::
 
-  $ python ./scripts/fv_parser.py -b ~/firmware/970E32_1.40
-  $ python ./scripts/fv_parser.py ~/firmware/970E32_1.40
+  $ uefi-firmware-parser --type ~/firmware/970E32_1.40
+  ~/firmware/970E32_1.40: unknown
+  $ uefi-firmware-parser --superbrute ~/firmware/970E32_1.40
+  [...]
 
 **Features**
 
 - UEFI Firmware Volumes, Capsules, FileSystems, Files, Sections parsing
 - Intel PCH Flash Descriptors
-- Intel ME modules parsing (for ARC5)
+- Intel ME modules parsing (ME, TXE, etc)
 - Dell PFS (HDR) updates parsing
 - Tiano/EFI, and native LZMA (7z) [de]compression
 
-- Complete UEFI Firmware volume object heirarchy display
+- Complete UEFI Firmware volume object hierarchy display
 - Firmware descriptor [re]generation using the parsed input volumes
 - Firmware File Section injection
 
@@ -163,13 +170,13 @@ using Snare's plugins. Using the ``-g LABEL`` the script will generate a Python 
                           headers.
     -d, --flash           The input file is a flash descriptor.
     -g GENERATE, --generate GENERATE
-                          Generate a behemonth-style GUID output.
+                          Generate a behemoth-style GUID output.
     -u, --unknowns        When generating also print unknowns.
 
 **Supported Vendors**
 
 This module has been tested on BIOS/UEFI/firmware updates from the following vendors.
-Not every update for every product will parse, some may required a-prioi decompression
+Not every update for every product will parse, some may required a-priori decompression
 or extraction from the distribution update mechanism (typically a PE). 
 
 - ASRock
