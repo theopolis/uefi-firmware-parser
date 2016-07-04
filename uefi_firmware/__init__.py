@@ -133,6 +133,6 @@ class MultiVolumeContainer(FirmwareObject):
 
 
 __title__ = "uefi_firmware"
-__version__ = "1.4"
+__version__ = "1.6"
 __author__ = "Teddy Reed"
 __license__ = "BSD"
