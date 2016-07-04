@@ -102,7 +102,14 @@ class MeModule(MeObject):
         self.tag = self.structure.Tag
 
         self.attrs["module_size"] = self.structure.Size
-        self.attrs["load_base"] = self.structure.LoadBase
+        if structure_type == MeModuleHeader1Type:
+            self.attrs["load_base"] = 0
+            self.offset = offset
+        elif structure_type == MeModuleHeader2Type:
+            self.attrs["load_base"] = self.structure.LoadBase
+            # Must know the offset from given data (the start of the header) to find data
+            self.offset = self.structure.Offset - offset
+
         self.attrs["flags"] = self.structure.Flags
         if structure_type == MeModuleHeader2Type:
             self.attrs["power_type"] = (
@@ -117,9 +124,6 @@ class MeModule(MeObject):
         # There are unknown flags to parse, todo: revisit
         pass
 
-        # Must know the offset from given data (the start of the header) to
-        # find data
-        self.offset = self.structure.Offset - offset
         # print "Debug: module data 0x%08X - 0x%08X" % (
         #    self.offset, self.offset + self.structure.Size)
         self.data = data[self.offset:self.offset + self.structure.Size]
@@ -163,6 +167,7 @@ class MeModule(MeObject):
     def dump(self, parent=""):
         self.dump_module(parent)
 
+
 class MeVariableModule(MeObject):
     HEADER_SIZE = 8
 
@@ -205,6 +210,10 @@ class MeVariableModule(MeObject):
             # print "Debug: update code found: (%s) (%s), length: %d" %
             # (subtag, name, size)
             self.add_update(subtag, name, offset, size)
+        if self.tag == '$SKU':
+            # SKU is not handled
+            self.values = [0, 0]
+            return True
         if self.size == 3:
             values = [struct.unpack("<I", self.data[:4])[0]]
         if self.size == 4:
@@ -441,8 +450,9 @@ class MeManifestHeader(MeObject):
         # manifest).
         if not self._parse_mods():
             return False
-        if not self._parse_variable_mods(self.module_offset):
-            return False
+        if self.header_type == MeModuleHeader2Type:
+            if not self._parse_variable_mods(self.module_offset):
+                return False
         if not self._parse_module_files():
             return False
 
@@ -633,7 +643,7 @@ class MeContainer(MeObject):
         if data[0x0:len(ME_HEADER)] == ME_HEADER:
             self.partition_offset = 0x00
             self.valid_header = True
-        if data[0x0:20] == ("\x00" * 16) + ME_PARTITION_HEADER:
+        if data[0x10:0x14] == ME_PARTITION_HEADER:
             self.partition_offset = 0x00
             self.valid_header = True
 

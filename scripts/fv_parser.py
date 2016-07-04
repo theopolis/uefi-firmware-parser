@@ -9,8 +9,17 @@ from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware import AutoParser
 
 def _process_show_extract(parsed_object):
+    global FILENAME
     if not args.quiet:
         parsed_object.showinfo('')
+
+    if args.outputfolder:
+        autodir = "%s_output" % FILENAME
+        if os.path.exists(autodir):
+            print "Skipping %s (_output directory exists)..." % (FILENAME)
+            return
+        os.makedirs(autodir)
+        args.output = autodir
 
     if args.extract:
         print "Dumping..."
@@ -51,26 +60,37 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Parse, and optionally output, details and data on UEFI-related firmware.")
     parser.add_argument(
-        '-b', "--brute", action="store_true",
+        '-b', "--brute", default=False, action="store_true",
         help='The input is a blob and may contain FV headers.')
     parser.add_argument(
-        '--superbrute', action="store_true",
+        '--superbrute', default=False, action="store_true",
         help='The input is a blob and may contain any sort of firmware object')
 
-    parser.add_argument('-q', "--quiet",
-                        default=False, action="store_true", help="Do not show info.")
-    parser.add_argument('-o', "--output",
-                        default=".", help="Dump EFI Files to this folder.")
-    parser.add_argument('-e', "--extract",
-                        action="store_true", help="Extract all files/sections/volumes.")
-    parser.add_argument('-g', "--generate",
-                        default=None, help="Generate a FDF, implies extraction (volumes only)")
-    parser.add_argument("--test",
-                        default=False, action='store_true', help="Test file parsing, output name/success.")
-    parser.add_argument("file", nargs='+', help="The file(s) to work on")
+    parser.add_argument(
+        '-q', "--quiet", default=False, action="store_true",
+        help="Do not show info.")
+    parser.add_argument(
+        '-o', "--output", default=".",
+        help="Dump firmware objects to this folder.")
+    parser.add_argument(
+        '-O', "--outputfolder", default=False, action="store_true",
+        help="Dump firmware objects to a folder based on filename ${FILENAME}_output/ ")
+    parser.add_argument(
+        '-e', "--extract", action="store_true",
+        help="Extract all files/sections/volumes.")
+    parser.add_argument(
+        '-g', "--generate", default=None,
+        help="Generate a FDF, implies extraction (volumes only)")
+    parser.add_argument(
+        "--test", default=False, action='store_true',
+        help="Test file parsing, output name/success.")
+    parser.add_argument(
+        "file", nargs='+',
+        help="The file(s) to work on")
     args = parser.parse_args()
 
     for file_name in args.file:
+        FILENAME = file_name
         try:
             with open(file_name, 'rb') as fh:
                 input_data = fh.read()
