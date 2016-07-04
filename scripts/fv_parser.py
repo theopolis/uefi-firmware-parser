@@ -76,6 +76,9 @@ if __name__ == "__main__":
         '-O', "--outputfolder", default=False, action="store_true",
         help="Dump firmware objects to a folder based on filename ${FILENAME}_output/ ")
     parser.add_argument(
+        '-c', "--echo", default=False, action="store_true",
+        help="Echo the filename before parsing or extracting.")
+    parser.add_argument(
         '-e', "--extract", action="store_true",
         help="Extract all files/sections/volumes.")
     parser.add_argument(
@@ -91,6 +94,9 @@ if __name__ == "__main__":
 
     for file_name in args.file:
         FILENAME = file_name
+        if args.echo:
+            print FILENAME
+
         try:
             with open(file_name, 'rb') as fh:
                 input_data = fh.read()

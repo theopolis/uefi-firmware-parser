@@ -193,7 +193,7 @@ class MeVariableModule(MeObject):
         self.tag = hdr[:4]
         # Note the elen size includes the header size
         self.size = struct.unpack("<I", hdr[4:])[0] * 4 - self.HEADER_SIZE
-        self.data = data[self.HEADER_SIZE:self.size]
+        self.data = data[self.HEADER_SIZE:self.HEADER_SIZE + self.size]
         pass
 
     def add_update(self, tag, name, offset, size):
@@ -206,11 +206,9 @@ class MeVariableModule(MeObject):
     def process(self):
         if self.tag == '$UDC':
             subtag, _hash, name, offset, size = struct.unpack(
-                self.stype.udc_format, self.data[:self.type.udc_length])
-            # print "Debug: update code found: (%s) (%s), length: %d" %
-            # (subtag, name, size)
+                self.type.udc_format, self.data[:self.type.udc_length])
             self.add_update(subtag, name, offset, size)
-        if self.tag == '$SKU':
+        if self.tag in ['$SKU', '$UVR']:
             # SKU is not handled
             self.values = [0, 0]
             return True
