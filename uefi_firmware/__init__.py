@@ -1,5 +1,6 @@
 '''UEFI Firmware parser utils.
 '''
+import os
 
 import uefi
 import pfs
@@ -127,9 +128,9 @@ class MultiVolumeContainer(FirmwareObject):
 
     def dump(self, parent, index=None):
         '''Allow a caller to dump the content of volumes.'''
-        for i in range(self.volumes):
+        for i, volume in enumerate(self.volumes):
             path = os.path.join(parent, "volume-%d" % i)
-            self.volumes[i].dump(path)
+            volume.dump(path)
 
 
 __title__ = "uefi_firmware"
