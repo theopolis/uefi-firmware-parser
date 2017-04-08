@@ -8,7 +8,7 @@ from __future__ import absolute_import
 import re
 
 from ..uefi import FirmwareVolume, FirmwareCapsule
-from ..pfs import PFSFile
+from ..pfs import PFSFile, PFHeader
 from ..flash import FlashDescriptor
 from ..me import MeContainer, MeManifestHeader
 
@@ -72,6 +72,14 @@ class IntelMETester(TypeTester):
         return me.valid_header
 
 
+class PFHeaderTester(TypeTester):
+    parser = PFHeader
+
+    def match(self, data):
+        pfh = PFHeader(data)
+        return pfh.valid_header
+
+
 class DellPFSTester(TypeTester):
     static = "PFS.HDR"
     parser = PFSFile
@@ -89,7 +97,6 @@ class DellUpdateBinaryTester(TypeTester):
         return True
 
 TESTERS = [
-    UEFIFirmwareVolumeTester,
     FlashDescriptorTester,
     UEFICapsuleTester,
     EFICapsuleTester,
@@ -97,4 +104,6 @@ TESTERS = [
     IntelMETester,
     DellPFSTester,
     DellUpdateBinaryTester,
+    PFHeaderTester,
+    UEFIFirmwareVolumeTester,
 ]

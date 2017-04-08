@@ -9,6 +9,7 @@ from __future__ import print_function
 
 import os
 import struct
+import logging
 
 from .base import FirmwareObject, StructuredObject, RawObject, AutoRawObject
 from .utils import *
@@ -17,6 +18,10 @@ from .structs.uefi_structs import *
 from .structs.flash_structs import *
 
 from uefi_firmware import efi_compressor
+
+
+def dlog(kls, name, msg=""):
+    logging.info("%s %s %s" % (str(kls.__class__.__name__), name, msg))
 
 
 def _get_file_type(file_type):
@@ -156,6 +161,7 @@ class NVARVariable(FirmwareVariable):
         self.data = data
 
     def process(self):
+        dlog(self, 'NVAR')
         if not NVARVariable.valid_nvar(self.data):
             return False
         self.parse_structure(self.data, NVARVariableHeaderType)
@@ -231,6 +237,7 @@ class NVARVariableStore(FirmwareVariableStore):
         self.valid_header = True
 
     def process(self):
+        dlog(self, 'NVRAM')
         if not self.valid_header:
             return False
 
@@ -301,11 +308,15 @@ class EfiSection(FirmwareObject):
                     self.data[subsection_offset:],
                     self.guid
                 )
-            except struct.error:
+            except struct.error as e:
+                dlog(self, 'subsections', 'Exception: %s' % (str(e)))
                 return False
             if subsection.size == 0:
                 break
-            status = subsection.process() and status
+            sub_status = subsection.process()
+            if not sub_status:
+                dlog(self, 'subsections', 'Could not parse subsection')
+                status = False
             self.subsections.append(subsection)
 
             subsection_offset += subsection.size
@@ -365,6 +376,7 @@ class CompressedSection(EfiSection):
             "decompressed_size": self.decompressed_size, "type": self.type}
 
     def process(self):
+        dlog(self, sguid(self.guid))
         def bf_decompress(data):
             return decompress([
                 efi_compressor.LzmaDecompress,
@@ -397,7 +409,7 @@ class CompressedSection(EfiSection):
                 self.data = results[1]
             else:
                 print_error(
-                    "Cannot EFI decompress GUID (%s), type= (%d), decompressed_size= (%d)" % (
+                    "Cannot EFI decompress GUID (%s), type (%d), size (%d)" % (
                         sguid(self.guid),
                         self.type,
                         self.decompressed_size
@@ -459,6 +471,7 @@ class FreeformGuidSection(EfiSection):
         self.data = data[16:]
 
     def process(self):
+        dlog(self, sguid(self.guid))
         if sguid(self.guid) == FIRMWARE_FREEFORM_GUIDS["CHAR_GUID"]:
             self.guid_header = self.data[:12]
             self.name = uefi_name(self.data[12:])
@@ -500,6 +513,7 @@ class GuidDefinedSection(EfiSection):
         return self.subsections
 
     def process(self):
+        dlog(self, sguid(self.guid))
         def parse_volume():
             fv = FirmwareVolume(self.data)
             if fv.valid_header:
@@ -544,6 +558,8 @@ class GuidDefinedSection(EfiSection):
             # Undefined GUIDed-Section GUID, treat as a FV, don't require
             # status
             parse_volume()
+        if not status:
+            dlog(self, sguid(self.guid), 'Could not parse GUID object')
         return status
         pass
 
@@ -600,8 +616,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.size, self.type = struct.unpack("<3sB", header)
             self.size = struct.unpack("<I", self.size + "\x00")[0]
         except Exception:
-            print_error("%s: invalid FFS Section header, expected size 4, got (%d)." % (
-                red("Error"),
+            print_error("Invalid FFS Section header, invalid length (%d)." % (
                 len(header)
             ))
             self.valid_header = False
@@ -621,7 +636,9 @@ class FirmwareFileSystemSection(EfiSection):
         self.data = data[0x4:]
 
     def process(self):
+        dlog(self, sguid(self.guid))
         self.parsed_object = None
+        raw_object = False
 
         if self.type == 0x01:  # compression
             compressed_section = CompressedSection(self.data, self.guid)
@@ -650,6 +667,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.parsed_object = freeform_guid
 
         elif self.type == 0x19:  # raw
+            raw_object = True
             if self.data[:10] == "123456789A":
                 # HP adds a strange header to nested FVs.
                 fv = FirmwareVolume(self.data[12:], sguid(self.guid))
@@ -668,6 +686,13 @@ class FirmwareFileSystemSection(EfiSection):
         if self.parsed_object is None:
             return True
         status = self.parsed_object.process()
+        if not status:
+            dlog(self, sguid(self.guid), 'Could not parse %s' % (
+                self.parsed_object.__class__.__name__))
+            # Allow raw objects to fall-back.
+            if raw_object:
+                self.parsed_object = RawObject(self.data)
+                status = True
         return status
 
     def build(self, generate_checksum=False, debug=False):
@@ -685,8 +710,6 @@ class FirmwareFileSystemSection(EfiSection):
             data += '\x00' * trailling_bytes
         if trailling_bytes < 0:
             size = self.size - trailling_bytes
-            # raise Exception("FileSystemSection GUID %s has overflown %d bytes." % (
-            #    sguid(self.guid), trailling_bytes*-1))
             pass
 
         string_size = struct.pack("<I", size)
@@ -717,8 +740,8 @@ class FirmwareFileSystemSection(EfiSection):
 
 
 class FirmwareFile(FirmwareObject):
-    '''A firmware file is contained within a firmware file system and is comprised of firmware file
-    sections.
+    '''A firmware file is contained within a firmware file system and is
+    comprised of firmware file sections.
 
     struct {
         UCHAR: FileNameGUID[16]
@@ -769,7 +792,10 @@ class FirmwareFile(FirmwareObject):
 
     def process(self):
         '''Parse the file and file sections if appropriate.'''
+
+        dlog(self, sguid(self.guid))
         if self.type == 0xf0:  # ffs padding
+            dlog(self, sguid(self.guid), 'file is padding')
             return True
 
         status = True
@@ -782,13 +808,19 @@ class FirmwareFile(FirmwareObject):
             else:
                 status = var_store.process()
                 self.raw_blobs.append(var_store)
+                if not status:
+                    dlog(self, sguid(self.guid), 'Could not parse NVAR')
             return status
 
         if self.type == 0x01:  # raw file
+            dlog(self, sguid(self.guid), 'file is Raw')
             status = self._find_objects()
+            if not status:
+                dlog(self, sguid(self.guid), 'Could not find Raw objects')
             return status
 
         if self.type == 0x00:  # unknown
+            dlog(self, sguid(self.guid), 'file is unknown')
             raw = AutoRawObject(self.data)
             raw.process()
             self.raw_blobs.append(raw)
@@ -799,6 +831,7 @@ class FirmwareFile(FirmwareObject):
         while len(section_data) >= 4:
             file_section = FirmwareFileSystemSection(section_data, self.guid)
             if not file_section.valid_header:
+                dlog(self, sguid(self.guid), 'Invalid section header')
                 return False
             if file_section.size <= 0:
                 # This is not expected, something bad happened while parsing.
@@ -889,7 +922,8 @@ class FirmwareFile(FirmwareObject):
         else:
             guid_display = "%s (%s)" % (
                 green(sguid(self.guid)), purple(guid_name))
-        print ("%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x (%d bytes), (%s)" % (
+        print(("%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x "
+            "(%d bytes), (%s)") % (
             blue("%sFile %s:" % (ts, index)),
             guid_display,
             self.type,
@@ -916,7 +950,8 @@ class FirmwareFile(FirmwareObject):
     def _guessinfo(self, ts, data, index="N/A"):
         if data[:4] == "\x01\x00\x00\x00" and data[
                 20:24] == "\x01\x00\x00\x00":
-            print ("%s Might contain CPU microcodes" % (blue("%sBlob %d:" % (ts, index))))
+            print ("%s Might contain CPU microcodes" % (
+                blue("%sBlob %d:" % (ts, index))))
 
     def dump(self, parent=""):
         parent = os.path.join(parent, "file-%s" % sguid(self.guid))
@@ -951,6 +986,7 @@ class FirmwareFileSystem(FirmwareObject):
     def process(self):
         '''Search for a 24-byte header that does not contain all 0xFF.'''
 
+        dlog(self, 'ffs')
         data = self._data
         status = True
         while len(data) >= 24 and data[:24] != ("\xff" * 24):
@@ -960,7 +996,10 @@ class FirmwareFileSystem(FirmwareObject):
                 # This is a problem, the file was corrupted.
                 break
 
-            status = firmware_file.process() and status
+            ff_status = firmware_file.process()
+            if not ff_status:
+                dlog(self, 'ffs', 'Could not parse FF')
+                status = False
             self.files.append(firmware_file)
             data = data[(firmware_file.size + 7) & (~7):]
 
@@ -990,7 +1029,7 @@ class FirmwareFileSystem(FirmwareObject):
         return data
         pass
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         for i, firmware_file in enumerate(self.files):
             firmware_file.showinfo(ts + ' ', index=i)
 
@@ -1041,7 +1080,7 @@ class FirmwareVolume(FirmwareObject):
     raw_objects = []
     '''list: Set of RawObjects discovered in volume.'''
 
-    def __init__(self, data, name="volume"):
+    def __init__(self, data, name="0"):
         self.firmware_filesystems = []
         self.raw_objects = []
         self.name = name
@@ -1053,11 +1092,15 @@ class FirmwareVolume(FirmwareObject):
                 self.hdrlen, self.checksum, self.rsvd2, \
                 self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
         except Exception as e:
+            dlog(self, name, "Exception in __init__: %s" % (str(e)))
             # print "Error: cannot parse FV header (%s)." % str(e)
             return
 
+        if self.magic != '_FVH':
+            return
+
         if sguid(self.guid) not in FIRMWARE_VOLUME_GUIDS.values():
-            # print "Error: invalid FV guid (%s)." % sguid(self.guid)
+            dlog(self, sguid(self.guid), 'Unrecognized volume GUID')
             return
 
         self.blocks = []
@@ -1070,6 +1113,7 @@ class FirmwareVolume(FirmwareObject):
             self.data = data[self.hdrlen:]
             self.block_map = data[self._HEADER_SIZE:self.hdrlen]
         except Exception as e:
+            dlog(self, name, "Exception in __init__: %s" % (str(e)))
             print_error("Error invalid FV header data (%s)." % str(e))
             return
 
@@ -1081,7 +1125,9 @@ class FirmwareVolume(FirmwareObject):
         return self.firmware_filesystems or []
 
     def process(self):
+        dlog(self, self.name)
         if self.block_map is None:
+            dlog(self, self.name, 'Block Map was not parsed')
             return False
 
         block_data = self.block_map
@@ -1098,6 +1144,7 @@ class FirmwareVolume(FirmwareObject):
 
         if len(self.blocks) == 0:
             '''No block in the volume? This is a problem.'''
+            dlog(self, self.name, 'No blocks discovered')
             return False
 
         data = self.data
@@ -1109,12 +1156,17 @@ class FirmwareVolume(FirmwareObject):
             FIRMWARE_VOLUME_GUIDS["FFS1"],
             FIRMWARE_VOLUME_GUIDS["FFS2"],
             FIRMWARE_VOLUME_GUIDS["FFS3"],
+            FIRMWARE_VOLUME_GUIDS["PFH1"],
+            FIRMWARE_VOLUME_GUIDS["PFH2"],
         ]
         for block in self.blocks:
             if sguid(self.guid) in ffs_guids:
                 firmware_filesystem = FirmwareFileSystem(
                     data[:block[0] * block[1]])
-                status = firmware_filesystem.process() and status
+                ffs_status = firmware_filesystem.process()
+                if not ffs_status:
+                    dlog(self, self.name, 'Could not parse FFS')
+                    status = False
                 self.firmware_filesystems.append(firmware_filesystem)
             elif sguid(self.guid) == FIRMWARE_VOLUME_GUIDS["NVRAM_EVSA"]:
                 # If this is an NVRAM volume, there are no FFS/FFs.
@@ -1146,7 +1198,8 @@ class FirmwareVolume(FirmwareObject):
         header = struct.pack(
             "<16s16sQ4sIHH3sB",
             self.rsvd, self.guid, self.size,
-            self.magic, self.attributes, self.hdrlen, self.checksum, self.rsvd2, self.revision
+            self.magic, self.attributes, self.hdrlen,
+            self.checksum, self.rsvd2, self.revision
         )
         return header + block_map + data
         pass
@@ -1155,7 +1208,7 @@ class FirmwareVolume(FirmwareObject):
         if not self.valid_header or len(self.data) == 0:
             return
 
-        print ("%s %s attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
+        print("%s %s attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
             blue("%sFirmware Volume:" % (ts)),
             green(sguid(self.guid)),
             self.attributes,
@@ -1164,15 +1217,15 @@ class FirmwareVolume(FirmwareObject):
             self.size,
             self.size
         ))
-        print (blue("%s  Firmware Volume Blocks: " % (ts)), end="")
+        print(blue("%s  Firmware Volume Blocks: " % (ts)), end="")
         for block_size, block_length in self.blocks:
-            print ("(%d, 0x%x)" % (block_size, block_length), end="")
-        print ("")
+            print("(%d, 0x%x)" % (block_size, block_length), end="")
+        print("")
 
         for _ffs in self.firmware_filesystems:
             _ffs.showinfo(ts + " ")
         for raw in self.raw_objects:
-            print ("%s%s NVRAM" % ("%s  " % ts, blue("Raw section:")))
+            print("%s%s NVRAM" % ("%s  " % ts, blue("Raw section:")))
 
     def dump(self, parent="", index=None):
         if len(self.data) == 0:
@@ -1307,6 +1360,7 @@ class FirmwareCapsule(FirmwareObject):
             if not fv.valid_header:
                 return False
 
+        self.size += fv.size
         if not fv.process():
             # Todo: test code coverage
             # return False

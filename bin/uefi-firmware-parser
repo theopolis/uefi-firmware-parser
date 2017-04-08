@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import logging
 import os
 
 from uefi_firmware.uefi import *
@@ -44,8 +45,9 @@ def brute_search_volumes(data):
 
 def parse_firmware_volume(data, name=0):
     firmware_volume = FirmwareVolume(data, name)
-    if not firmware_volume.valid_header:
+    if not firmware_volume.valid_header or not firmware_volume.process():
         return
+    print("Found volume magic at 0x%x" % name)
     _process_show_extract(firmware_volume)
 
     if args.generate is not None:
@@ -87,10 +89,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test", default=False, action='store_true',
         help="Test file parsing, output name/success.")
+    parser.add_argument('--verbose', default=False, action='store_true',
+        help='Enable verbose logging while parsing')
     parser.add_argument(
         "file", nargs='+',
         help="The file(s) to work on")
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
     for file_name in args.file:
         FILENAME = file_name
@@ -112,7 +121,7 @@ if __name__ == "__main__":
             brute_search_volumes(input_data)
             continue
 
-        parser = AutoParser(input_data)
+        parser = AutoParser(input_data, search=True)
         if args.test:
             print "%s: %s" % (file_name, red(parser.type()))
             continue

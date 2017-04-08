@@ -8,7 +8,7 @@ import me
 import flash
 
 from misc import checker
-from base import FirmwareObject
+from base import FirmwareObject, RawObject, AutoRawObject
 from utils import search_firmware_volumes
 
 
@@ -34,10 +34,18 @@ class AutoParser(object):
             data (binary): The entire input file contents.
             search (Optional[bool]): Allow brute-force discovery of volumes.
         '''
-        self.data = data
         self.data_type = 'unknown'
         self.constructor = None
         self.firmware = None
+        self.offset = 0
+
+        if search:
+            self.offset = 0
+            while data[self.offset:self.offset + 1024] == '\xFF' * 1024:
+                self.offset += 1024
+            if self.offset > 0:
+                data = data[self.offset:]
+        self.data = data
 
         header = data[:100]
         for tester in checker.TESTERS:
@@ -68,21 +76,62 @@ class AutoParser(object):
         if self.firmware is not None:
             return self.firmware
 
-        # Instanciate an instance of the firmware object
+        # Instantiate an instance of the firmware object
         self.firmware = self.constructor(self.data)
         if not self.firmware.process():
             # Parsing failed, remove the object reference.
             self.firmware = None
             return None
-        if self.constructor is uefi.FirmwareVolume:
-            mfc = MultiVolumeContainer(self.data[self.firmware.size:])
-            if mfc.has_indexes():
-                # Headers were discovered, attempt to process.
-                if mfc.process():
-                    # Add the base (first) firmware volume
-                    mfc.append_base(self.firmware)
-                self.firmware = mfc
-        return self.firmware
+
+        objs = [self.firmware]
+        size = self.firmware.size
+
+        while size < len(self.data):
+            raw = AutoRawObject(self.data[size:])
+            if raw.process():
+                size += raw.object.size
+                objs.append(raw.object)
+            else:
+                break
+
+        mfc = MultiVolumeContainer(self.data[size:])
+        if mfc.has_indexes():
+            # Headers were discovered, attempt to process.
+            if mfc.process():
+                size += mfc.size
+                # Add the base (first) firmware volume
+                objs = objs + mfc.volumes
+
+        if size < len(self.data):
+            objs.append(RawObject(self.data[size:]))
+
+        if self.offset > 0:
+            objs = [RawObject('\xFF' * self.offset)] + objs
+
+        if len(objs) == 1:
+            return objs[0]
+        return MultiObject(objs)
+
+
+class MultiObject(FirmwareObject):
+    def __init__(self, objs):
+        self.objs = objs
+
+    @property
+    def size(self):
+        return sum([obj.size for obj in self.objs])
+
+    @property
+    def objects(self):
+        return self.objs
+
+    def showinfo(self, ts='', index=None):
+        for i in range(len(self.objs)):
+            self.objs[i].showinfo(ts, i)
+
+    def dump(self, parent='', index=None):
+        for i in range(len(self.objs)):
+            self.objs[i].dump(parent, i)
 
 
 class MultiVolumeContainer(FirmwareObject):
@@ -101,6 +150,7 @@ class MultiVolumeContainer(FirmwareObject):
         self.data = data
         self.indexes = search_firmware_volumes(data)
         self.volumes = []
+        self.size = 0
 
     def has_indexes(self):
         '''Check if any indexes were discovered.'''
@@ -114,8 +164,10 @@ class MultiVolumeContainer(FirmwareObject):
         for index in self.indexes:
             volume = uefi.FirmwareVolume(self.data[index - 40:], index)
             if volume.process():
+                self.size += volume.size
                 self.volumes.append(volume)
-        return len(self.volumes) > 0
+        valid = len(self.volumes) > 0
+        return valid
 
     @property
     def objects(self):

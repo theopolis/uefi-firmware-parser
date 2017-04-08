@@ -90,7 +90,8 @@ class FlashDescriptor(FirmwareObject):
 
     def __init__(self, data):
         self.valid_header = False
-        if len(data) < 20:
+        self.size = len(data)
+        if self.size < 20:
             return
 
         self.padding, self.header = struct.unpack("<16s4s", data[:16 + 4])
