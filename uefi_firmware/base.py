@@ -139,6 +139,7 @@ class RawObject(FirmwareObject, BaseObject):
 
     def __init__(self, data):
         self.data = data
+        self.size = len(data)
 
     def build(self, generate_checksum, debug=False):
         return self.data
@@ -148,8 +149,8 @@ class RawObject(FirmwareObject, BaseObject):
             ts, blue("RawObject:"), len(self.data)
         ))
 
-    def dump(self, parent='', index=None):
-        path = os.path.join(parent, "object.raw")
+    def dump(self, parent='', index=0):
+        path = os.path.join(parent, "object-%s.raw" % (str(index)))
         dump_data(path, self.data)
 
 
@@ -171,6 +172,7 @@ class AutoRawObject(RawObject):
         from . import AutoParser
         parser = AutoParser(self.data)
         self.object = parser.parse()
+        return self.object is not None
 
     def showinfo(self, ts='', index=None):
         if self.object is None:

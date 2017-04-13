@@ -29,6 +29,115 @@ def _discover_volumes(data):
     return volumes
 
 
+class PFRegion(FirmwareObject):
+    def __init__(self, header, data):
+        self.offset, self.size, self.address, self.name_offset = struct.unpack(
+            '<IIQI', header[:20])
+        self.header = header
+        self.data = data[:self.size]
+
+    @property
+    def objects(self):
+        return [self.obj]
+
+    def process(self):
+        self.obj = AutoRawObject(self.data)
+        if not self.obj.process():
+            self.obj = RawObject(self.data)
+        else:
+            self.obj = self.obj.object
+        return True
+
+    def showinfo(self, ts='', index=0):
+        print('%s%s size= 0x%x offset= 0x%x address= 0x%x name= 0x%x' % (
+            ts, blue("PHRegionEntry:"),
+            self.size, self.offset, self.address, self.name_offset
+        ))
+        self.obj.showinfo('%s  ' % (ts), index)
+
+    def dump(self, parent='', index=None):
+        if self.obj is not None:
+            self.obj.dump(parent, index=index)
+
+
+class PFHeader(FirmwareObject, BaseObject):
+    '''A PFHeader: gh://skochinsky/181e6e338d90bb7f2693098dc43c6d54
+
+
+    struct PFRegionEntry
+    {
+      UINT32 FileOffset;
+      UINT32 Size;
+      UINT64 FlashAddress;
+      UINT32 NameOffset; //absolute offset
+    };
+
+    struct PFHeader
+    {
+      /* 00 */char Signature[4]; //$PFH
+      /* 04 */UINT32 dwVersion;
+      /* 08 */UINT32 dwHeaderSize;
+      /* 0C */UINT16 wHeaderChecksum;
+      /* 0E */UINT32 dwTotalImageSize;
+      /* 12 */UINT16 wTotalImageChecksum;
+      /* 04 */UINT32 dwNumberOfImages;
+      /* 18 */UINT32 imagetableOffset;
+      /* 1C */UINT32 unknown[48];
+      /* DC */PFImageEntry rgtable[1];
+    };
+    '''
+
+    def __init__(self, data):
+        self.valid_header = False
+        self.data = data
+        self.size = len(data)
+
+        if self.size < 32:
+            return
+        if self.data[:4] == '$PFH':
+            self.valid_header = True
+        version, hdr_size, checksum, image_size, image_checksum, image_count, \
+            image_offset = struct.unpack('<IIHIHII', self.data[4:28])
+        self.hdr_size = hdr_size
+        self.image_count = image_count
+        self.image_offset = image_offset
+
+    @property
+    def objects(self):
+        return self.objs
+
+    def process(self):
+        if not self.valid_header:
+            return False
+
+        self.objs = []
+        data_offset = self.hdr_size
+        for i in range(self.image_count):
+            region_offset = 0xDC + (i * 20)
+            entry = PFRegion(self.data[region_offset:region_offset + 20],
+                self.data[data_offset:])
+            data_offset += entry.size
+            if entry.process():
+                self.objs.append(entry)
+        return True
+
+    def showinfo(self, ts='', index=None):
+        print('%s%s header size 0x%x images= %d offset= %s' % (
+            ts, blue("PFHeader:"),
+            self.hdr_size,  self.image_count, self.image_offset
+        ))
+        for i in range(len(self.objs)):
+            self.objs[i].showinfo('%s  ' % (ts), index=i)
+            pass
+
+    def dump(self, parent='', index=None):
+        path = os.path.join(parent, "pfheader.pfh")
+        dump_data("%s" % path, self.data)
+        images = os.path.join(parent, "pfheader")
+        for i in range(len(self.objs)):
+            self.objs[i].dump(images, i)
+
+
 class PFSPartitionedSection(FirmwareObject, BaseObject):
     '''A PFSSection with embedded PFSFiles (with additional sections) that
     split the content of the section across multiple chunks. The chunks and the

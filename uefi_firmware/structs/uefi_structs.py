@@ -16,6 +16,8 @@ FIRMWARE_VOLUME_GUIDS = {
     "NVRAM_NVAR":  "cef5b9a3-476d-497f-9fdc-e98143e0422c",
     "NVRAM_EVSA2": "00504624-8a59-4eeb-bd0f-6b36e96128e0",
     "APPLE_BOOT":  "04adeead-61ff-4d31-b6ba-64f8bf901f5a",
+    "PFH1":        "16b45da2-7d70-4aea-a58d-760e9ecb841d",
+    "PFH2":        "e360bdba-c3ce-46be-8f37-b231e5cb9f35",
     #'08758b38-458d-50e8-56e8-3bffffff83c4'
 }
 

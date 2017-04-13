@@ -154,7 +154,7 @@ class MeModule(MeObject):
         else:
             return (self.structure.Flags >> 4) & 7
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         guid = self.guid
         if self.guid != "(none)":
             guid = green(sguid(self.guid))
@@ -222,7 +222,7 @@ class MeVariableModule(MeObject):
         self.values = values
         return True
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         print "%s%s tag= %s, size= %d" % (
             ts, blue("VModule"), purple(self.tag), self.size)
         if self.tag == '$UDC':
@@ -281,7 +281,7 @@ class MeLLUT(MeObject):
         self.lut_data = data[
             self.structure_size:self.structure_size + self.chunkcount * 4]
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         print "%s%s chunks= %d, chunk size= %d, start= %d, size= %d, base= 0x%08X" % (
             ts, blue("LLUT"),
             self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
@@ -321,7 +321,8 @@ class MeManifestHeader(MeObject):
         self.attrs["flags"] = "0x%08X" % (self.structure.Flags)
         self.attrs["module_vendor"] = "0x%04X" % (self.structure.ModuleVendor)
         self.attrs["date"] = "%08X" % (self.structure.Date)
-        self.size = self.structure.Size
+        self.structure_size = self.structure.Size
+        self.size = len(data)
 
         '''Skipped.'''
         #ModuleType, ModuleSubType, size, tag, num_modules, keysize, scratchsize, rsa
@@ -350,7 +351,7 @@ class MeManifestHeader(MeObject):
             _objects.append(self.huffman_llut)
         return _objects
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         print "%s%s type= %d, subtype= %d, partition name= %s" % (
             ts, blue("ME Module Manifest"),
             self.structure.ModuleType, self.structure.ModuleSubType,
@@ -513,7 +514,7 @@ class CPDEntry(MeObject):
             self.compression = COMP_TYPE_NOT_COMPRESSED
         return True
 
-    def showinfo(self, ts):
+    def showinfo(self, ts='', index=None):
         print "%s%s name= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME CDP Entry"), purple(self.name),
             self.structure.Offset, self.structure.Size, self.structure.Size,
@@ -558,7 +559,7 @@ class CPDManifestHeader(MeObject):
                 self.modules.append(entry)
         return True
 
-    def showinfo(self, ts):
+    def showinfo(self, ts='', index=None):
         print "%s%s name= %s modules= %d flags= 0x%x" % (
             ts, blue("ME CDP Entry"), purple(self.partition_name),
             self.structure.NumModules, self.structure.Flags)
@@ -597,6 +598,7 @@ class PartitionEntry(MeObject):
             # This partition is invalid
             self.has_content = False
         self.data = data[self.structure.Offset:partition_end]
+        self.size = len(data)
 
     @property
     def objects(self):
@@ -616,7 +618,7 @@ class PartitionEntry(MeObject):
                 self.manifest = manifest
         return True
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         print "%s%s name= %s owner= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME Partition Entry"),
             purple(self.structure.Name), purple(self.structure.Owner),
@@ -636,6 +638,7 @@ class MeContainer(MeObject):
     def __init__(self, data):
         self.partitions = []
         self.data = data
+        self.size = len(ME_HEADER)
 
         self.valid_header = False
         if data[0x0:len(ME_HEADER)] == ME_HEADER:
@@ -657,10 +660,11 @@ class MeContainer(MeObject):
             offset += i * PartitionEntry.size
             entry = PartitionEntry(self.data, offset)
             if entry.process():
+                self.size += entry.size
                 self.partitions.append(entry)
         return True
 
-    def showinfo(self, ts=''):
+    def showinfo(self, ts='', index=None):
         print "%s%s type= 0x%x version= 0x%x size= 0x%x (%d bytes) entires= %d flags= 0x%x" % (
             ts, blue("ME Container"),
             self.structure.Type, self.structure.Version,
