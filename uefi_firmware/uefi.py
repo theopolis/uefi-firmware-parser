@@ -725,16 +725,20 @@ class FirmwareFileSystemSection(EfiSection):
         ))
         if self.type == 0x15 and self.name is not None:
             print ("%sName: %s" % (ts, purple(self.name)))
-        if self.type == 0x13 or self.type == 0x1b:
-            #print ("%sDepends on: %d" % (ts, len(self.data)))
+        # DXE, PEI and SMM DEPEX sections
+        if self.type == 0x13 or self.type == 0x1b or self.type == 0x1c:
             offset = 0
             while offset < len(self.data):
                 opcode = ord(self.data[offset:offset+1])
                 offset = offset + 1
                 if opcode == 0x02:
                     guid = self.data[offset:offset+16]
+                    guid_name = get_guid_name(guid)
                     offset = offset + 16
-                    print ("%s  PUSH %s" % (ts, sguid(guid)))
+                    if guid_name is not None:
+                            print ("%s  PUSH %s (%s)" % (ts, guid_name, sguid(guid)))
+                    else:
+                            print ("%s  PUSH %s" % (ts, sguid(guid)))
                 elif opcode == 0x03:
                     print ("%s  AND" % (ts))
                 elif opcode == 0x04:
