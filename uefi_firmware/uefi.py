@@ -725,6 +725,30 @@ class FirmwareFileSystemSection(EfiSection):
         ))
         if self.type == 0x15 and self.name is not None:
             print ("%sName: %s" % (ts, purple(self.name)))
+        if self.type == 0x13 or self.type == 0x1b:
+            #print ("%sDepends on: %d" % (ts, len(self.data)))
+            offset = 0
+            while offset < len(self.data):
+                opcode = ord(self.data[offset:offset+1])
+                offset = offset + 1
+                if opcode == 0x02:
+                    guid = self.data[offset:offset+16]
+                    offset = offset + 16
+                    print ("%s  PUSH %s" % (ts, sguid(guid)))
+                elif opcode == 0x03:
+                    print ("%s  AND" % (ts))
+                elif opcode == 0x04:
+                    print ("%s  OR" % (ts))
+                elif opcode == 0x05:
+                    print ("%s  NOT" % (ts))
+                elif opcode == 0x06:
+                    print ("%s  TRUE" % (ts))
+                elif opcode == 0x06:
+                    print ("%s  FALSE" % (ts))
+                elif opcode == 0x08:
+                    print ("%s  END" % (ts))
+                else:
+                    print ("%s  %02x?" % (ts, opcode))
 
         if self.parsed_object is not None:
             '''If this is a specific object, show that object's info.'''
