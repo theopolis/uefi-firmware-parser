@@ -7,8 +7,8 @@ uint32_t = ctypes.c_uint
 uint64_t = ctypes.c_uint64
 uint16_t = ctypes.c_ushort
 
-ME_HEADER = "\x20\x20\x80\x0F\x40\x00\x00\x24"
-ME_PARTITION_HEADER = "$FPT"
+ME_HEADER = b"\x20\x20\x80\x0F\x40\x00\x00\x24"
+ME_PARTITION_HEADER = b"$FPT"
 
 def replace_bad(value, deletechars):
     for c in deletechars:

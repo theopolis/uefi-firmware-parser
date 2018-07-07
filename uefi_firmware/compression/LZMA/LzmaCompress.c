@@ -66,8 +66,8 @@ EFI_STATUS
 {
     SRes              LzmaResult;
     CLzmaEncProps     props;
-    UINT32 propsSize = LZMA_PROPS_SIZE;
-    UINT32 destLen = SourceSize + SourceSize / 3 + 128;
+    SizeT propsSize = LZMA_PROPS_SIZE;
+    SizeT destLen = SourceSize + SourceSize / 3 + 128;
 
     if (*DestinationSize < destLen)
     {

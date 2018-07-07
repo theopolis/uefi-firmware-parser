@@ -7,7 +7,7 @@ from uefi_firmware import efi_compressor
 class CompressionTest(unittest.TestCase):
 
     def _test_compress(self, compress_algorithm):
-        default_buffer = "AAAAAAAA" * 90
+        default_buffer = b"AAAAAAAA" * 90
         compressed_buffer = compress_algorithm(
             default_buffer, len(default_buffer))
 
@@ -19,7 +19,7 @@ class CompressionTest(unittest.TestCase):
         self.assertEqual(len(compressed_buffer) - 8, compressed_size)
 
     def _test_decompress(self, compress_algorithm, decompress_algorithm):
-        default_buffer = "AAAAAAAA" * 90
+        default_buffer = b"AAAAAAAA" * 90
         compressed_buffer = compress_algorithm(
             default_buffer, len(default_buffer))
         decompressed_buffer = decompress_algorithm(
@@ -27,7 +27,7 @@ class CompressionTest(unittest.TestCase):
 
         self.assertTrue(decompressed_buffer is not None)
         self.assertEqual(len(decompressed_buffer), len(default_buffer))
-        self.assertEqual(str(decompressed_buffer), str(default_buffer))
+        self.assertEqual(decompressed_buffer, default_buffer)
 
     def test_efi_compress(self):
         self._test_compress(efi_compressor.EfiCompress)
@@ -44,14 +44,14 @@ class CompressionTest(unittest.TestCase):
             efi_compressor.TianoCompress, efi_compressor.TianoDecompress)
 
     def test_lzma_compress(self):
-        default_buffer = "AAAAAAAA" * 90
+        default_buffer = b"AAAAAAAA" * 90
         compressed_buffer = efi_compressor.LzmaCompress(
             default_buffer, len(default_buffer))
 
         self.assertTrue(compressed_buffer is not None)
 
     def test_lzma_decompress(self):
-        default_buffer = "AAAAAAAA" * 90
+        default_buffer = b"AAAAAAAA" * 90
         compressed_buffer = efi_compressor.LzmaCompress(
             default_buffer, len(default_buffer))
         decompressed_buffer = efi_compressor.LzmaDecompress(
@@ -61,7 +61,7 @@ class CompressionTest(unittest.TestCase):
 
         self.assertTrue(decompressed_buffer is not None)
         self.assertEqual(len(decompressed_buffer), len(default_buffer))
-        self.assertEqual(str(decompressed_buffer), str(default_buffer))
+        self.assertEqual(decompressed_buffer, default_buffer)
 
 if __name__ == '__main__':
     unittest.main()

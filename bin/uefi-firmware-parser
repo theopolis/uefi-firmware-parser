@@ -17,23 +17,23 @@ def _process_show_extract(parsed_object):
     if args.outputfolder:
         autodir = "%s_output" % FILENAME
         if os.path.exists(autodir):
-            print "Skipping %s (_output directory exists)..." % (FILENAME)
+            print("Skipping %s (_output directory exists)..." % (FILENAME))
             return
         os.makedirs(autodir)
         args.output = autodir
 
     if args.extract:
-        print "Dumping..."
+        print("Dumping...")
         parsed_object.dump(args.output)
 
 
 def superbrute_search(data):
-    for i in xrange(len(data)):
+    for i in range(len(data)):
         bdata = data[i:]
         parser = AutoParser(bdata)
         if parser.type() is not 'unknown':
             _process_show_extract(parser.parse())
-            break
+            breakW
 
 
 def brute_search_volumes(data):
@@ -51,7 +51,7 @@ def parse_firmware_volume(data, name=0):
     _process_show_extract(firmware_volume)
 
     if args.generate is not None:
-        print "Generating FDF..."
+        print("Generating FDF...")
         firmware_volume.dump(args.generate)
         generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
         path = os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name))
@@ -59,6 +59,7 @@ def parse_firmware_volume(data, name=0):
 
 
 if __name__ == "__main__":
+    os.system('')
     parser = argparse.ArgumentParser(
         description="Parse, and optionally output, details and data on UEFI-related firmware.")
     parser.add_argument(
@@ -104,13 +105,13 @@ if __name__ == "__main__":
     for file_name in args.file:
         FILENAME = file_name
         if args.echo:
-            print FILENAME
+            print(FILENAME)
 
         try:
             with open(file_name, 'rb') as fh:
                 input_data = fh.read()
-        except Exception, e:
-            print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
+        except Exception as e:
+            print("Error: Cannot read file (%s) (%s)." % (file_name, str(e)))
             continue
 
         if args.superbrute:
@@ -123,11 +124,11 @@ if __name__ == "__main__":
 
         parser = AutoParser(input_data, search=True)
         if args.test:
-            print "%s: %s" % (file_name, red(parser.type()))
+            print("%s: %s" % (file_name, red(parser.type())))
             continue
 
         if parser.type() is 'unknown':
-            print "Error: cannot parse %s, could not detect firmware type." % (file_name)
+            print("Error: cannot parse %s, could not detect firmware type." % (file_name))
             continue
 
         firmware = parser.parse()

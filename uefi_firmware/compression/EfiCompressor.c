@@ -103,49 +103,9 @@ errorHandling(
   VOID* DstBuf
   )
 {
-  if (SrcBuf != NULL) {
-    free(SrcBuf);
-  }
-
   if (DstBuf != NULL) {
     free(DstBuf);
   }
-}
-
-EFI_STATUS
-ParseObject(
-  PyObject  *SrcData,
-  UINT8     *SrcBuf,
-  UINT32    MaxSize
-  )
-{
-  UINT32        ObjLen;
-  UINT8         *TmpBuf;
-  Py_ssize_t    SegNum;
-  Py_ssize_t    Index;
-
-  ObjLen = 0;
-  SegNum = SrcData->ob_type->tp_as_buffer->bf_getsegcount((PyObject *)SrcData, NULL);
-  TmpBuf = SrcBuf;
-  for (Index = 0; Index < SegNum; ++Index) {
-    VOID *BufSeg;
-    Py_ssize_t Len;
-
-    Len = SrcData->ob_type->tp_as_buffer->bf_getreadbuffer((PyObject *)SrcData, Index, &BufSeg);
-    if (Len < 0) {
-      return EFI_INVALID_PARAMETER;
-    }
-
-    if (ObjLen + Len > MaxSize) {
-      return EFI_BUFFER_TOO_SMALL;
-    }
-
-    memcpy(TmpBuf, BufSeg, Len);
-    TmpBuf += Len;
-    ObjLen += Len;
-  }
-
-  return EFI_SUCCESS;
 }
 
 /*
@@ -159,7 +119,7 @@ UefiDecompress(
   UINT8       type
   )
 {
-  PyObject      *SrcData;
+  PyBytesObject *SrcData;
   UINT32        SrcDataSize;
   UINT32        DstDataSize;
   UINT32         Status;
@@ -174,28 +134,7 @@ UefiDecompress(
     return NULL;
   }
 
-  if (SrcData->ob_type->tp_as_buffer == NULL
-      || SrcData->ob_type->tp_as_buffer->bf_getreadbuffer == NULL
-      || SrcData->ob_type->tp_as_buffer->bf_getsegcount == NULL) {
-    PyErr_SetString(PyExc_Exception, "First argument is not a buffer\n");
-    return NULL;
-  }
-
-  // Because some Python objects which support "buffer" protocol have more than one
-  // memory segment, we have to copy them into a contiguous memory.
-  SrcBuf = PyMem_Malloc(SrcDataSize);
-  if (SrcBuf == NULL) {
-    PyErr_SetString(PyExc_Exception, "Not enough memory\n");
-    errorHandling(SrcBuf, DstBuf);
-    return NULL;
-  }
-
-  Status = ParseObject(SrcData, SrcBuf, SrcDataSize);
-  if (Status != EFI_SUCCESS) {
-    PyErr_SetString(PyExc_Exception, "Buffer segment is not available, or incorrect length\n");
-    errorHandling(SrcBuf, DstBuf);
-    return NULL;
-  }
+  SrcBuf = SrcData->ob_sval;
 
   Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, type);
   if (Status != EFI_SUCCESS) {
@@ -204,7 +143,7 @@ UefiDecompress(
     return NULL;
   }
 
-  return PyBuffer_FromMemory(DstBuf, (Py_ssize_t)DstDataSize);
+  return PyBytes_FromStringAndSize(DstBuf, (Py_ssize_t)DstDataSize);
 }
 
 /*
@@ -218,7 +157,7 @@ UefiCompress(
   UINT8       type
   )
 {
-  PyObject      *SrcData;
+  PyBytesObject *SrcData;
   UINT32        SrcDataSize;
   UINT32        DstDataSize;
   UINT32         Status;
@@ -237,28 +176,7 @@ UefiCompress(
     return NULL;
   }
 
-  if (SrcData->ob_type->tp_as_buffer == NULL
-      || SrcData->ob_type->tp_as_buffer->bf_getreadbuffer == NULL
-      || SrcData->ob_type->tp_as_buffer->bf_getsegcount == NULL) {
-    PyErr_SetString(PyExc_Exception, "First argument is not a buffer\n");
-    return NULL;
-  }
-
-  // Because some Python objects which support "buffer" protocol have more than one
-  // memory segment, we have to copy them into a contiguous memory.
-  SrcBuf = PyMem_Malloc(SrcDataSize);
-  if (SrcBuf == NULL) {
-    PyErr_SetString(PyExc_Exception, "Not enough memory\n");
-    errorHandling(SrcBuf, DstBuf);
-    return NULL;
-  }
-
-  Status = ParseObject(SrcData, SrcBuf, SrcDataSize);
-  if (Status != EFI_SUCCESS) {
-    PyErr_SetString(PyExc_Exception, "Buffer segment is not available, or incorrect length\n");
-    errorHandling(SrcBuf, DstBuf);
-    return NULL;
-  }
+  SrcBuf = SrcData->ob_sval;
 
   if (type == 3) {
     CompressFunction = (COMPRESS_FUNCTION) LzmaCompress;
@@ -283,7 +201,7 @@ UefiCompress(
     return NULL;
   }
 
-  return PyBuffer_FromMemory(DstBuf, (Py_ssize_t)DstDataSize);
+  return PyBytes_FromStringAndSize(DstBuf, (Py_ssize_t)DstDataSize);
 }
 
 /**
@@ -379,9 +297,17 @@ STATIC PyMethodDef EfiCompressor_Funcs[] = {
   {NULL, NULL, 0, NULL}
 };
 
+STATIC PyModuleDef EfiCompressor = {
+  PyModuleDef_HEAD_INIT,
+  "efi_compressor",
+  "Various EFI Compression Algorithms Extension Module",
+  -1,
+  EfiCompressor_Funcs
+};
+
 PyMODINIT_FUNC
-initefi_compressor(VOID) {
-  Py_InitModule3("efi_compressor", EfiCompressor_Funcs, "Various EFI Compression Algorithms Extension Module");
+PyInit_efi_compressor(VOID) {
+  return PyModule_Create(&EfiCompressor);
 }
 
 

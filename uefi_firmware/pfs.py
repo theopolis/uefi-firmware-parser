@@ -94,7 +94,7 @@ class PFHeader(FirmwareObject, BaseObject):
 
         if self.size < 32:
             return
-        if self.data[:4] == '$PFH':
+        if self.data[:4] == b'$PFH':
             self.valid_header = True
         version, hdr_size, checksum, image_size, image_checksum, image_count, \
             image_offset = struct.unpack('<IIHIHII', self.data[4:28])
@@ -157,7 +157,7 @@ class PFSPartitionedSection(FirmwareObject, BaseObject):
         self.size = len(data)
         self.section_objects = []
         self.partitions = 0
-        self.section_data = ""
+        self.section_data = b""
 
     def process(self):
         # The end removes the PFS trailer.
@@ -196,9 +196,9 @@ class PFSPartitionedSection(FirmwareObject, BaseObject):
         return self.section_objects
 
     def showinfo(self, ts='', index=None):
-        print "%s%s %s partitions %d size 0x%x (%d bytes)" % (
+        print("%s%s %s partitions %d size 0x%x (%d bytes)" % (
             ts, blue("Dell PFSPartitionedSection:"), green(sguid(self.uuid)),
-            self.partitions, len(self.section_data), len(self.section_data))
+            self.partitions, len(self.section_data), len(self.section_data)))
         for sub_object in self.section_objects:
             sub_object.showinfo("%s  " % ts)
 
@@ -265,7 +265,7 @@ class PFSSection(FirmwareObject, BaseObject):
         self.section_size = self.HEADER_SIZE + total_size
         self.data = None
 
-        if self.section_data[:0x08] == "PFS.HDR.":
+        if self.section_data[:0x08] == b"PFS.HDR.":
             # Partitioned ROM
             rom = PFSPartitionedSection(self.section_data)
             if not rom.process():
@@ -293,8 +293,8 @@ class PFSSection(FirmwareObject, BaseObject):
             "content": self.section_data if include_content else "",
             "attrs": {
                 "size": self.section_size,
-                "crcs": self.crcs.encode("hex"),
-                "unknowns": [u.encode("hex") for u in self.unknowns],
+                "crcs": self.crcs,
+                "unknowns": [u for u in self.unknowns],
                 "version": self.version
             },
             "chunks": [self.rsa1, self.pmim, self.rsa2] if include_content else []
@@ -312,11 +312,11 @@ class PFSSection(FirmwareObject, BaseObject):
         pass
 
     def showinfo(self, ts='', index=None):
-        print "%s%s %s spec 0x%02x ts 0x%02x type 0x%02x version 0x%02x size 0x%x (%d bytes)" % (
+        print("%s%s %s spec 0x%02x ts 0x%02x type 0x%02x version 0x%02x size 0x%x (%d bytes)" % (
             ts, blue("Dell PFSSection:"), green(sguid(self.uuid)),
             self.spec, self.ts, self.type, self.version,
             self.section_size, self.section_size
-        )
+        ))
 
         for sub_object in self.section_objects:
             sub_object.showinfo("%s  " % ts)
@@ -342,8 +342,8 @@ class PFSSection(FirmwareObject, BaseObject):
 
 
 class PFSFile(FirmwareObject):
-    PFS_HEADER = "PFS.HDR."
-    PFS_FOOTER = "PFS.FTR."
+    PFS_HEADER = b"PFS.HDR."
+    PFS_FOOTER = b"PFS.FTR."
 
     def __init__(self, data):
         self.sections = []
@@ -412,10 +412,10 @@ class PFSFile(FirmwareObject):
         pass
 
     def showinfo(self, ts='', index=None):
-        print "%s%s spec 0x%x size 0x%x (%d bytes)" % (
+        print("%s%s spec 0x%x size 0x%x (%d bytes)" % (
             ts, blue("DellPFS:"),
             self.spec, self.size, self.size
-        )
+        ))
         for section in self.sections:
             section.showinfo("%s  " % ts)
 
