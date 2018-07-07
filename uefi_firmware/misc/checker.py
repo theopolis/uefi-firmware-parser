@@ -4,6 +4,7 @@ The TypeTester may be useful if parsing a large number of UEFI-related binaries.
 """
 
 
+from builtins import bytes
 import re
 
 from ..uefi import FirmwareVolume, FirmwareCapsule, FirmwareFile

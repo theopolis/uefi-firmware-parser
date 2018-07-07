@@ -235,9 +235,9 @@ class PFSSection(FirmwareObject, BaseObject):
         self.version = ""
         for i in range(4):
             group_offset = 0x18 + (i * 2)
-            if version_type[i] == 'A':
+            if version_type[i:i+1] == b'A':
                 self.version += "%X" % struct.unpack("<h", hdr[group_offset:group_offset + 2])
-            elif version_type[i] == 'N':
+            elif version_type[i:i+1] == b'N':
                 self.version += ".%d" % struct.unpack("<h", hdr[group_offset:group_offset + 2])
 
         # U1, U2 might be flag containers

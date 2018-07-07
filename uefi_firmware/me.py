@@ -26,6 +26,7 @@
 
     3. This notice may not be removed or altered from any source distribution.
 '''
+from __future__ import print_function
 
 import ctypes
 import struct
@@ -136,7 +137,7 @@ class MeModule(MeObject):
 
         if self.structure_type == MeModuleHeader1Type:
             # It's possible for type 1 to include LZMA compression
-            if self.data[0x50:0x55] == '\x5D\x00\x00\x80\x00':
+            if self.data[0x50:0x55] == b'\x5D\x00\x00\x80\x00':
                 raw_data = self.data[0x50:0x55]
                 raw_data += struct.pack("<Q", self.structure.UncompressedSize)
                 raw_data += self.data[0x55:]
@@ -185,7 +186,7 @@ class MeVariableModule(MeObject):
             self.header_blank = True
             return
 
-        if len(hdr) < self.HEADER_SIZE or hdr[0] != '$':
+        if len(hdr) < self.HEADER_SIZE or hdr[0:1] != b'$':
             # print "Debug: invalid module header."
             self.valid_header = False
             return
@@ -204,11 +205,11 @@ class MeVariableModule(MeObject):
         pass
 
     def process(self):
-        if self.tag == '$UDC':
+        if self.tag == b'$UDC':
             subtag, _hash, name, offset, size = struct.unpack(
                 self.type.udc_format, self.data[:self.type.udc_length])
             self.add_update(subtag, name, offset, size)
-        if self.tag in ['$SKU', '$UVR']:
+        if self.tag in [b'$SKU', b'$UVR']:
             # SKU is not handled
             self.values = [0, 0]
             return True
@@ -225,7 +226,7 @@ class MeVariableModule(MeObject):
     def showinfo(self, ts='', index=None):
         print("%s%s tag= %s, size= %d" % (
             ts, blue("VModule"), purple(self.tag), self.size))
-        if self.tag == '$UDC':
+        if self.tag == b'$UDC':
             print("%s%s name= %s, offset= %d, size= %s" % (
                 ts, blue("%s Update" % self.update["tag"]),
                 purple(self.update["name"]),
@@ -406,11 +407,11 @@ class MeManifestHeader(MeObject):
             if module.header_blank:
                 continue
 
-            # print "Debug: found module (%s) size (%d)." % (module.tag,
-            # module.size)
+            # print("Debug: found module (%s) size (%d)." % (module.tag,
+            # module.size))
             if not module.process():
                 return False
-            if module.tag == '$MCP':
+            if module.tag == b'$MCP':
                 # The end of a manifest partition is stored in MCP
                 self.partition_end = module.values[0] + module.values[1]
             self.variable_modules.append(module)
@@ -525,7 +526,7 @@ class CPDEntry(MeObject):
         if self.compression == COMP_TYPE_LZMA:
             # There is an odd state to check for that includes an additional
             # \x00\x00\x00 after the initial LZMA header block.
-            if self.data[0x0e:0x11] == '\x00\x00\x00':
+            if self.data[0x0e:0x11] == b'\x00\x00\x00':
                 self.data = self.data[:0x0e] + self.data[0x11:]
         self.dump_module(parent)
 

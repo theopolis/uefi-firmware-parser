@@ -297,6 +297,7 @@ STATIC PyMethodDef EfiCompressor_Funcs[] = {
   {NULL, NULL, 0, NULL}
 };
 
+#if PY_MAJOR_VERSION >= 3
 STATIC PyModuleDef EfiCompressor = {
   PyModuleDef_HEAD_INIT,
   "efi_compressor",
@@ -309,5 +310,11 @@ PyMODINIT_FUNC
 PyInit_efi_compressor(VOID) {
   return PyModule_Create(&EfiCompressor);
 }
+#else
+PyMODINIT_FUNC
+initefi_compressor(VOID) {
+  Py_InitModule3("efi_compressor", EfiCompressor_Funcs, "Various EFI Compression Algorithms Extension Module");
+}
+#endif
 
 
