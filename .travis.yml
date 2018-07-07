@@ -1,22 +1,22 @@
 language: python
 python:
-  - "2.7"
+  - 3.6
 
 before_install:
   # Install dependencies 
-   - sudo apt-get install python-dev -qq
+   - sudo apt-get install python3-dev -qq
 
 install:
   - pip install -r requirements.txt
-  - python setup.py install
+  - python3 setup.py install
 
 before_script:
   # Clone public samples
-  - git clone https://github.com/theopolis/uefi-firmware-samples samples
+  - git clone https://github.com/iroot/uefi-firmware-samples samples
 
 script:
   # Run the unittests
-  - python ./tests/test_compression.py
+  - python -bb ./tests/test_compression.py
 
   # Run a test script against all samples
-  - (cd samples && python ./test_samples.py)
+  - (cd samples && python3 -bb ./test_samples.py)
