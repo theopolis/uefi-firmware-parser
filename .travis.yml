@@ -1,14 +1,17 @@
 language: python
 python:
+  - 2.7
   - 3.6
 
-before_install:
-  # Install dependencies 
-   - sudo apt-get install python3-dev -qq
+addons:
+  apt:
+    packages:
+    - python-dev
+    - python3-dev
 
 install:
   - pip install -r requirements.txt
-  - python3 setup.py install
+  - python setup.py install
 
 before_script:
   # Clone public samples
@@ -19,4 +22,4 @@ script:
   - python -bb ./tests/test_compression.py
 
   # Run a test script against all samples
-  - (cd samples && python3 -bb ./test_samples.py)
+  - (cd samples && python -bb ./test_samples.py)
