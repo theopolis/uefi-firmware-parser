@@ -27,6 +27,21 @@ This BaseTypes includes structures from various edk2 header files.
 #pragma pack()
 #endif
 
+#if _MSC_EXTENSIONS
+
+//
+// Disable warning that make it impossible to compile at /W4
+// This only works for Microsoft* tools
+//
+
+//
+// Disabling the unreferenced formal parameter warnings.
+//
+#pragma warning ( disable : 4100 )
+
+#endif
+
+
 #include "stdint.h"
 typedef uint8_t   BOOLEAN;
 typedef int8_t    INT8;

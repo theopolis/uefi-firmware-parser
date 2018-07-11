@@ -27,8 +27,8 @@ extern "C" {
 
 typedef struct _CLzmaProps
 {
-  unsigned lc, lp, pb;
-  UInt32 dicSize;
+  SizeT lc, lp, pb;
+  SizeT dicSize;
 } CLzmaProps;
 
 /* LzmaProps_Decode - decodes properties
@@ -53,18 +53,18 @@ typedef struct
   CLzmaProb *probs;
   Byte *dic;
   const Byte *buf;
-  UInt32 range, code;
+  SizeT range, code;
   SizeT dicPos;
   SizeT dicBufSize;
-  UInt32 processedPos;
-  UInt32 checkDicSize;
-  unsigned state;
-  UInt32 reps[4];
-  unsigned remainLen;
+  SizeT processedPos;
+  SizeT checkDicSize;
+  SizeT state;
+  SizeT reps[4];
+  SizeT remainLen;
   int needFlush;
   int needInitState;
-  UInt32 numProbs;
-  unsigned tempBufSize;
+  SizeT numProbs;
+  SizeT tempBufSize;
   Byte tempBuf[LZMA_REQUIRED_INPUT_MAX];
 } CLzmaDec;
 

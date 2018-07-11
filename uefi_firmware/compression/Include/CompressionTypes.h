@@ -30,30 +30,30 @@ Returns:
 typedef
 EFI_STATUS
 (*COMPRESS_FUNCTION) (
-  IN      UINT8   *SrcBuffer,
-  IN      UINT32  SrcSize,
-  IN      UINT8   *DstBuffer,
-  IN OUT  UINT32  *DstSize
+  IN      char    *SrcBuffer,
+  IN      size_t  SrcSize,
+  IN      char    *DstBuffer,
+  IN OUT  size_t  *DstSize
   );
 
 typedef
 EFI_STATUS
 (*GETINFO_FUNCTION) (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-  OUT     UINT32  *DstSize,
-  OUT     UINT32  *ScratchSize
+  IN      size_t  SrcSize,
+  OUT     size_t  *DstSize,
+  OUT     size_t  *ScratchSize
   );
 
 typedef
 EFI_STATUS
 (*DECOMPRESS_FUNCTION) (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
-  IN      UINT32  DstSize,
+  IN      size_t  DstSize,
   IN OUT  VOID    *Scratch,
-  IN      UINT32  ScratchSize
+  IN      size_t  ScratchSize
   );
 
 #endif

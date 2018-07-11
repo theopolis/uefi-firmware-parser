@@ -52,9 +52,9 @@ LShiftU64 (
 EFI_STATUS
 LzmaGetInfo (
   IN     VOID    *Source,
-  IN     UINT32  SourceSize,
-  OUT    UINT32  *DestinationSize,
-  OUT    UINT32  *ScratchSize      // UNUSED
+  IN     size_t  SourceSize,
+  OUT    size_t  *DestinationSize,
+  OUT    size_t  *ScratchSize      // UNUSED
   );
 
 /*
@@ -79,11 +79,11 @@ LzmaGetInfo (
 EFI_STATUS
 LzmaDecompress (
   IN      VOID    *Source,
-  IN      UINT32  SourceSize,
+  IN      size_t  SourceSize,
   IN OUT  VOID    *Destination,
-  IN      UINT32  DstSize,      // UNUSED
+  IN      size_t  DstSize,      // UNUSED
   IN OUT  VOID    *Scratch,     // UNUSED
-  IN      UINT32  SctachSize    // UNUSED
+  IN      size_t  SctachSize    // UNUSED
   );
 
 #endif

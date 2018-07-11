@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /** @file
 
 Copyright (c) 2004 - 2008, Intel Corporation. All rights reserved.<BR>
@@ -55,15 +57,15 @@ Abstract:
 typedef struct {
   UINT8   *mSrcBase;  // Starting address of compressed data
   UINT8   *mDstBase;  // Starting address of decompressed data
-  UINT32  mOutBuf;
-  UINT32  mInBuf;
+  size_t  mOutBuf;
+  size_t  mInBuf;
 
   UINT16  mBitCount;
-  UINT32  mBitBuf;
-  UINT32  mSubBitBuf;
+  size_t  mBitBuf;
+  size_t  mSubBitBuf;
   UINT16  mBlockSize;
-  UINT32  mCompSize;
-  UINT32  mOrigSize;
+  size_t  mCompSize;
+  size_t  mOrigSize;
 
   UINT16  mBadTableFlag;
   UINT16  mBadAlgorithm;
@@ -100,11 +102,11 @@ Returns: (VOID)
 
 --*/
 {
-  Sd->mBitBuf = (UINT32) (Sd->mBitBuf << NumOfBits);
+  Sd->mBitBuf = (Sd->mBitBuf << NumOfBits) & 0xFFFFFFFFLL;
 
   while (NumOfBits > Sd->mBitCount) {
 
-    Sd->mBitBuf |= (UINT32) (Sd->mSubBitBuf << (NumOfBits = (UINT16) (NumOfBits - Sd->mBitCount)));
+    Sd->mBitBuf |= Sd->mSubBitBuf << (NumOfBits = (UINT16) (NumOfBits - Sd->mBitCount));
 
     if (Sd->mCompSize > 0) {
       //
@@ -130,7 +132,7 @@ Returns: (VOID)
 }
 
 STATIC
-UINT32
+size_t
 GetBits (
   IN  SCRATCH_DATA  *Sd,
   IN  UINT16        NumOfBits
@@ -154,9 +156,9 @@ Returns:
 
 --*/
 {
-  UINT32  OutBits;
+  size_t  OutBits;
 
-  OutBits = (UINT32) (Sd->mBitBuf >> (BITBUFSIZ - NumOfBits));
+  OutBits = (Sd->mBitBuf >> (BITBUFSIZ - NumOfBits));
 
   FillBuf (Sd, NumOfBits);
 
@@ -168,7 +170,7 @@ UINT16
 MakeTable (
   IN  SCRATCH_DATA  *Sd,
   IN  UINT16        NumOfChar,
-  IN  UINT8         *BitLen,
+  const IN  UINT8         *BitLen,
   IN  UINT16        TableBits,
   OUT UINT16        *Table
   )
@@ -305,7 +307,7 @@ Returns:
 }
 
 STATIC
-UINT32
+size_t
 DecodeP (
   IN  SCRATCH_DATA  *Sd
   )
@@ -326,8 +328,8 @@ Returns:
 --*/
 {
   UINT16  Val;
-  UINT32  Mask;
-  UINT32  Pos;
+  size_t  Mask;
+  size_t  Pos;
 
   Val = Sd->mPTTable[Sd->mBitBuf >> (BITBUFSIZ - 8)];
 
@@ -352,7 +354,7 @@ Returns:
 
   Pos = Val;
   if (Val > 1) {
-    Pos = (UINT32) ((1U << (Val - 1)) + GetBits (Sd, (UINT16) (Val - 1)));
+    Pos = ((1LL << (Val - 1)) + GetBits (Sd, (UINT16) (Val - 1)));
   }
 
   return Pos;
@@ -389,7 +391,7 @@ Returns:
   UINT16  Number;
   UINT16  CharC;
   UINT16  Index;
-  UINT32  Mask;
+  size_t  Mask;
 
   Number = (UINT16) GetBits (Sd, nbit);
 
@@ -466,7 +468,7 @@ Returns: (VOID)
   UINT16  Number;
   UINT16  CharC;
   UINT16  Index;
-  UINT32  Mask;
+  size_t  Mask;
 
   Number = (UINT16) GetBits (Sd, CBIT);
 
@@ -562,7 +564,7 @@ Returns:
 --*/
 {
   UINT16  Index2;
-  UINT32  Mask;
+  size_t  Mask;
 
   if (Sd->mBlockSize == 0) {
     //
@@ -679,9 +681,9 @@ Returns: (VOID)
 EFI_STATUS
 GetInfo (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-  OUT     UINT32  *DstSize,
-  OUT     UINT32  *ScratchSize
+  IN      size_t  SrcSize,
+  OUT     size_t  *DstSize,
+  OUT     size_t  *ScratchSize
   )
 /*++
 
@@ -712,18 +714,18 @@ Returns:
     return EFI_INVALID_PARAMETER;
   }
 
-  *DstSize = Src[4] + (Src[5] << 8) + (Src[6] << 16) + (Src[7] << 24);
+  *DstSize = (size_t)(Src[4]) + ((size_t)(Src[5]) << 8) + ((size_t)(Src[6]) << 16) + ((size_t)(Src[7]) << 24);
   return EFI_SUCCESS;
 }
 
 EFI_STATUS
 Decompress (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
-  IN      UINT32  DstSize,
+  IN      size_t  DstSize,
   IN OUT  VOID    *Scratch,
-  IN      UINT32  ScratchSize
+  IN      size_t  ScratchSize
   )
 /*
 
@@ -747,9 +749,9 @@ Returns:
 
 --*/
 {
-  UINT32        Index;
-  UINT32        CompSize;
-  UINT32        OrigSize;
+  size_t        Index;
+  size_t        CompSize;
+  size_t        OrigSize;
   EFI_STATUS    Status;
   SCRATCH_DATA  *Sd;
   UINT8         *Src;
@@ -769,8 +771,8 @@ Returns:
     return EFI_INVALID_PARAMETER;
   }
 
-  CompSize  = Src[0] + (Src[1] << 8) + (Src[2] << 16) + (Src[3] << 24);
-  OrigSize  = Src[4] + (Src[5] << 8) + (Src[6] << 16) + (Src[7] << 24);
+  CompSize = (size_t)(Src[0]) + ((size_t)(Src[1]) << 8) + ((size_t)(Src[2]) << 16) + ((size_t)(Src[3]) << 24);
+  OrigSize = (size_t)(Src[4]) + ((size_t)(Src[5]) << 8) + ((size_t)(Src[6]) << 16) + ((size_t)(Src[7]) << 24);
 
   if (SrcSize < CompSize + 8) {
     return EFI_INVALID_PARAMETER;
@@ -813,9 +815,9 @@ Returns:
 EFI_STATUS
 EfiGetInfo (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-  OUT     UINT32  *DstSize,
-  OUT     UINT32  *ScratchSize
+  IN      size_t  SrcSize,
+  OUT     size_t  *DstSize,
+  OUT     size_t  *ScratchSize
   )
 /*++
 
@@ -841,11 +843,11 @@ Returns:
 }
 
 EFI_STATUS
-TianoGetInfo (
+TianoGetInfo ( //-V524
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
-  OUT     UINT32  *DstSize,
-  OUT     UINT32  *ScratchSize
+  IN      size_t  SrcSize,
+  OUT     size_t  *DstSize,
+  OUT     size_t  *ScratchSize
   )
 /*++
 
@@ -873,11 +875,11 @@ Returns:
 EFI_STATUS
 EfiDecompress (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
-  IN      UINT32  DstSize,
+  IN      size_t  DstSize,
   IN OUT  VOID    *Scratch,
-  IN      UINT32  ScratchSize
+  IN      size_t  ScratchSize
   )
 /*++
 
@@ -908,11 +910,11 @@ Returns:
 EFI_STATUS
 TianoDecompress (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
-  IN      UINT32  DstSize,
+  IN      size_t  DstSize,
   IN OUT  VOID    *Scratch,
-  IN      UINT32  ScratchSize
+  IN      size_t  ScratchSize
   )
 /*++
 

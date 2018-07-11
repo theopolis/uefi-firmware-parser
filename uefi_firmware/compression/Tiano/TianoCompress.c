@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /** @file
 
 Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
@@ -29,7 +31,7 @@ Abstract:
 // Macro Definitions
 //
 #undef  UINT8_MAX
-typedef INT32 NODE;
+typedef ptrdiff_t     NODE;
 #define UINT8_MAX     0xff
 #define UINT8_BIT     8
 #define THRESHOLD     3
@@ -38,11 +40,11 @@ typedef INT32 NODE;
 #define WNDSIZ        (1U << WNDBIT)
 #define MAXMATCH      256
 #define BLKSIZ        (1U << 14)  // 16 * 1024U
-#define PERC_FLAG     0x80000000U
+#define PERC_FLAG     0x80000000LL
 #define CODE_BIT      16
 #define NIL           0
 #define MAX_HASH_VAL  (3 * WNDSIZ + (WNDSIZ / 512 + 1) * UINT8_MAX)
-#define HASH(p, c)    ((p) + ((c) << (WNDBIT - 9)) + WNDSIZ * 2)
+#define HASH(p, c)    ((p) + ((size_t)(c) << (WNDBIT - 9)) + WNDSIZ * 2)
 #define CRCPOLY       0xA001
 #define UPDATE_CRC(c) mCrc = mCrcTable[(mCrc ^ (c)) & 0xFF] ^ (mCrc >> UINT8_BIT)
 
@@ -67,7 +69,7 @@ typedef INT32 NODE;
 STATIC
 VOID
 PutDword(
-  IN UINT32 Data
+  IN size_t Data
   );
 
 STATIC
@@ -142,9 +144,9 @@ CountTFreq (
 STATIC
 VOID
 WritePTLen (
-  IN INT32 Number,
-  IN INT32 nbit,
-  IN INT32 Special
+  IN ptrdiff_t Number,
+  IN ptrdiff_t nbit,
+  IN ptrdiff_t Special
   );
 
 STATIC
@@ -156,13 +158,13 @@ WriteCLen (
 STATIC
 VOID
 EncodeC (
-  IN INT32 Value
+  IN ptrdiff_t Value
   );
 
 STATIC
 VOID
 EncodeP (
-  IN UINT32 Value
+  IN size_t Value
   );
 
 STATIC
@@ -174,8 +176,8 @@ SendBlock (
 STATIC
 VOID
 Output (
-  IN UINT32 c,
-  IN UINT32 p
+  IN size_t c,
+  IN size_t p
   );
 
 STATIC
@@ -199,15 +201,15 @@ MakeCrcTable (
 STATIC
 VOID
 PutBits (
-  IN INT32  Number,
-  IN UINT32 Value
+  IN ptrdiff_t  Number,
+  IN size_t Value
   );
 
 STATIC
-INT32
+ptrdiff_t
 FreadCrc (
   OUT UINT8 *Pointer,
-  IN  INT32 Number
+  IN  ptrdiff_t Number
   );
 
 STATIC
@@ -219,33 +221,33 @@ InitPutBits (
 STATIC
 VOID
 CountLen (
-  IN INT32 Index
+  IN ptrdiff_t Index
   );
 
 STATIC
 VOID
 MakeLen (
-  IN INT32 Root
+  IN ptrdiff_t Root
   );
 
 STATIC
 VOID
 DownHeap (
-  IN INT32 Index
+  IN ptrdiff_t Index
   );
 
 STATIC
 VOID
 MakeCode (
-  IN  INT32       Number,
-  IN  UINT8 Len[  ],
+  IN  ptrdiff_t       Number,
+  const IN  UINT8 Len[  ],
   OUT UINT16 Code[]
   );
 
 STATIC
-INT32
+ptrdiff_t
 MakeTree (
-  IN  INT32            NParm,
+  IN  ptrdiff_t            NParm,
   IN  UINT16  FreqParm[],
   OUT UINT8   LenParm[ ],
   OUT UINT16  CodeParm[]
@@ -258,9 +260,9 @@ STATIC UINT8  *mSrc, *mDst, *mSrcUpperLimit, *mDstUpperLimit;
 
 STATIC UINT8  *mLevel, *mText, *mChildCount, *mBuf, mCLen[NC], mPTLen[NPT], *mLen;
 STATIC INT16  mHeap[NC + 1];
-STATIC INT32  mRemainder, mMatchLen, mBitCount, mHeapSize, mN;
-STATIC UINT32 mBufSiz = 0, mOutputPos, mOutputMask, mSubBitBuf, mCrc;
-STATIC UINT32 mCompSize, mOrigSize;
+STATIC ptrdiff_t  mRemainder, mMatchLen, mBitCount, mHeapSize, mN;
+STATIC size_t mBufSiz = 0, mOutputPos, mOutputMask, mSubBitBuf, mCrc;
+STATIC size_t mCompSize, mOrigSize;
 
 STATIC UINT16 *mFreq, *mSortPtr, mLenCnt[17], mLeft[2 * NC - 1], mRight[2 * NC - 1], mCrcTable[UINT8_MAX + 1],
   mCFreq[2 * NC - 1], mCCode[NC], mPFreq[2 * NP - 1], mPTCode[NPT], mTFreq[2 * NT - 1];
@@ -273,9 +275,9 @@ STATIC NODE   mPos, mMatchPos, mAvail, *mPosition, *mParent, *mPrev, *mNext = NU
 EFI_STATUS
 TianoCompress (
   IN      UINT8   *SrcBuffer,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN      UINT8   *DstBuffer,
-  IN OUT  UINT32  *DstSize
+  IN OUT  size_t  *DstSize
   )
 /*++
 
@@ -368,7 +370,7 @@ Returns:
 STATIC
 VOID
 PutDword (
-  IN UINT32 Data
+  IN size_t Data
   )
 /*++
 
@@ -422,11 +424,13 @@ Returns:
 
 --*/
 {
-  UINT32  Index;
+  size_t  Index;
 
-  mText = malloc (WNDSIZ * 2 + MAXMATCH);
-  for (Index = 0; Index < WNDSIZ * 2 + MAXMATCH; Index++) {
-    mText[Index] = 0;
+  mText = malloc ((WNDSIZ * 2 + MAXMATCH) & 0x100100); //-V118
+  if (mText != NULL) {
+    for (Index = 0; Index < WNDSIZ * 2 + MAXMATCH; Index++) {
+      mText[Index] = 0;
+    }
   }
 
   mLevel      = malloc ((WNDSIZ + UINT8_MAX + 1) * sizeof (*mLevel));
@@ -468,37 +472,13 @@ Returns: (VOID)
 
 --*/
 {
-  if (mText != NULL) {
-    free (mText);
-  }
-
-  if (mLevel != NULL) {
-    free (mLevel);
-  }
-
-  if (mChildCount != NULL) {
-    free (mChildCount);
-  }
-
-  if (mPosition != NULL) {
-    free (mPosition);
-  }
-
-  if (mParent != NULL) {
-    free (mParent);
-  }
-
-  if (mPrev != NULL) {
-    free (mPrev);
-  }
-
-  if (mNext != NULL) {
-    free (mNext);
-  }
-
-  if (mBuf != NULL) {
-    free (mBuf);
-  }
+  free(mText);
+  free(mLevel);
+  free(mChildCount);
+  free(mPosition);
+  free(mParent);
+  free(mPrev);
+  free(mNext);
 
   return ;
 }
@@ -706,13 +686,13 @@ Returns: (VOID)
     }
 
     if (NodeT < WNDSIZ) {
-      mPosition[NodeT] = (NODE) (mPos | (UINT32) PERC_FLAG);
+      mPosition[NodeT] = (NODE) (mPos | (size_t) PERC_FLAG);
     }
   } else {
     //
     // Locate the target tree
     //
-    NodeQ = (NODE) (mText[mPos] + WNDSIZ);
+    NodeQ = (NODE)mText[mPos] + WNDSIZ;
     CharC = mText[mPos + 1];
     NodeR = Child (NodeQ, CharC);
     if (NodeR == NIL) {
@@ -734,7 +714,7 @@ Returns: (VOID)
       mMatchPos = NodeR;
     } else {
       Index2    = mLevel[NodeR];
-      mMatchPos = (NODE) (mPosition[NodeR] & (UINT32)~PERC_FLAG);
+      mMatchPos = (NODE) (mPosition[NodeR] & (size_t)~PERC_FLAG);
     }
 
     if (mMatchPos >= mPos) {
@@ -828,7 +808,7 @@ Returns: (VOID)
     return ;
   }
 
-  NodeT = (NODE) (mPosition[NodeR] & (UINT32)~PERC_FLAG);
+  NodeT = (NODE) (mPosition[NodeR] & (size_t)~PERC_FLAG);
   if (NodeT >= mPos) {
     NodeT -= WNDSIZ;
   }
@@ -836,8 +816,8 @@ Returns: (VOID)
   NodeS = NodeT;
   NodeQ = mParent[NodeR];
   NodeU = mPosition[NodeQ];
-  while (NodeU & (UINT32) PERC_FLAG) {
-    NodeU &= (UINT32)~PERC_FLAG;
+  while (NodeU & (size_t) PERC_FLAG) {
+    NodeU &= (size_t)~PERC_FLAG;
     if (NodeU >= mPos) {
       NodeU -= WNDSIZ;
     }
@@ -860,7 +840,7 @@ Returns: (VOID)
       NodeS = NodeU;
     }
 
-    mPosition[NodeQ] = (NODE) (NodeS | WNDSIZ | (UINT32) PERC_FLAG);
+    mPosition[NodeQ] = (NODE) (NodeS | WNDSIZ | (size_t) PERC_FLAG);
   }
 
   NodeS           = Child (NodeR, mText[NodeT + mLevel[NodeR]]);
@@ -898,7 +878,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 Number;
+  ptrdiff_t Number;
 
   mRemainder--;
   mPos++;
@@ -934,7 +914,7 @@ Returns:
 --*/
 {
   EFI_STATUS  Status;
-  INT32       LastMatchLen;
+  ptrdiff_t   LastMatchLen;
   NODE        LastMatchPos;
 
   Status = AllocateMemory ();
@@ -1020,10 +1000,10 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 Index;
-  INT32 Index3;
-  INT32 Number;
-  INT32 Count;
+  ptrdiff_t Index;
+  ptrdiff_t Index3;
+  ptrdiff_t Number;
+  ptrdiff_t Count;
 
   for (Index = 0; Index < NT; Index++) {
     mTFreq[Index] = 0;
@@ -1063,9 +1043,9 @@ Returns: (VOID)
 STATIC
 VOID
 WritePTLen (
-  IN INT32 Number,
-  IN INT32 nbit,
-  IN INT32 Special
+  IN ptrdiff_t Number,
+  IN ptrdiff_t nbit,
+  IN ptrdiff_t Special
   )
 /*++
 
@@ -1083,8 +1063,8 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 Index;
-  INT32 Index3;
+  ptrdiff_t Index;
+  ptrdiff_t Index3;
 
   while (Number > 0 && mPTLen[Number - 1] == 0) {
     Number--;
@@ -1097,7 +1077,7 @@ Returns: (VOID)
     if (Index3 <= 6) {
       PutBits (3, Index3);
     } else {
-      PutBits (Index3 - 3, (1U << (Index3 - 3)) - 2);
+      PutBits (Index3 - 3, (1LL << (Index3 - 3)) - 2);
     }
 
     if (Index == Special) {
@@ -1127,10 +1107,10 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 Index;
-  INT32 Index3;
-  INT32 Number;
-  INT32 Count;
+  ptrdiff_t Index;
+  ptrdiff_t Index3;
+  ptrdiff_t Number;
+  ptrdiff_t Count;
 
   Number = NC;
   while (Number > 0 && mCLen[Number - 1] == 0) {
@@ -1172,7 +1152,7 @@ Returns: (VOID)
 STATIC
 VOID
 EncodeC (
-  IN INT32 Value
+  IN ptrdiff_t Value
   )
 {
   PutBits (mCLen[Value], mCCode[Value]);
@@ -1181,11 +1161,11 @@ EncodeC (
 STATIC
 VOID
 EncodeP (
-  IN UINT32 Value
+  IN size_t Value
   )
 {
-  UINT32  Index;
-  UINT32  NodeQ;
+  size_t  Index;
+  size_t  NodeQ;
 
   Index = 0;
   NodeQ = Value;
@@ -1196,7 +1176,7 @@ EncodeP (
 
   PutBits (mPTLen[Index], mPTCode[Index]);
   if (Index > 1) {
-    PutBits (Index - 1, Value & (0xFFFFFFFFU >> (32 - Index + 1)));
+    PutBits (Index - 1, Value & (0xFFFFFFFFLL >> (32 - Index + 1)));
   }
 }
 
@@ -1219,13 +1199,13 @@ Returns:
 
 --*/
 {
-  UINT32  Index;
-  UINT32  Index2;
-  UINT32  Index3;
-  UINT32  Flags;
-  UINT32  Root;
-  UINT32  Pos;
-  UINT32  Size;
+  size_t  Index;
+  size_t  Index2;
+  size_t  Index3;
+  size_t  Flags;
+  size_t  Root;
+  size_t  Pos;
+  size_t  Size;
   Flags = 0;
 
   Root  = MakeTree (NC, mCFreq, mCLen, mCCode);
@@ -1266,7 +1246,7 @@ Returns:
     }
 
     if (Flags & (1U << (UINT8_BIT - 1))) {
-      EncodeC (mBuf[Pos++] + (1U << UINT8_BIT));
+      EncodeC (mBuf[Pos++] + (1LL << UINT8_BIT));
       Index3 = mBuf[Pos++];
       for (Index2 = 0; Index2 < 3; Index2++) {
         Index3 <<= UINT8_BIT;
@@ -1291,8 +1271,8 @@ Returns:
 STATIC
 VOID
 Output (
-  IN UINT32 CharC,
-  IN UINT32 Pos
+  IN size_t CharC,
+  IN size_t Pos
   )
 /*++
 
@@ -1309,9 +1289,9 @@ Returns: (VOID)
 
 --*/
 {
-  STATIC UINT32 CPos;
+  STATIC size_t CPos;
 
-  if ((mOutputMask >>= 1) == 0) {
+  if ((mOutputMask >>= 1) == 0) { //-V1019
     mOutputMask = 1U << (UINT8_BIT - 1);
     //
     // Check the buffer overflow per outputing UINT8_BIT symbols
@@ -1351,7 +1331,7 @@ HufEncodeStart (
   VOID
   )
 {
-  INT32 Index;
+  ptrdiff_t Index;
 
   for (Index = 0; Index < NC; Index++) {
     mCFreq[Index] = 0;
@@ -1388,9 +1368,9 @@ MakeCrcTable (
   VOID
   )
 {
-  UINT32  Index;
-  UINT32  Index2;
-  UINT32  Temp;
+  size_t  Index;
+  size_t  Index2;
+  size_t  Temp;
 
   for (Index = 0; Index <= UINT8_MAX; Index++) {
     Temp = Index;
@@ -1409,8 +1389,8 @@ MakeCrcTable (
 STATIC
 VOID
 PutBits (
-  IN INT32  Number,
-  IN UINT32 Value
+  IN ptrdiff_t  Number,
+  IN size_t Value
   )
 /*++
 
@@ -1447,10 +1427,10 @@ Returns: (VOID)
 }
 
 STATIC
-INT32
+ptrdiff_t
 FreadCrc (
   OUT UINT8 *Pointer,
-  IN  INT32 Number
+  IN  ptrdiff_t Number
   )
 /*++
 
@@ -1469,7 +1449,7 @@ Returns:
   
 --*/
 {
-  INT32 Index;
+  ptrdiff_t Index;
 
   for (Index = 0; mSrc < mSrcUpperLimit && Index < Number; Index++) {
     *Pointer++ = *mSrc++;
@@ -1501,7 +1481,7 @@ InitPutBits (
 STATIC
 VOID
 CountLen (
-  IN INT32 Index
+  IN ptrdiff_t Index
   )
 /*++
 
@@ -1517,7 +1497,7 @@ Returns: (VOID)
 
 --*/
 {
-  STATIC INT32  Depth = 0;
+  STATIC ptrdiff_t  Depth = 0;
 
   if (Index < mN) {
     mLenCnt[(Depth < 16) ? Depth : 16]++;
@@ -1532,7 +1512,7 @@ Returns: (VOID)
 STATIC
 VOID
 MakeLen (
-  IN INT32 Root
+  IN ptrdiff_t Root
   )
 /*++
 
@@ -1550,9 +1530,9 @@ Returns:
 
 --*/
 {
-  INT32   Index;
-  INT32   Index3;
-  UINT32  Cum;
+  ptrdiff_t   Index;
+  ptrdiff_t   Index3;
+  size_t  Cum;
 
   for (Index = 0; Index <= 16; Index++) {
     mLenCnt[Index] = 0;
@@ -1566,7 +1546,7 @@ Returns:
   //
   Cum = 0;
   for (Index = 16; Index > 0; Index--) {
-    Cum += mLenCnt[Index] << (16 - Index);
+    Cum += (size_t)mLenCnt[Index] << (16 - Index);
   }
 
   while (Cum != (1U << 16)) {
@@ -1595,11 +1575,11 @@ Returns:
 STATIC
 VOID
 DownHeap (
-  IN INT32 Index
+  IN ptrdiff_t Index
   )
 {
-  INT32 Index2;
-  INT32 Index3;
+  ptrdiff_t Index2;
+  ptrdiff_t Index3;
 
   //
   // priority queue: send Index-th entry down heap
@@ -1626,8 +1606,8 @@ DownHeap (
 STATIC
 VOID
 MakeCode (
-  IN  INT32       Number,
-  IN  UINT8 Len[  ],
+  IN  ptrdiff_t       Number,
+  const IN UINT8 Len[  ],
   OUT UINT16 Code[]
   )
 /*++
@@ -1646,7 +1626,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32   Index;
+  ptrdiff_t   Index;
   UINT16  Start[18];
 
   Start[1] = 0;
@@ -1660,9 +1640,9 @@ Returns: (VOID)
 }
 
 STATIC
-INT32
+ptrdiff_t
 MakeTree (
-  IN  INT32            NParm,
+  IN  ptrdiff_t            NParm,
   IN  UINT16  FreqParm[],
   OUT UINT8   LenParm [],
   OUT UINT16  CodeParm[]
@@ -1686,10 +1666,10 @@ Returns:
   
 --*/
 {
-  INT32 Index;
-  INT32 Index2;
-  INT32 Index3;
-  INT32 Avail;
+  ptrdiff_t Index;
+  ptrdiff_t Index2;
+  ptrdiff_t Index3;
+  ptrdiff_t Avail;
 
   //
   // make tree, calculate len[], return root

@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /** @file
 
 Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
@@ -33,14 +35,14 @@ This includes minor API changes for Tiano and EFI decompressor, as well as LZMA.
 EFI_STATUS
 Extract (
   IN      VOID    *Source,
-  IN      UINT32  SrcSize,
+  IN      SizeT   SrcSize,
      OUT  VOID    **Destination,
-     OUT  UINT32  *DstSize,
+     OUT  SizeT   *DstSize,
   IN      UINTN   Algorithm
   )
 {
   VOID          *Scratch;
-  UINT32        ScratchSize;
+  SizeT         ScratchSize;
   EFI_STATUS    Status;
 
   GETINFO_FUNCTION    GetInfoFunction;
@@ -61,15 +63,15 @@ Extract (
       Status = EFI_OUT_OF_RESOURCES;
     }
     break;
-  case 1:
+  case EFI_COMPRESSION:
     GetInfoFunction = EfiGetInfo;
     DecompressFunction = EfiDecompress;
     break;
-  case 2:
+  case TIANO_COMPRESSION:
     GetInfoFunction = TianoGetInfo;
     DecompressFunction = TianoDecompress;
     break;
-  case 3:
+  case LZMA_COMPRESSION:
     GetInfoFunction = LzmaGetInfo;
     DecompressFunction = LzmaDecompress;
     break;
@@ -103,9 +105,7 @@ errorHandling(
   VOID* DstBuf
   )
 {
-  if (DstBuf != NULL) {
-    free(DstBuf);
-  }
+  free(DstBuf);
 }
 
 /*
@@ -120,16 +120,16 @@ UefiDecompress(
   )
 {
   PyBytesObject *SrcData;
-  UINT32        SrcDataSize;
-  UINT32        DstDataSize;
-  UINT32         Status;
-  UINT8         *SrcBuf;
-  UINT8         *DstBuf;
+  SizeT         SrcDataSize;
+  SizeT         DstDataSize;
+  EFI_STATUS    Status;
+  char          *SrcBuf;
+  char          *DstBuf;
 
   DstDataSize = 0;
   DstBuf = NULL;
 
-  Status = PyArg_ParseTuple(Args, "Oi", &SrcData, &SrcDataSize);
+  Status = PyArg_ParseTuple(Args, "OK", &SrcData, &SrcDataSize); //-V111
   if (Status == 0) {
     return NULL;
   }
@@ -158,11 +158,11 @@ UefiCompress(
   )
 {
   PyBytesObject *SrcData;
-  UINT32        SrcDataSize;
-  UINT32        DstDataSize;
-  UINT32         Status;
-  UINT8         *SrcBuf;
-  UINT8         *DstBuf;
+  SizeT         SrcDataSize;
+  SizeT         DstDataSize;
+  EFI_STATUS    Status;
+  char          *SrcBuf;
+  char          *DstBuf;
 
   // Pick the compress function based on compression type
   COMPRESS_FUNCTION CompressFunction;
@@ -171,14 +171,14 @@ UefiCompress(
   DstBuf = NULL;
   CompressFunction = NULL;
 
-  Status = PyArg_ParseTuple(Args, "Oi", &SrcData, &SrcDataSize);
+  Status = PyArg_ParseTuple(Args, "OK", &SrcData, &SrcDataSize); //-V111
   if (Status == 0) {
     return NULL;
   }
 
   SrcBuf = SrcData->ob_sval;
 
-  if (type == 3) {
+  if (type == LZMA_COMPRESSION) {
     CompressFunction = (COMPRESS_FUNCTION) LzmaCompress;
   } else {
     CompressFunction = (COMPRESS_FUNCTION) ((type == EFI_COMPRESSION) ? EfiCompress : TianoCompress);

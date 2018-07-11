@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /* Bra86.c -- Converter for x86 code (BCJ)
 2008-10-04 : Igor Pavlov : Public domain */
 
@@ -8,10 +10,10 @@
 const Byte kMaskToAllowedStatus[8] = {1, 1, 1, 0, 1, 0, 0, 0};
 const Byte kMaskToBitNumber[8] = {0, 1, 2, 2, 3, 3, 3, 3};
 
-SizeT x86_Convert(Byte *data, SizeT size, UInt32 ip, UInt32 *state, int encoding)
+SizeT x86_Convert(Byte *data, SizeT size, SizeT ip, SizeT *state, int encoding)
 {
   SizeT bufferPos = 0, prevPosT;
-  UInt32 prevMask = *state & 0x7;
+  SizeT prevMask = *state & 0x7;
   if (size < 5)
     return 0;
   ip += 5;
@@ -49,23 +51,23 @@ SizeT x86_Convert(Byte *data, SizeT size, UInt32 ip, UInt32 *state, int encoding
 
     if (Test86MSByte(p[4]))
     {
-      UInt32 src = ((UInt32)p[4] << 24) | ((UInt32)p[3] << 16) | ((UInt32)p[2] << 8) | ((UInt32)p[1]);
-      UInt32 dest;
+      SizeT src = ((SizeT)p[4] << 24) | ((SizeT)p[3] << 16) | ((SizeT)p[2] << 8) | ((SizeT)p[1]);
+      SizeT dest;
       for (;;)
       {
         Byte b;
         int index;
         if (encoding)
-          dest = (ip + (UInt32)bufferPos) + src;
+          dest = (ip + bufferPos) + src;
         else
-          dest = src - (ip + (UInt32)bufferPos);
+          dest = src - (ip + bufferPos);
         if (prevMask == 0)
           break;
         index = kMaskToBitNumber[prevMask] * 8;
         b = (Byte)(dest >> (24 - index));
         if (!Test86MSByte(b))
           break;
-        src = dest ^ ((1 << (32 - index)) - 1);
+        src = dest ^ ((1LL << (32 - index)) - 1);
       }
       p[4] = (Byte)(~(((dest >> 24) & 1) - 1));
       p[3] = (Byte)(dest >> 16);

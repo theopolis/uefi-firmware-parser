@@ -22,9 +22,9 @@
 EFI_STATUS
 LzmaCompress (
   IN     UINT8   *Source,
-  IN     UINT32  SourceSize,
+  IN     SizeT  SourceSize,
   IN     UINT8   *Destination,
-  IN OUT UINT32  *DestinationSize
+  IN OUT SizeT  *DestinationSize
   );
 
 #endif
