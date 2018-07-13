@@ -33,7 +33,7 @@ def superbrute_search(data):
         parser = AutoParser(bdata)
         if parser.type() is not 'unknown':
             _process_show_extract(parser.parse())
-            breakW
+            break
 
 
 def brute_search_volumes(data):
