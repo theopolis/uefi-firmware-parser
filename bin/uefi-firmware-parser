@@ -4,6 +4,7 @@
 import argparse
 import logging
 import os
+import sys
 from datetime import datetime
 
 from uefi_firmware.uefi import *
@@ -98,9 +99,9 @@ if __name__ == "__main__":
     args = argparser.parse_args()
 
     if args.verbose:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     else:
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
 
     for file_name in args.file:
         FILENAME = file_name
