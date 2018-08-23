@@ -4,6 +4,7 @@
 import argparse
 import logging
 import os
+from datetime import datetime
 
 from uefi_firmware.uefi import *
 from uefi_firmware.generator import uefi as uefi_generator
@@ -103,6 +104,7 @@ if __name__ == "__main__":
 
     for file_name in args.file:
         FILENAME = file_name
+        START = datetime.now()
         if args.echo:
             print FILENAME
 
@@ -115,6 +117,7 @@ if __name__ == "__main__":
 
         if args.superbrute:
             superbrute_search(input_data)
+            logging.info("%s scanned in %s", FILENAME, str(datetime.now() - START))
             continue
 
         if args.brute:
