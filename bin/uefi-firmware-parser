@@ -33,7 +33,7 @@ def superbrute_search(data):
     for i in xrange(len(data)):
         # using buffer avoids long memory copy
         bdata = buffer(data, i)
-        parser = AutoParser(bdata)
+        parser = AutoParser(bdata, search=False)
         if parser.type() is not 'unknown':
             _process_show_extract(parser.parse())
             break
