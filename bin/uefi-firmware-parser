@@ -31,7 +31,8 @@ def _process_show_extract(parsed_object):
 
 def superbrute_search(data):
     for i in xrange(len(data)):
-        bdata = data[i:]
+        # using buffer avoids long memory copy
+        bdata = buffer(data, i)
         parser = AutoParser(bdata)
         if parser.type() is not 'unknown':
             _process_show_extract(parser.parse())
