@@ -102,7 +102,7 @@ If you need to parse and extract a large number of firmware files check out the 
 The firmware-type checker will decide how to best parse the file. If the ``--test`` option fails to identify the type, or calls it ``unknown``, try to use the ``-b`` or ``--superbrute`` option. The later performs a byte-by-byte type checker.
 ::
 
-  $ uefi-firmware-parser --type ~/firmware/970E32_1.40
+  $ uefi-firmware-parser --test ~/firmware/970E32_1.40
   ~/firmware/970E32_1.40: unknown
   $ uefi-firmware-parser --superbrute ~/firmware/970E32_1.40
   [...]
