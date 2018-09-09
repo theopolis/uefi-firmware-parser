@@ -15,7 +15,7 @@ install:
 
 before_script:
   # Clone public samples
-  - git clone https://github.com/iroot/uefi-firmware-samples samples
+  - git clone https://github.com/theopolis/uefi-firmware-samples samples
 
 script:
   # Run the unittests

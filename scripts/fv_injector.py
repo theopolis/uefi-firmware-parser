@@ -8,6 +8,13 @@ from uefi_firmware.utils import dump_data, flatten_firmware_objects
 
 from uefi_firmware.pfs import PFSFile
 
+try:
+    import __builtin__
+
+    input = getattr(__builtin__, 'raw_input')
+except (ImportError, AttributeError):
+    pass
+
 
 def brute_search(data):
     volumes = search_firmware_volumes(data)
@@ -60,7 +67,7 @@ def parse_file(data):
     selection = 0
 
     while True:
-        selection = eval(input(
+        selection = input(
             "[#] Replace what section: [1-%d]: " % len(obj_references)))
         try:
             selection = int(selection)
@@ -73,6 +80,7 @@ def parse_file(data):
             continue
         pass
     return (ff, obj_references, selection)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
