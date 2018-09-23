@@ -2,14 +2,14 @@
 '''
 import os
 
-import uefi
-import pfs
-import me
-import flash
+from . import uefi
+from . import pfs
+from . import me
+from . import flash
 
-from misc import checker
-from base import FirmwareObject, RawObject, AutoRawObject
-from utils import search_firmware_volumes
+from .misc import checker
+from .base import FirmwareObject, RawObject, AutoRawObject
+from .utils import search_firmware_volumes
 
 
 class AutoParser(object):
@@ -41,7 +41,7 @@ class AutoParser(object):
 
         if search:
             self.offset = 0
-            while data[self.offset:self.offset + 1024] == '\xFF' * 1024:
+            while data[self.offset:self.offset + 1024] == b'\xFF' * 1024:
                 self.offset += 1024
             if self.offset > 0:
                 data = data[self.offset:]
@@ -154,7 +154,7 @@ class MultiVolumeContainer(FirmwareObject):
 
     def has_indexes(self):
         '''Check if any indexes were discovered.'''
-        return self.indexes > 0
+        return len(self.indexes) > 0
 
     def append_base(self, volume):
         '''Set the base volume as the first within the list.'''

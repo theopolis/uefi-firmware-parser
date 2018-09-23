@@ -26,6 +26,7 @@ This BaseTypes includes structures from various edk2 header files.
 //
 #include "ProcessorBind.h"
 #include <stdarg.h>
+#include <stddef.h>
 
 //
 // Modifiers for Data Types used to self document code.

@@ -67,11 +67,11 @@ class FlashRegion(FirmwareObject, BaseObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print "%s%s type= %s, size= 0x%x (%d bytes) details[ %s ]" % (
+        print("%s%s type= %s, size= 0x%x (%d bytes) details[ %s ]" % (
             ts, blue("Flash Region"), green(self.name),
             len(self.data), len(self.data),
-            ", ".join(["%s: 0x%02x" % (k, v) for k, v in self.attrs.iteritems()])
-        )
+            ", ".join(["%s: 0x%02x" % (k, v) for k, v in list(self.attrs.items())])
+        ))
         for section in self.sections:
             section.showinfo(ts="%s  " % ts)
         pass
@@ -183,7 +183,7 @@ class FlashDescriptor(FirmwareObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print (("%s%s chips 0x%02x, regions 0x%02x, masters 0x%02x, PCH straps 0x%02x, "
+        print("%s%s chips 0x%02x, regions 0x%02x, masters 0x%02x, PCH straps 0x%02x, "
                 "PROC straps 0x%02x, ICC entries 0x%02x") % (
             ts, blue("Flash Descriptor (Intel PCH)"),
             self.map.structure.NumberOfFlashChips,
@@ -191,7 +191,7 @@ class FlashDescriptor(FirmwareObject):
             self.map.structure.NumberOfMasters,
             self.map.structure.NumberOfPchStraps,
             self.map.structure.NumberOfProcStraps,
-            self.map.structure.NumberOfIccTableEntries))
+            self.map.structure.NumberOfIccTableEntries)
         for region in self.regions:
             region.showinfo(ts="%s  " % ts)
 

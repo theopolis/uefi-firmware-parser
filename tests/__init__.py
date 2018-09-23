@@ -1,2 +1,2 @@
 
-import test_compression
+from . import test_compression

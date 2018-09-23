@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /* LZMA Decompress Implementation
 
 Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.
@@ -17,6 +19,7 @@ WITHWARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "SDK/C/LzmaDec.h"
 
 #include <stdlib.h>
+#include <stddef.h>
 
 UINT64
     LShiftU64 (
@@ -42,7 +45,7 @@ Get the size of the uncompressed buffer by parsing EncodeData header.
 */
 UINT64
     GetDecodedSizeOfBuf(
-    UINT8 *EncodedData
+    const UINT8 *EncodedData
     )
 {
     UINT64 DecodedSize;
@@ -90,9 +93,9 @@ buffer was returned ScratchSize.
 EFI_STATUS
 LzmaGetInfo (
   IN   VOID    *Source,
-  IN   UINT32  SourceSize,
-  OUT  UINT32  *DestinationSize,
-  OUT  UINT32  *ScratchSize
+  IN   size_t  SourceSize,
+  OUT  size_t  *DestinationSize,
+  OUT  size_t  *ScratchSize
   )
 {
     UInt64  DecodedSize;
@@ -101,7 +104,7 @@ LzmaGetInfo (
 
     DecodedSize = GetDecodedSizeOfBuf((UINT8*)Source);
 
-    *DestinationSize = (UINT32)DecodedSize;
+    *DestinationSize = DecodedSize;
     return EFI_SUCCESS;
 }
 
@@ -127,11 +130,11 @@ The source buffer specified by Source is corrupted
 EFI_STATUS
     LzmaDecompress (
     IN      VOID    *Source,
-    IN      UINT32  SourceSize,
+    IN      size_t  SourceSize,
     IN OUT  VOID    *Destination,
-    IN      UINT32  DstSize,
+    IN      size_t  DstSize,
     IN OUT  VOID    *Scratch,
-    IN      UINT32  ScratchSize
+    IN      size_t  ScratchSize
     )
 {
     SRes              LzmaResult;
