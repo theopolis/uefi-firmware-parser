@@ -13,7 +13,7 @@ Please use the example scripts for parsing tutorials.
 Installation
 ------------
 
-This module is included within PyPy as `uefi_firmware <https://pypi.python.org/pypi/uefi_firmware>`_
+This module is available through PyPi as `uefi_firmware <https://pypi.python.org/pypi/uefi_firmware>`_
 
 ::
 
