@@ -3,8 +3,11 @@
 import os
 import re
 from setuptools import setup, find_packages, Extension, Command
+#from pip.req import parse_requirements
 
-
+#install_reqs = parse_requirements('./requirements.txt')
+#reqs = [str(ir.req) for ir in install_reqs]
+reqs = ['pefile','future']
 class LintCommand(Command):
     """Run pylint on implementation and test code"""
 
@@ -60,6 +63,7 @@ for root, directory, paths in os.walk('uefi_firmware/compression'):
             COMPRESSION_SOURCES.append(os.path.join(root, path))
 
 setup(
+    install_requires=reqs,
     name='uefi_firmware',
     version=VERSION,
     description='Various data structures and parsing tools for UEFI firmware.',
