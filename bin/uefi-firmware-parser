@@ -10,6 +10,7 @@ from datetime import datetime
 from uefi_firmware.uefi import *
 from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware import AutoParser
+import uefi_firmware.utils # import nocolor
 
 def _process_show_extract(parsed_object):
     global FILENAME
@@ -75,6 +76,9 @@ if __name__ == "__main__":
         '-q', "--quiet", default=False, action="store_true",
         help="Do not show info.")
     argparser.add_argument(
+        '-p', "--nocolor", default=False, action="store_true",
+        help="Plain text output. Do not use ANSI colors.")
+    argparser.add_argument(
         '-o', "--output", default=".",
         help="Dump firmware objects to this folder.")
     argparser.add_argument(
@@ -103,6 +107,9 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     else:
         logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
+
+    # Pass the no color flag to the util config
+    uefi_firmware.utils.nocolor = args.nocolor
 
     for file_name in args.file:
         FILENAME = file_name
