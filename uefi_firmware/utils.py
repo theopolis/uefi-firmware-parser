@@ -4,14 +4,9 @@ import os
 import sys
 import struct
 
-no_colors = 1
-
 def blue(msg):
     '''Return the input string as console-escaped blue.'''
-    if no_colors:
-        return msg
-    else:
-        return "\033[1;36m%s\033[1;m" % msg
+    return "\033[1;36m%s\033[1;m" % msg
 
 
 def red(msg):
@@ -24,18 +19,12 @@ def red(msg):
 
 def green(msg):
     '''Return the input string as console-escaped green.'''
-    if no_colors:
-        return msg
-    else:
-        return "\033[32m%s\033[1;m" % msg
+    return "\033[32m%s\033[1;m" % msg
 
 
 def purple(msg):
     '''Return the input string as console-escaped purple.'''
-    if no_colors:
-        return msg
-    else:
-        return "\033[1;35m%s\033[1;m" % msg
+    return "\033[1;35m%s\033[1;m" % msg
 
 
 def print_error(msg):
