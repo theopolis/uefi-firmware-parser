@@ -13,7 +13,7 @@ Please use the example scripts for parsing tutorials.
 Installation
 ------------
 
-This module is included within PyPy as `uefi_firmware <https://pypi.python.org/pypi/uefi_firmware>`_
+This module is available through PyPi as `uefi_firmware <https://pypi.python.org/pypi/uefi_firmware>`_
 
 ::
 
@@ -102,7 +102,7 @@ If you need to parse and extract a large number of firmware files check out the 
 The firmware-type checker will decide how to best parse the file. If the ``--test`` option fails to identify the type, or calls it ``unknown``, try to use the ``-b`` or ``--superbrute`` option. The later performs a byte-by-byte type checker.
 ::
 
-  $ uefi-firmware-parser --type ~/firmware/970E32_1.40
+  $ uefi-firmware-parser --test ~/firmware/970E32_1.40
   ~/firmware/970E32_1.40: unknown
   $ uefi-firmware-parser --superbrute ~/firmware/970E32_1.40
   [...]

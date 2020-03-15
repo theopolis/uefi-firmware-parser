@@ -39,9 +39,9 @@ Routine Description:
 EFI_STATUS
 TianoCompress (
   IN      UINT8   *SrcBuffer,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN      UINT8   *DstBuffer,
-  IN OUT  UINT32  *DstSize
+  IN OUT  size_t  *DstSize
   )
 ;
 
@@ -55,9 +55,9 @@ Routine Description:
 EFI_STATUS
 EfiCompress (
   IN      UINT8   *SrcBuffer,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN      UINT8   *DstBuffer,
-  IN OUT  UINT32  *DstSize
+  IN OUT  size_t  *DstSize
   )
 ;
 

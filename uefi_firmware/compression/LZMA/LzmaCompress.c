@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /* LZMA Compress Implementation
 
 Copyright (c) 2012, Nikolaj Schlej. All rights reserved.
@@ -59,15 +61,15 @@ VOID
 EFI_STATUS
     LzmaCompress (
     IN     UINT8   *Source,
-    IN     UINT32  SourceSize,
+    IN     SizeT   SourceSize,
     IN     UINT8   *Destination,
-    IN OUT UINT32  *DestinationSize
+    IN OUT SizeT   *DestinationSize
     )
 {
     SRes              LzmaResult;
     CLzmaEncProps     props;
-    UINT32 propsSize = LZMA_PROPS_SIZE;
-    UINT32 destLen = SourceSize + SourceSize / 3 + 128;
+    SizeT propsSize = LZMA_PROPS_SIZE;
+    SizeT destLen = SourceSize + SourceSize / 3 + 128;
 
     if (*DestinationSize < destLen)
     {

@@ -26,6 +26,7 @@
 
     3. This notice may not be removed or altered from any source distribution.
 '''
+from __future__ import print_function
 
 import ctypes
 import struct
@@ -60,11 +61,11 @@ class MeObject(StructuredObject, FirmwareObject):
 
     def show_compression(self):
         if self.compression == COMP_TYPE_HUFFMAN:
-            print " (huffman)"
+            print(" (huffman)")
         elif self.compression == COMP_TYPE_LZMA:
-            print " (lzma)"
+            print(" (lzma)")
         else:
-            print ""
+            print("")
 
     def dump_module(self, parent):
         if self.compression == COMP_TYPE_LZMA:
@@ -74,7 +75,7 @@ class MeObject(StructuredObject, FirmwareObject):
                 data = efi_compressor.LzmaDecompress(self.data, len(self.data))
                 dump_data("%s.module" % os.path.join(parent, self.name), data)
             except Exception as e:
-                print "Cannot extract (%s), %s" % (self.name, str(e))
+                print("Cannot extract (%s), %s" % (self.name, str(e)))
                 return
         elif self.compression == COMP_TYPE_NOT_COMPRESSED:
             dump_data("%s.module" % os.path.join(parent, self.name), self.data)
@@ -136,7 +137,7 @@ class MeModule(MeObject):
 
         if self.structure_type == MeModuleHeader1Type:
             # It's possible for type 1 to include LZMA compression
-            if self.data[0x50:0x55] == '\x5D\x00\x00\x80\x00':
+            if self.data[0x50:0x55] == b'\x5D\x00\x00\x80\x00':
                 raw_data = self.data[0x50:0x55]
                 raw_data += struct.pack("<Q", self.structure.UncompressedSize)
                 raw_data += self.data[0x55:]
@@ -158,10 +159,10 @@ class MeModule(MeObject):
         guid = self.guid
         if self.guid != "(none)":
             guid = green(sguid(self.guid))
-        print "%s%s name= %s, guid= %s, version= %s, size= %s" % (
+        print("%s%s name= %s, guid= %s, version= %s, size= %s" % (
             ts, blue("ME Module"),
             purple(self.name),
-            guid, self.attrs["version"], self.attrs["module_size"]),
+            guid, self.attrs["version"], self.attrs["module_size"]), end=' ')
         self.show_compression()
 
     def dump(self, parent=""):
@@ -181,11 +182,11 @@ class MeVariableModule(MeObject):
         self.valid_header = True
         self.header_blank = False
 
-        if hdr == '\xFF' * self.HEADER_SIZE:
+        if hdr == b'\xFF' * self.HEADER_SIZE:
             self.header_blank = True
             return
 
-        if len(hdr) < self.HEADER_SIZE or hdr[0] != '$':
+        if len(hdr) < self.HEADER_SIZE or hdr[0:1] != b'$':
             # print "Debug: invalid module header."
             self.valid_header = False
             return
@@ -204,11 +205,11 @@ class MeVariableModule(MeObject):
         pass
 
     def process(self):
-        if self.tag == '$UDC':
+        if self.tag == b'$UDC':
             subtag, _hash, name, offset, size = struct.unpack(
                 self.type.udc_format, self.data[:self.type.udc_length])
             self.add_update(subtag, name, offset, size)
-        if self.tag in ['$SKU', '$UVR']:
+        if self.tag in [b'$SKU', b'$UVR']:
             # SKU is not handled
             self.values = [0, 0]
             return True
@@ -223,13 +224,13 @@ class MeVariableModule(MeObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print "%s%s tag= %s, size= %d" % (
-            ts, blue("VModule"), purple(self.tag), self.size)
-        if self.tag == '$UDC':
-            print "%s%s name= %s, offset= %d, size= %s" % (
+        print("%s%s tag= %s, size= %d" % (
+            ts, blue("VModule"), purple(self.tag), self.size))
+        if self.tag == b'$UDC':
+            print("%s%s name= %s, offset= %d, size= %s" % (
                 ts, blue("%s Update" % self.update["tag"]),
                 purple(self.update["name"]),
-                self.update["offset"], self.update["size"])
+                self.update["offset"], self.update["size"]))
         pass
 
 
@@ -240,7 +241,7 @@ class MeModuleFile(MeObject):
         tag = data[:4]
 
         self.valid_header = True
-        if tag != "$MOD":
+        if tag != b"$MOD":
             self.valid_header = False
             return
 
@@ -256,7 +257,7 @@ class MeLLUT(MeObject):
         #self.tag = data[:4]
 
         self.valid_header = True
-        if data[:4] != 'LLUT':
+        if data[:4] != b'LLUT':
             self.valid_header = False
 
         #hdr = data[4:52]
@@ -282,9 +283,9 @@ class MeLLUT(MeObject):
             self.structure_size:self.structure_size + self.chunkcount * 4]
 
     def showinfo(self, ts='', index=None):
-        print "%s%s chunks= %d, chunk size= %d, start= %d, size= %d, base= 0x%08X" % (
+        print("%s%s chunks= %d, chunk size= %d, start= %d, size= %d, base= 0x%08X" % (
             ts, blue("LLUT"),
-            self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base)
+            self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base))
 
     def dump(self, parent='PART'):
         # print "Debug: relative (%d) absolute start (%d) len (%d)." % (
@@ -300,7 +301,7 @@ class MeManifestHeader(MeObject):
         self.attrs = {}
 
         self.valid_header = True
-        if data[:8] != "\x04\x00\x00\x00\xA1\x00\x00\x00":
+        if data[:8] != b"\x04\x00\x00\x00\xA1\x00\x00\x00":
             self.valid_header = False
             return
 
@@ -327,7 +328,7 @@ class MeManifestHeader(MeObject):
         '''Skipped.'''
         #ModuleType, ModuleSubType, size, tag, num_modules, keysize, scratchsize, rsa
 
-        self.partition_name = self.structure.PartitionName.rstrip("\0")
+        self.partition_name = self.structure.PartitionName.rstrip(b"\0")
         if not self.partition_name:
             self.partition_name = "(none)"
 
@@ -352,10 +353,10 @@ class MeManifestHeader(MeObject):
         return _objects
 
     def showinfo(self, ts='', index=None):
-        print "%s%s type= %d, subtype= %d, partition name= %s" % (
+        print("%s%s type= %d, subtype= %d, partition name= %s" % (
             ts, blue("ME Module Manifest"),
             self.structure.ModuleType, self.structure.ModuleSubType,
-            purple(self.structure.PartitionName))
+            purple(self.structure.PartitionName)))
         for module in self.modules:
             module.showinfo(ts="  %s" % ts)
         for module in self.variable_modules:
@@ -368,7 +369,7 @@ class MeManifestHeader(MeObject):
         # manifest).
         module_offset = 0
         huffman_offset = 0
-        for module_index in xrange(self.structure.NumModules):
+        for module_index in range(self.structure.NumModules):
             module = MeModule(
                 self.data[module_offset:],
                 self.header_type, module_offset + self.partition_offset)
@@ -406,11 +407,11 @@ class MeManifestHeader(MeObject):
             if module.header_blank:
                 continue
 
-            # print "Debug: found module (%s) size (%d)." % (module.tag,
-            # module.size)
+            # print("Debug: found module (%s) size (%d)." % (module.tag,
+            # module.size))
             if not module.process():
                 return False
-            if module.tag == '$MCP':
+            if module.tag == b'$MCP':
                 # The end of a manifest partition is stored in MCP
                 self.partition_end = module.values[0] + module.values[1]
             self.variable_modules.append(module)
@@ -437,9 +438,9 @@ class MeManifestHeader(MeObject):
         self.variable_modules = []
         self.module_map = {}
 
-        if self.structure.Tag == '$MN2':
+        if self.structure.Tag == b'$MN2':
             self.header_type = MeModuleHeader2Type
-        elif self.structure.Tag == '$MAN':
+        elif self.structure.Tag == b'$MAN':
             self.header_type = MeModuleHeader1Type
         else:
             # Cannot parse modules...
@@ -500,11 +501,11 @@ class CPDEntry(MeObject):
     def process(self):
         if not self.valid_header:
             return False
-        self.name = self.structure.Name.rstrip('\0')
+        self.name = self.structure.Name.rstrip(b'\0')
 
         # Not sure why the placement of data determines compression type.
         compression = self.structure.Offset >> 24
-        if self.name.find('.met') > 0:
+        if self.name.find(b'.met') > 0:
             self.compression = COMP_TYPE_NOT_COMPRESSED
         elif compression == 0x02:
             self.compression = COMP_TYPE_HUFFMAN
@@ -515,17 +516,17 @@ class CPDEntry(MeObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print "%s%s name= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
+        print("%s%s name= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME CDP Entry"), purple(self.name),
             self.structure.Offset, self.structure.Size, self.structure.Size,
-            self.structure.Flags),
+            self.structure.Flags), end=' ')
         self.show_compression()
 
     def dump(self, parent):
         if self.compression == COMP_TYPE_LZMA:
             # There is an odd state to check for that includes an additional
             # \x00\x00\x00 after the initial LZMA header block.
-            if self.data[0x0e:0x11] == '\x00\x00\x00':
+            if self.data[0x0e:0x11] == b'\x00\x00\x00':
                 self.data = self.data[:0x0e] + self.data[0x11:]
         self.dump_module(parent)
 
@@ -540,7 +541,7 @@ class CPDManifestHeader(MeObject):
         self.container_offset = container_offset
         self.data = data
 
-        self.partition_name = self.structure.PartitionName.rstrip("\0")
+        self.partition_name = self.structure.PartitionName.rstrip(b"\0")
         if not self.partition_name:
             self.partition_name = "(none)"
 
@@ -552,7 +553,7 @@ class CPDManifestHeader(MeObject):
 
     def process(self):
         offset = MeCpdHeaderType.size
-        for i in xrange(self.structure.NumModules - 1):
+        for i in range(self.structure.NumModules - 1):
             offset += MeCpdEntryType.size
             entry = CPDEntry(self.data, offset)
             if entry.process():
@@ -560,9 +561,9 @@ class CPDManifestHeader(MeObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print "%s%s name= %s modules= %d flags= 0x%x" % (
+        print("%s%s name= %s modules= %d flags= 0x%x" % (
             ts, blue("ME CDP Entry"), purple(self.partition_name),
-            self.structure.NumModules, self.structure.Flags)
+            self.structure.NumModules, self.structure.Flags))
         for entry in self.modules:
             entry.showinfo("%s  " % ts)
 
@@ -579,9 +580,9 @@ class PartitionEntry(MeObject):
         self.parse_structure(data[offset:], MeFptEntryType)
 
         self.has_content = True
-        if self.structure.Owner == "\xFF\xFF\xFF\xFF":
+        if self.structure.Owner == b"\xFF\xFF\xFF\xFF":
             # A blank owner is filled in with 0xFF.
-            self.structure.Owner = ''
+            self.structure.Owner = b''
         if self.structure.Offset == 0xFFFFFFFF:
             # A (blank) offset usually means flags = 0x02.
             self.has_content = False
@@ -609,7 +610,7 @@ class PartitionEntry(MeObject):
     def process(self):
         if not self.has_content:
             return True
-        if self.data[0:0x04] == '$CPD':
+        if self.data[0:0x04] == b'$CPD':
             manifest = CPDManifestHeader(self.data, self.structure.Offset)
         else:
             manifest = MeManifestHeader(self.data, self.structure.Offset)
@@ -619,10 +620,10 @@ class PartitionEntry(MeObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print "%s%s name= %s owner= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
+        print("%s%s name= %s owner= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME Partition Entry"),
             purple(self.structure.Name), purple(self.structure.Owner),
-            self.structure.Offset, self.structure.Size, self.structure.Size, self.structure.Flags)
+            self.structure.Offset, self.structure.Size, self.structure.Size, self.structure.Flags))
         if self.manifest is not None:
             self.manifest.showinfo("%s  " % ts)
 
@@ -655,7 +656,7 @@ class MeContainer(MeObject):
     def process(self):
         self.parse_structure(self.data, MePartitionTable)
 
-        for i in xrange(self.structure.Entries):
+        for i in range(self.structure.Entries):
             offset = self.partition_offset + 0x30
             offset += i * PartitionEntry.size
             entry = PartitionEntry(self.data, offset)
@@ -665,11 +666,11 @@ class MeContainer(MeObject):
         return True
 
     def showinfo(self, ts='', index=None):
-        print "%s%s type= 0x%x version= 0x%x size= 0x%x (%d bytes) entires= %d flags= 0x%x" % (
+        print("%s%s type= 0x%x version= 0x%x size= 0x%x (%d bytes) entires= %d flags= 0x%x" % (
             ts, blue("ME Container"),
             self.structure.Type, self.structure.Version,
             self.structure.Size, self.structure.Size,
-            self.structure.Entries, self.structure.Flags)
+            self.structure.Entries, self.structure.Flags))
         for partition in self.partitions:
             partition.showinfo("  %s" % ts)
 

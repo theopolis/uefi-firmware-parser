@@ -1,6 +1,6 @@
 import ctypes
 
-FLASH_HEADER = "\x5A\xA5\xF0\x0F"
+FLASH_HEADER = b"\x5A\xA5\xF0\x0F"
 
 uint8_t = ctypes.c_ubyte
 char = ctypes.c_char

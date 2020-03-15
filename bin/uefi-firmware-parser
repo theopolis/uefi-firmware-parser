@@ -1,13 +1,16 @@
-#!/usr/bin/env python
+#!/usr/bin/env python -u
 # -*- coding: utf-8 -*-
 
 import argparse
 import logging
 import os
+import sys
+from datetime import datetime
 
 from uefi_firmware.uefi import *
 from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware import AutoParser
+import uefi_firmware.utils # import nocolor
 
 def _process_show_extract(parsed_object):
     global FILENAME
@@ -17,20 +20,21 @@ def _process_show_extract(parsed_object):
     if args.outputfolder:
         autodir = "%s_output" % FILENAME
         if os.path.exists(autodir):
-            print "Skipping %s (_output directory exists)..." % (FILENAME)
+            print("Skipping %s (_output directory exists)..." % (FILENAME))
             return
         os.makedirs(autodir)
         args.output = autodir
 
     if args.extract:
-        print "Dumping..."
+        print("Dumping...")
         parsed_object.dump(args.output)
 
 
 def superbrute_search(data):
-    for i in xrange(len(data)):
-        bdata = data[i:]
-        parser = AutoParser(bdata)
+    for i in range(len(data)):
+        # using buffer avoids long memory copy
+        bdata = buffer(data, i)
+        parser = AutoParser(bdata, search=False)
         if parser.type() is not 'unknown':
             _process_show_extract(parser.parse())
             break
@@ -51,7 +55,7 @@ def parse_firmware_volume(data, name=0):
     _process_show_extract(firmware_volume)
 
     if args.generate is not None:
-        print "Generating FDF..."
+        print("Generating FDF...")
         firmware_volume.dump(args.generate)
         generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
         path = os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name))
@@ -59,62 +63,70 @@ def parse_firmware_volume(data, name=0):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
+    argparser = argparse.ArgumentParser(
         description="Parse, and optionally output, details and data on UEFI-related firmware.")
-    parser.add_argument(
+    argparser.add_argument(
         '-b', "--brute", default=False, action="store_true",
         help='The input is a blob and may contain FV headers.')
-    parser.add_argument(
+    argparser.add_argument(
         '--superbrute', default=False, action="store_true",
         help='The input is a blob and may contain any sort of firmware object')
 
-    parser.add_argument(
+    argparser.add_argument(
         '-q', "--quiet", default=False, action="store_true",
         help="Do not show info.")
-    parser.add_argument(
+    argparser.add_argument(
+        '-p', "--nocolor", default=False, action="store_true",
+        help="Plain text output. Do not use ANSI colors.")
+    argparser.add_argument(
         '-o', "--output", default=".",
         help="Dump firmware objects to this folder.")
-    parser.add_argument(
+    argparser.add_argument(
         '-O', "--outputfolder", default=False, action="store_true",
         help="Dump firmware objects to a folder based on filename ${FILENAME}_output/ ")
-    parser.add_argument(
+    argparser.add_argument(
         '-c', "--echo", default=False, action="store_true",
         help="Echo the filename before parsing or extracting.")
-    parser.add_argument(
+    argparser.add_argument(
         '-e', "--extract", action="store_true",
         help="Extract all files/sections/volumes.")
-    parser.add_argument(
+    argparser.add_argument(
         '-g', "--generate", default=None,
         help="Generate a FDF, implies extraction (volumes only)")
-    parser.add_argument(
+    argparser.add_argument(
         "--test", default=False, action='store_true',
         help="Test file parsing, output name/success.")
-    parser.add_argument('--verbose', default=False, action='store_true',
+    argparser.add_argument('--verbose', default=False, action='store_true',
         help='Enable verbose logging while parsing')
-    parser.add_argument(
+    argparser.add_argument(
         "file", nargs='+',
         help="The file(s) to work on")
-    args = parser.parse_args()
+    args = argparser.parse_args()
 
     if args.verbose:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     else:
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
+
+    # Pass the no color flag to the util config
+    uefi_firmware.utils.nocolor = args.nocolor
 
     for file_name in args.file:
         FILENAME = file_name
+        START = datetime.now()
         if args.echo:
-            print FILENAME
+            print(FILENAME)
 
         try:
             with open(file_name, 'rb') as fh:
                 input_data = fh.read()
-        except Exception, e:
-            print "Error: Cannot read file (%s) (%s)." % (file_name, str(e))
+        except Exception as e:
+            print("Error: Cannot read file (%s) (%s)." % (file_name, str(e)))
             continue
 
         if args.superbrute:
             superbrute_search(input_data)
+            logging.info("%s scanned in %s", FILENAME, str(datetime.now() - START))
             continue
 
         if args.brute:
@@ -123,11 +135,11 @@ if __name__ == "__main__":
 
         parser = AutoParser(input_data, search=True)
         if args.test:
-            print "%s: %s" % (file_name, red(parser.type()))
+            print("%s: %s" % (file_name, red(parser.type())))
             continue
 
         if parser.type() is 'unknown':
-            print "Error: cannot parse %s, could not detect firmware type." % (file_name)
+            print("Error: cannot parse %s, could not detect firmware type." % (file_name))
             continue
 
         firmware = parser.parse()

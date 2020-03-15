@@ -56,7 +56,7 @@ for root, directory, paths in os.walk('uefi_firmware/compression'):
     for path in paths:
         if os.path.splitext(path)[1][1:] == 'h':
             COMPRESSION_HEADERS.append(os.path.join(root, path))
-        else:
+        elif os.path.splitext(path)[1][1:] == 'c':
             COMPRESSION_SOURCES.append(os.path.join(root, path))
 
 setup(

@@ -1,9 +1,6 @@
 '''Base provides basic firmware object structures.
 '''
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import os
 import ctypes
@@ -132,7 +129,7 @@ class StructuredObject(object):
 
     def show_structure(self):
         for field in self.fields:
-            print ("%s: %s" % (field, getattr(self.structure, field, None)))
+            print("%s: %s" % (field, getattr(self.structure, field, None)))
 
 
 class RawObject(FirmwareObject, BaseObject):
@@ -145,7 +142,7 @@ class RawObject(FirmwareObject, BaseObject):
         return self.data
 
     def showinfo(self, ts='', index=None):
-        print ("%s%s size= %d " % (
+        print("%s%s size= %d " % (
             ts, blue("RawObject:"), len(self.data)
         ))
 
@@ -176,7 +173,7 @@ class AutoRawObject(RawObject):
 
     def showinfo(self, ts='', index=None):
         if self.object is None:
-            print ("%s%s size= %d " % (
+            print("%s%s size= %d " % (
                 ts, blue("RawObject:"), len(self.data)
             ))
             return

@@ -1,3 +1,5 @@
+// This is an open source non-commercial project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 /** @file
 
 Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
@@ -70,7 +72,7 @@ typedef INT16             NODE;
 STATIC
 VOID 
 PutDword(
-  IN UINT32 Data
+  IN size_t Data
   );
 
 STATIC
@@ -137,9 +139,9 @@ CountTFreq (
 STATIC 
 VOID 
 WritePTLen (
-  IN INT32 n, 
-  IN INT32 nbit, 
-  IN INT32 Special
+  IN ptrdiff_t n, 
+  IN ptrdiff_t nbit,
+  IN ptrdiff_t Special
   );
 
 STATIC 
@@ -150,13 +152,13 @@ WriteCLen (
 STATIC 
 VOID 
 EncodeC (
-  IN INT32 c
+  IN ptrdiff_t c
   );
 
 STATIC 
 VOID 
 EncodeP (
-  IN UINT32 p
+  IN size_t p
   );
 
 STATIC 
@@ -167,8 +169,8 @@ SendBlock (
 STATIC 
 VOID 
 Output (
-  IN UINT32 c, 
-  IN UINT32 p
+  IN size_t c, 
+  IN size_t p
   );
 
 STATIC 
@@ -189,15 +191,15 @@ MakeCrcTable (
 STATIC 
 VOID 
 PutBits (
-  IN INT32 n, 
-  IN UINT32 x
+  IN ptrdiff_t n, 
+  IN size_t x
   );
   
 STATIC 
-INT32 
+ptrdiff_t 
 FreadCrc (
   OUT UINT8 *p, 
-  IN  INT32 n
+  IN  ptrdiff_t n
   );
   
 STATIC 
@@ -208,33 +210,33 @@ InitPutBits (
 STATIC 
 VOID 
 CountLen (
-  IN INT32 i
+  IN ptrdiff_t i
   );
 
 STATIC 
 VOID 
 MakeLen (
-  IN INT32 Root
+  IN ptrdiff_t Root
   );
   
 STATIC 
 VOID 
 DownHeap (
-  IN INT32 i
+  IN ptrdiff_t i
   );
 
 STATIC 
 VOID 
 MakeCode (
-  IN  INT32 n, 
-  IN  UINT8 Len[], 
+  IN  ptrdiff_t n, 
+  const IN  UINT8 Len[],
   OUT UINT16 Code[]
   );
   
 STATIC 
-INT32 
+ptrdiff_t 
 MakeTree (
-  IN  INT32   NParm, 
+  IN  ptrdiff_t   NParm,
   IN  UINT16  FreqParm[], 
   OUT UINT8   LenParm[], 
   OUT UINT16  CodeParm[]
@@ -249,9 +251,10 @@ STATIC UINT8  *mSrc, *mDst, *mSrcUpperLimit, *mDstUpperLimit;
 
 STATIC UINT8  *mLevel, *mText, *mChildCount, *mBuf, mCLen[NC], mPTLen[NPT], *mLen;
 STATIC INT16  mHeap[NC + 1];
-STATIC INT32  mRemainder, mMatchLen, mBitCount, mHeapSize, mN;
-STATIC UINT32 mBufSiz = 0, mOutputPos, mOutputMask, mSubBitBuf, mCrc;
-STATIC UINT32 mCompSize, mOrigSize;
+STATIC ptrdiff_t  mRemainder, mMatchLen, mBitCount, mHeapSize, mN;
+STATIC size_t mBufSiz = 0;
+STATIC size_t mOutputPos, mOutputMask, mSubBitBuf, mCrc;
+STATIC size_t mCompSize, mOrigSize;
 
 STATIC UINT16 *mFreq, *mSortPtr, mLenCnt[17], mLeft[2 * NC - 1], mRight[2 * NC - 1],
               mCrcTable[UINT8_MAX + 1], mCFreq[2 * NC - 1],mCCode[NC],
@@ -267,9 +270,9 @@ STATIC NODE   mPos, mMatchPos, mAvail, *mPosition, *mParent, *mPrev, *mNext = NU
 EFI_STATUS
 EfiCompress (
   IN      UINT8   *SrcBuffer,
-  IN      UINT32  SrcSize,
+  IN      size_t  SrcSize,
   IN      UINT8   *DstBuffer,
-  IN OUT  UINT32  *DstSize
+  IN OUT  size_t  *DstSize
   )
 /*++
 
@@ -362,7 +365,7 @@ Returns:
 STATIC 
 VOID 
 PutDword(
-  IN UINT32 Data
+  IN size_t Data
   )
 /*++
 
@@ -397,7 +400,7 @@ Returns: (VOID)
 
 STATIC
 EFI_STATUS
-AllocateMemory ()
+AllocateMemory (void)
 /*++
 
 Routine Description:
@@ -413,11 +416,13 @@ Returns:
 
 --*/
 {
-  UINT32      i;
+  size_t      i;
   
-  mText       = malloc (WNDSIZ * 2 + MAXMATCH);
-  for (i = 0 ; i < WNDSIZ * 2 + MAXMATCH; i ++) {
-    mText[i] = 0;
+  mText       = malloc ((WNDSIZ * 2 + MAXMATCH) & 0x4100); //-V118
+  if (mText != NULL) {
+    for (i = 0 ; i < WNDSIZ * 2 + MAXMATCH; i ++) {
+      mText[i] = 0;
+    }
   }
 
   mLevel      = malloc ((WNDSIZ + UINT8_MAX + 1) * sizeof(*mLevel));
@@ -427,10 +432,10 @@ Returns:
   mPrev       = malloc (WNDSIZ * 2 * sizeof(*mPrev));
   mNext       = malloc ((MAX_HASH_VAL + 1) * sizeof(*mNext));
   
-  mBufSiz = 16 * 1024U;
+  mBufSiz = 16 * 1024LL;
   while ((mBuf = malloc(mBufSiz)) == NULL) {
-    mBufSiz = (mBufSiz / 10U) * 9U;
-    if (mBufSiz < 4 * 1024U) {
+    mBufSiz = (mBufSiz / 10LL) * 9LL;
+    if (mBufSiz < 4 * 1024LL) {
       return EFI_OUT_OF_RESOURCES;
     }
   }
@@ -440,7 +445,7 @@ Returns:
 }
 
 VOID
-FreeMemory ()
+FreeMemory (void)
 /*++
 
 Routine Description:
@@ -453,37 +458,14 @@ Returns: (VOID)
 
 --*/
 {
-  if (mText) {
-    free (mText);
-  }
-  
-  if (mLevel) {
-    free (mLevel);
-  }
-  
-  if (mChildCount) {
-    free (mChildCount);
-  }
-  
-  if (mPosition) {
-    free (mPosition);
-  }
-  
-  if (mParent) {
-    free (mParent);
-  }
-  
-  if (mPrev) {
-    free (mPrev);
-  }
-  
-  if (mNext) {
-    free (mNext);
-  }
-  
-  if (mBuf) {
-    free (mBuf);
-  }  
+  free(mText);
+  free(mLevel);
+  free(mChildCount);
+  free(mPosition);
+  free(mParent);
+  free(mPrev);
+  free(mNext);
+  free(mBuf);
 
   return;
 }
@@ -491,7 +473,7 @@ Returns: (VOID)
 
 STATIC 
 VOID 
-InitSlide ()
+InitSlide (void)
 /*++
 
 Routine Description:
@@ -550,7 +532,7 @@ Returns:
 {
   NODE r;
   
-  r = mNext[HASH(q, c)];
+  r = mNext[HASH(q, (size_t)c)];
   mParent[NIL] = q;  /* sentinel */
   while (mParent[r] != q) {
     r = mNext[r];
@@ -633,7 +615,7 @@ Returns: (VOID)
 
 STATIC 
 VOID 
-InsertNode ()
+InsertNode (void)
 /*++
 
 Routine Description:
@@ -748,7 +730,7 @@ Returns: (VOID)
 
 STATIC 
 VOID 
-DeleteNode ()
+DeleteNode (void)
 /*++
 
 Routine Description:
@@ -822,7 +804,7 @@ Returns: (VOID)
 
 STATIC 
 VOID 
-GetNextMatch ()
+GetNextMatch (void)
 /*++
 
 Routine Description:
@@ -836,7 +818,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 n;
+  ptrdiff_t n;
 
   mRemainder--;
   if (++mPos == WNDSIZ * 2) {
@@ -851,7 +833,7 @@ Returns: (VOID)
 
 STATIC
 EFI_STATUS
-Encode ()
+Encode (void)
 /*++
 
 Routine Description:
@@ -868,7 +850,7 @@ Returns:
 --*/
 {
   EFI_STATUS  Status;
-  INT32       LastMatchLen;
+  ptrdiff_t   LastMatchLen;
   NODE        LastMatchPos;
 
   Status = AllocateMemory();
@@ -912,7 +894,7 @@ Returns:
       //
       
       Output(LastMatchLen + (UINT8_MAX + 1 - THRESHOLD),
-             (mPos - LastMatchPos - 2) & (WNDSIZ - 1));
+             (mPos - LastMatchPos - 2) & (WNDSIZ - 1) & 0xFFFFFFFLL);
       while (--LastMatchLen > 0) {
         GetNextMatch();
       }
@@ -929,7 +911,7 @@ Returns:
 
 STATIC 
 VOID 
-CountTFreq ()
+CountTFreq (void)
 /*++
 
 Routine Description:
@@ -942,7 +924,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 i, k, n, Count;
+  ptrdiff_t i, k, n, Count;
 
   for (i = 0; i < NT; i++) {
     mTFreq[i] = 0;
@@ -979,9 +961,9 @@ Returns: (VOID)
 STATIC 
 VOID 
 WritePTLen (
-  IN INT32 n, 
-  IN INT32 nbit, 
-  IN INT32 Special
+  IN ptrdiff_t n, 
+  IN ptrdiff_t nbit, 
+  IN ptrdiff_t Special
   )
 /*++
 
@@ -999,7 +981,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 i, k;
+  ptrdiff_t i, k;
 
   while (n > 0 && mPTLen[n - 1] == 0) {
     n--;
@@ -1011,7 +993,7 @@ Returns: (VOID)
     if (k <= 6) {
       PutBits(3, k);
     } else {
-      PutBits(k - 3, (1U << (k - 3)) - 2);
+      PutBits(k - 3, (1LL << (k - 3)) - 2);
     }
     if (i == Special) {
       while (i < 6 && mPTLen[i] == 0) {
@@ -1024,7 +1006,7 @@ Returns: (VOID)
 
 STATIC 
 VOID 
-WriteCLen ()
+WriteCLen (void)
 /*++
 
 Routine Description:
@@ -1037,7 +1019,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32 i, k, n, Count;
+  ptrdiff_t i, k, n, Count;
 
   n = NC;
   while (n > 0 && mCLen[n - 1] == 0) {
@@ -1077,7 +1059,7 @@ Returns: (VOID)
 STATIC 
 VOID 
 EncodeC (
-  IN INT32 c
+  IN ptrdiff_t c
   )
 {
   PutBits(mCLen[c], mCCode[c]);
@@ -1086,10 +1068,10 @@ EncodeC (
 STATIC 
 VOID 
 EncodeP (
-  IN UINT32 p
+  IN size_t p
   )
 {
-  UINT32 c, q;
+  size_t c, q;
 
   c = 0;
   q = p;
@@ -1105,7 +1087,7 @@ EncodeP (
 
 STATIC 
 VOID 
-SendBlock ()
+SendBlock (void)
 /*++
 
 Routine Description:
@@ -1118,7 +1100,7 @@ Returns: (VOID)
 
 --*/
 {
-  UINT32 i, k, Flags, Root, Pos, Size;
+  size_t i, k, Flags, Root, Pos, Size;
   Flags = 0;
 
   Root = MakeTree(NC, mCFreq, mCLen, mCCode);
@@ -1155,8 +1137,8 @@ Returns: (VOID)
       Flags <<= 1;
     }
     if (Flags & (1U << (UINT8_BIT - 1))) {
-      EncodeC(mBuf[Pos++] + (1U << UINT8_BIT));
-      k = mBuf[Pos++] << UINT8_BIT;
+      EncodeC(mBuf[Pos++] + (1LL << UINT8_BIT) & 0xFFFFFFFFLL);
+      k = (size_t)mBuf[Pos++] << UINT8_BIT;
       k += mBuf[Pos++];
       EncodeP(k);
     } else {
@@ -1175,8 +1157,8 @@ Returns: (VOID)
 STATIC 
 VOID 
 Output (
-  IN UINT32 c, 
-  IN UINT32 p
+  IN size_t c,
+  IN size_t p
   )
 /*++
 
@@ -1193,9 +1175,9 @@ Returns: (VOID)
 
 --*/
 {
-  STATIC UINT32 CPos;
+  STATIC size_t CPos;
 
-  if ((mOutputMask >>= 1) == 0) {
+  if ((mOutputMask >>= 1) == 0) { //-V1019
     mOutputMask = 1U << (UINT8_BIT - 1);
     if (mOutputPos >= mBufSiz - 3 * UINT8_BIT) {
       SendBlock();
@@ -1221,9 +1203,9 @@ Returns: (VOID)
 
 STATIC
 VOID
-HufEncodeStart ()
+HufEncodeStart (void)
 {
-  INT32 i;
+  size_t i;
 
   for (i = 0; i < NC; i++) {
     mCFreq[i] = 0;
@@ -1238,7 +1220,7 @@ HufEncodeStart ()
 
 STATIC 
 VOID 
-HufEncodeEnd ()
+HufEncodeEnd (void)
 {
   SendBlock();
   
@@ -1253,9 +1235,9 @@ HufEncodeEnd ()
 
 STATIC 
 VOID 
-MakeCrcTable ()
+MakeCrcTable (void)
 {
-  UINT32 i, j, r;
+  size_t i, j, r;
 
   for (i = 0; i <= UINT8_MAX; i++) {
     r = i;
@@ -1273,8 +1255,8 @@ MakeCrcTable ()
 STATIC 
 VOID 
 PutBits (
-  IN INT32 n, 
-  IN UINT32 x
+  IN ptrdiff_t n,
+  IN size_t x
   )
 /*++
 
@@ -1319,10 +1301,10 @@ Returns: (VOID)
 }
 
 STATIC 
-INT32 
+ptrdiff_t
 FreadCrc (
   OUT UINT8 *p, 
-  IN  INT32 n
+  IN  ptrdiff_t n
   )
 /*++
 
@@ -1341,7 +1323,7 @@ Returns:
   
 --*/
 {
-  INT32 i;
+  ptrdiff_t i;
 
   for (i = 0; mSrc < mSrcUpperLimit && i < n; i++) {
     *p++ = *mSrc++;
@@ -1359,7 +1341,7 @@ Returns:
 
 STATIC 
 VOID 
-InitPutBits ()
+InitPutBits (void)
 {
   mBitCount = UINT8_BIT;  
   mSubBitBuf = 0;
@@ -1368,7 +1350,7 @@ InitPutBits ()
 STATIC 
 VOID 
 CountLen (
-  IN INT32 i
+  IN ptrdiff_t i
   )
 /*++
 
@@ -1384,7 +1366,7 @@ Returns: (VOID)
 
 --*/
 {
-  STATIC INT32 Depth = 0;
+  STATIC ptrdiff_t Depth = 0;
 
   if (i < mN) {
     mLenCnt[(Depth < 16) ? Depth : 16]++;
@@ -1399,7 +1381,7 @@ Returns: (VOID)
 STATIC 
 VOID 
 MakeLen (
-  IN INT32 Root
+  IN ptrdiff_t Root
   )
 /*++
 
@@ -1413,8 +1395,8 @@ Arguments:
 
 --*/
 {
-  INT32 i, k;
-  UINT32 Cum;
+  ptrdiff_t i, k;
+  size_t Cum;
 
   for (i = 0; i <= 16; i++) {
     mLenCnt[i] = 0;
@@ -1428,7 +1410,7 @@ Arguments:
   
   Cum = 0;
   for (i = 16; i > 0; i--) {
-    Cum += mLenCnt[i] << (16 - i);
+    Cum += (size_t)mLenCnt[i] << (16LL - i);
   }
   while (Cum != (1U << 16)) {
     mLenCnt[16]--;
@@ -1452,10 +1434,10 @@ Arguments:
 STATIC 
 VOID 
 DownHeap (
-  IN INT32 i
+  IN ptrdiff_t i
   )
 {
-  INT32 j, k;
+  ptrdiff_t j, k;
 
   //
   // priority queue: send i-th entry down heap
@@ -1478,8 +1460,8 @@ DownHeap (
 STATIC 
 VOID 
 MakeCode (
-  IN  INT32 n, 
-  IN  UINT8 Len[], 
+  IN  ptrdiff_t n,
+  const IN  UINT8 Len[], 
   OUT UINT16 Code[]
   )
 /*++
@@ -1498,7 +1480,7 @@ Returns: (VOID)
 
 --*/
 {
-  INT32    i;
+  ptrdiff_t    i;
   UINT16   Start[18];
 
   Start[1] = 0;
@@ -1511,9 +1493,9 @@ Returns: (VOID)
 }
 
 STATIC 
-INT32 
+ptrdiff_t
 MakeTree (
-  IN  INT32   NParm, 
+  IN  ptrdiff_t   NParm,
   IN  UINT16  FreqParm[], 
   OUT UINT8   LenParm[], 
   OUT UINT16  CodeParm[]
@@ -1537,7 +1519,7 @@ Returns:
   
 --*/
 {
-  INT32 i, j, k, Avail;
+  ptrdiff_t i, j, k, Avail;
   
   //
   // make tree, calculate len[], return root

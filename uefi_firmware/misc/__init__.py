@@ -1,1 +1,1 @@
-import checker
+from . import checker

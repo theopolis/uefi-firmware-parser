@@ -1,33 +1,48 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
 import os
 import sys
 import struct
+from builtins import bytes
 
+nocolor = False
 
 def blue(msg):
     '''Return the input string as console-escaped blue.'''
-    return "\033[1;36m%s\033[1;m" % msg
+    if nocolor:
+        return msg
+    else:
+        return "\033[1;36m%s\033[1;m" % msg
 
 
 def red(msg):
     '''Return the input string as console-escaped red.'''
-    return "\033[31m%s\033[1;m" % msg
+    if nocolor:
+        return msg
+    else:
+        return "\033[31m%s\033[1;m" % msg
 
 
 def green(msg):
     '''Return the input string as console-escaped green.'''
-    return "\033[32m%s\033[1;m" % msg
+    if nocolor:
+        return msg
+    else:
+        return "\033[32m%s\033[1;m" % msg
 
 
 def purple(msg):
     '''Return the input string as console-escaped purple.'''
-    return "\033[1;35m%s\033[1;m" % msg
+    if nocolor:
+        return msg
+    else:
+        return "\033[1;35m%s\033[1;m" % msg
 
 
 def print_error(msg):
     '''Write the input string to stderr.'''
-    print >> sys.stderr, msg
+    print(msg, file=sys.stderr)
 
 
 def ascii_char(c):
@@ -45,13 +60,13 @@ def hex_dump(data, size=16):
         size (Optional[int]): Length of each line.
     '''
     def print_line(line):
-        print "%s | %s" % (
+        print("%s | %s" % (
             line.encode("hex"),
             "".join([ascii_char(c) for c in line])
-        )
+        ))
         pass
 
-    for i in xrange(0, len(data) / size):
+    for i in range(0, len(data) / size):
         data_line = data[i * size:i * size + size]
         print_line(data_line)
 
@@ -64,7 +79,7 @@ def sguid(b, big=False):
     if b is None or len(b) != 16:
         return ""
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
-    d = ''.join('%02x' % ord(c) for c in d)
+    d = ''.join('%02x' % c for c in bytes(d))
     return "%08x-%04x-%04x-%s-%s" % (a, b, c, d[:4], d[4:])
 
 
@@ -72,7 +87,7 @@ def s2aguid(s):
     '''RFC4122 string GUID as int array.'''
     guid = [s[:8], s[8 + 1:9 + 4], s[13 + 1:14 + 4],
             s[18 + 1:19 + 4] + s[-12:]]
-    return aguid("".join([part.decode("hex") for part in guid]), True)
+    return aguid(b"".join([bytes.fromhex(part) for part in guid]), True)
 
 
 def a2sguid(a):
@@ -88,7 +103,7 @@ def a2sguid(a):
 def aguid(b, big=False):
     '''RFC4122 binary GUID as int array.'''
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
-    return [a, b, c] + [ord(_c) for _c in d]
+    return [a, b, c] + [_c for _c in d]
 
 
 def bit_set(field, bit):
@@ -109,26 +124,25 @@ def dump_data(name, data):
                 os.makedirs(os.path.dirname(name))
         with open(name, 'wb') as fh:
             fh.write(data)
-        print "Wrote: %s" % (red(name))
+        print("Wrote: %s" % (red(name)))
     except Exception as e:
-        print "Error: could not write (%s), (%s)." % (name, str(e))
+        print("Error: could not write (%s), (%s)." % (name, str(e)))
 
 
 def search_firmware_volumes(data, byte_align=16, limit=None):
     '''"Search a blob for '_FVH' magics, related to firmware volume headers.'''
     potential_volumes = []
-    for aligned in xrange(32, len(data), byte_align):
-        if data[aligned:aligned + 4] == '_FVH':
+    for aligned in range(32, len(data), byte_align):
+        if data[aligned:aligned + 4] == b'_FVH':
             potential_volumes.append(aligned)
             if limit and limit == len(potential_volumes):
                 return potential_volumes
-        magic = data[(aligned + byte_align / 2):(aligned + byte_align / 2 + 4)]
-        if magic == '_FVH':
-            potential_volumes.append(aligned + byte_align / 2)
+        magic = data[(aligned + byte_align // 2):(aligned + byte_align // 2 + 4)]
+        if magic == b'_FVH':
+            potential_volumes.append(aligned + byte_align // 2)
             if limit and limit == len(potential_volumes):
                 return potential_volumes
     return potential_volumes
-    pass
 
 
 def flatten_firmware_objects(base_objects):

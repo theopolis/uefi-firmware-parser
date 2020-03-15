@@ -2,9 +2,6 @@
 This package defines firmware structures for unpacking, decompressing,
 extracting, and rebuilding UEFI data.
 '''
-
-from __future__ import absolute_import
-from __future__ import division
 from __future__ import print_function
 
 import os
@@ -73,7 +70,10 @@ def decompress(algorithms, compressed_data):
     for i, algorithm in enumerate(algorithms):
         try:
             data = algorithm(compressed_data, len(compressed_data))
-            return (i, data)
+            if data:
+                return (i, data)
+            else:
+                raise Exception
         except Exception:
             continue
     return None
@@ -98,7 +98,7 @@ def find_volumes(data, process=True):
     '''
     objects = []
     while True:
-        volume_index = data.find("_FVH")
+        volume_index = data.find(b"_FVH")
         if volume_index < 0:
             break
         volume_index -= (8 + 16 * 2)
@@ -141,12 +141,12 @@ class NVARVariable(FirmwareVariable):
 
     @classmethod
     def valid_nvar(cls, data):
-        if data[:4] != "NVAR":
+        if data[:4] != b"NVAR":
             return False
         return True
 
     def _get_name(self, data, is_ascii=False):
-        tail = "\x00" if is_ascii else "\x00\x00"
+        tail = b"\x00" if is_ascii else b"\x00\x00"
         size = data.find(tail)
         if not is_ascii:
             name = uefi_name(data[:size])
@@ -614,7 +614,7 @@ class FirmwareFileSystemSection(EfiSection):
         self.valid_header = True
         try:
             self.size, self.type = struct.unpack("<3sB", header)
-            self.size = struct.unpack("<I", self.size + "\x00")[0]
+            self.size = struct.unpack("<I", self.size + b"\x00")[0]
         except Exception:
             print_error("Invalid FFS Section header, invalid length (%d)." % (
                 len(header)
@@ -668,7 +668,7 @@ class FirmwareFileSystemSection(EfiSection):
 
         elif self.type == 0x19:  # raw
             raw_object = True
-            if self.data[:10] == "123456789A":
+            if self.data[:10] == b"123456789A":
                 # HP adds a strange header to nested FVs.
                 fv = FirmwareVolume(self.data[12:], sguid(self.guid))
                 self.parsed_object = fv
@@ -788,7 +788,7 @@ class FirmwareFile(FirmwareObject):
         try:
             self.guid, self.checksum, self.type, self.attributes, \
                 self.size, self.state = struct.unpack("<16sHBB3sB", header)
-            self.size = struct.unpack("<I", self.size + "\x00")[0]
+            self.size = struct.unpack("<I", self.size + b"\x00")[0]
         except Exception as e:
             print_error("Error: invalid FirmwareFile header.")
             raise e
@@ -809,7 +809,7 @@ class FirmwareFile(FirmwareObject):
 
     @property
     def objects(self):
-        invalid_types = [bytes, str, unicode]
+        invalid_types = [bytes, str, str]
         valid_blobs = [
             b for b in self.raw_blobs if type(b) not in invalid_types]
         return self.sections + valid_blobs
@@ -950,8 +950,8 @@ class FirmwareFile(FirmwareObject):
         else:
             guid_display = "%s (%s)" % (
                 green(sguid(self.guid)), purple(guid_name))
-        print(("%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x "
-            "(%d bytes), (%s)") % (
+        print("%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x "
+            "(%d bytes), (%s)" % (
             blue("%sFile %s:" % (ts, index)),
             guid_display,
             self.type,
@@ -1017,13 +1017,12 @@ class FirmwareFileSystem(FirmwareObject):
         dlog(self, 'ffs')
         data = self._data
         status = True
-        while len(data) >= 24 and data[:24] != ("\xff" * 24):
+        while len(data) >= 24 and data[:24] != (b"\xff" * 24):
             firmware_file = FirmwareFile(data)
 
             if firmware_file.size < 24:
                 # This is a problem, the file was corrupted.
                 break
-
             ff_status = firmware_file.process()
             if not ff_status:
                 dlog(self, 'ffs', 'Could not parse FF')
@@ -1113,7 +1112,6 @@ class FirmwareVolume(FirmwareObject):
         self.raw_objects = []
         self.name = name
         self.valid_header = False
-
         try:
             header = data[:self._HEADER_SIZE]
             self.rsvd, self.guid, self.size, self.magic, self.attributes, \
@@ -1124,10 +1122,10 @@ class FirmwareVolume(FirmwareObject):
             # print "Error: cannot parse FV header (%s)." % str(e)
             return
 
-        if self.magic != '_FVH':
+        if self.magic != b'_FVH':
             return
 
-        if sguid(self.guid) not in FIRMWARE_VOLUME_GUIDS.values():
+        if sguid(self.guid) not in list(FIRMWARE_VOLUME_GUIDS.values()):
             dlog(self, sguid(self.guid), 'Unrecognized volume GUID')
             return
 
@@ -1265,7 +1263,7 @@ class FirmwareVolume(FirmwareObject):
         for _ffs in self.firmware_filesystems:
             _ffs.dump(os.path.join(parent, "volume-%s" % self.name))
 
-
+1
 class FirmwareCapsule(FirmwareObject):
     '''EFI Capsule Header.
 
@@ -1362,6 +1360,16 @@ class FirmwareCapsule(FirmwareObject):
                 "oem_header": 0,
                 "author_info": 0
             }
+        elif sguid(self.capsule_guid) == FIRMWARE_CAPSULE_GUIDS[4]:
+            # AMI Aptio Capsule
+            self.size, self.flags, self.image_size = struct.unpack(
+                "<III", data[:4 * 3])
+            self.offsets = {
+                "capsule_body": self.size,
+                "oem_header": 0,
+                "author_info": 0
+            }
+
 
         self.header_size = self.size
         pass

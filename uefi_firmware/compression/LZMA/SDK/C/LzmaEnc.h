@@ -14,25 +14,25 @@ extern "C" {
 
 typedef struct _CLzmaEncProps
 {
-  int level;       /*  0 <= level <= 9 */
-  UInt32 dictSize; /* (1 << 12) <= dictSize <= (1 << 27) for 32-bit version
-                      (1 << 12) <= dictSize <= (1 << 30) for 64-bit version
-                       default = (1 << 24) */
-  int lc;          /* 0 <= lc <= 8, default = 3 */
-  int lp;          /* 0 <= lp <= 4, default = 0 */
-  int pb;          /* 0 <= pb <= 4, default = 2 */
-  int algo;        /* 0 - fast, 1 - normal, default = 1 */
-  int fb;          /* 5 <= fb <= 273, default = 32 */
-  int btMode;      /* 0 - hashChain Mode, 1 - binTree mode - normal, default = 1 */
-  int numHashBytes; /* 2, 3 or 4, default = 4 */
-  UInt32 mc;        /* 1 <= mc <= (1 << 30), default = 32 */
-  unsigned writeEndMark;  /* 0 - do not write EOPM, 1 - write EOPM, default = 0 */
-  int numThreads;  /* 1 or 2, default = 2 */
+  int level;              /* 0 <= level <= 9 */
+  SizeT dictSize;         /* (1 << 12) <= dictSize <= (1 << 27) for 32-bit version
+                             (1 << 12) <= dictSize <= (1 << 30) for 64-bit version
+                             default = (1 << 24) */
+  ptrdiff_t lc;           /* 0 <= lc <= 8, default = 3 */
+  ptrdiff_t lp;           /* 0 <= lp <= 4, default = 0 */
+  ptrdiff_t pb;           /* 0 <= pb <= 4, default = 2 */
+  ptrdiff_t algo;         /* 0 - fast, 1 - normal, default = 1 */
+  ptrdiff_t fb;           /* 5 <= fb <= 273, default = 32 */
+  ptrdiff_t btMode;       /* 0 - hashChain Mode, 1 - binTree mode - normal, default = 1 */
+  ptrdiff_t numHashBytes; /* 2, 3 or 4, default = 4 */
+  SizeT  mc;              /* 1 <= mc <= (1 << 30), default = 32 */
+  SizeT writeEndMark;     /* 0 - do not write EOPM, 1 - write EOPM, default = 0 */
+  ptrdiff_t numThreads;   /* 1 or 2, default = 2 */
 } CLzmaEncProps;
 
 void LzmaEncProps_Init(CLzmaEncProps *p);
 void LzmaEncProps_Normalize(CLzmaEncProps *p);
-UInt32 LzmaEncProps_GetDictSize(const CLzmaEncProps *props2);
+SizeT LzmaEncProps_GetDictSize(const CLzmaEncProps *props2);
 
 
 /* ---------- CLzmaEncHandle Interface ---------- */
@@ -56,7 +56,7 @@ SRes LzmaEnc_WriteProperties(CLzmaEncHandle p, Byte *properties, SizeT *size);
 SRes LzmaEnc_Encode(CLzmaEncHandle p, ISeqOutStream *outStream, ISeqInStream *inStream,
     ICompressProgress *progress, ISzAlloc *alloc, ISzAlloc *allocBig);
 SRes LzmaEnc_MemEncode(CLzmaEncHandle p, Byte *dest, SizeT *destLen, const Byte *src, SizeT srcLen,
-    int writeEndMark, ICompressProgress *progress, ISzAlloc *alloc, ISzAlloc *allocBig);
+    ptrdiff_t writeEndMark, ICompressProgress *progress, ISzAlloc *alloc, ISzAlloc *allocBig);
 
 /* ---------- One Call Interface ---------- */
 
@@ -70,7 +70,7 @@ Return code:
 */
 
 SRes LzmaEncode(Byte *dest, SizeT *destLen, const Byte *src, SizeT srcLen,
-    const CLzmaEncProps *props, Byte *propsEncoded, SizeT *propsSize, int writeEndMark,
+    const CLzmaEncProps *props, Byte *propsEncoded, SizeT *propsSize, ptrdiff_t writeEndMark,
     ICompressProgress *progress, ISzAlloc *alloc, ISzAlloc *allocBig);
 
 #ifdef __cplusplus
