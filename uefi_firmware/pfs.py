@@ -233,6 +233,8 @@ class PFSSection(FirmwareObject, BaseObject):
         spec, version_type = struct.unpack("<I4s", hdr[0x10:0x10 + 0x08])
         self.spec = spec
         self.version = ""
+        self.type = 0
+        self.ts = 0
         for i in range(4):
             group_offset = 0x18 + (i * 2)
             if version_type[i:i+1] == b'A':
@@ -311,8 +313,8 @@ class PFSSection(FirmwareObject, BaseObject):
             self.rsa2.build(generate_checksum)
         pass
 
-    def showinfo(self, ts='', index=None):
-        print("%s%s %s spec 0x%02x ts 0x%02x type 0x%02x version 0x%02x size 0x%x (%d bytes)" % (
+    def showinfo(self, ts=0, index=None):
+        print("%s%s %s spec 0x%02x ts 0x%02x type 0x%02x version %s size 0x%x (%d bytes)" % (
             ts, blue("Dell PFSSection:"), green(sguid(self.uuid)),
             self.spec, self.ts, self.type, self.version,
             self.section_size, self.section_size
