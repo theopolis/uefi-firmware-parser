@@ -602,6 +602,7 @@ class FirmwareFileSystemSection(EfiSection):
     '''A firmware file section
 
     struct { UINT8 Size[3]; EFI_SECTION_TYPE Type; } EFI_COMMON_SECTION_HEADER;
+    struct { UINT8 Size[3]; EFI_SECTION_TYPE Type; UINT32 ExtendedSize; } EFI_COMMON_SECTION_HEADER2;
     '''
 
     parsed_object = None
@@ -615,6 +616,11 @@ class FirmwareFileSystemSection(EfiSection):
         try:
             self.size, self.type = struct.unpack("<3sB", header)
             self.size = struct.unpack("<I", self.size + b"\x00")[0]
+            
+            # check if ExtendedSize is used (FFSv3 only)
+            if self.size == 0xffffff:
+                self.size = struct.unpack("<I", data[4:8])[0]
+
         except Exception:
             print_error("Invalid FFS Section header, invalid length (%d)." % (
                 len(header)
