@@ -29,7 +29,6 @@ To install from Github, checkout this repo and use:
 
 - Python development headers, usually found in the ``python-dev`` package.
 - The compression/decompression features will use the python headers and ``gcc``.
-- ``pefile`` is optional, and may be used for additional parsing.
 
 Usage
 -----
