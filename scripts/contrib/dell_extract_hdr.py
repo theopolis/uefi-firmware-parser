@@ -4,6 +4,8 @@
 # This script finds the compressed data embedded in a Dell BIOS update program
 # and decompresses it to an apparent HDR file. The main data seems to start
 # at offset 0x58 in the HDR FWIW
+#
+# See https://forums.mydigitallife.net/threads/i-present-you-a-tool-to-decompress-dell-uefi-bios.44785/
 
 import zlib
 import sys
@@ -46,7 +48,7 @@ if __name__ == '__main__':
 
     # Now switch the order around since it's little endian
     # and also convert it to a hex string
-    length = data[start:stop + 4]
+    length = data[start:start + 4]
     length = binascii.b2a_hex(length[::-1])
     # and then make it a proper number (separate lines for clarity)
     length = int(length, 16)
