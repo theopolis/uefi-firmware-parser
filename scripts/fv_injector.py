@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
 import argparse
 
@@ -68,7 +69,7 @@ def parse_file(data):
 
     while True:
         selection = input(
-            "[#] Replace what section: [1-%d]: " % len(obj_references)))
+            "[#] Replace what section: [1-%d]: " % len(obj_references))
         try:
             selection = int(selection)
             if selection < 1 or selection > len(obj_references):
