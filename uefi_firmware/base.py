@@ -16,9 +16,19 @@ class FirmwareObject(object):
     '''A pseudo-abstract type providing common firmware member facilities.'''
     def __init__(self):
         self.data = None
-        self.name = None
+        self._name = None
         self.attrs = None
         self.guid = None
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        if isinstance(name, bytes):
+            name = name.decode("utf-8")
+        self._name = name
 
     @property
     def content(self):
