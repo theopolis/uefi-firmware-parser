@@ -505,7 +505,7 @@ class CPDEntry(MeObject):
 
         # Not sure why the placement of data determines compression type.
         compression = self.structure.Offset >> 24
-        if self.name.find(b'.met') > 0:
+        if self.name.find(".met") > 0:
             self.compression = COMP_TYPE_NOT_COMPRESSED
         elif compression == 0x02:
             self.compression = COMP_TYPE_HUFFMAN
