@@ -35,7 +35,7 @@ def superbrute_search(data):
         # using buffer avoids long memory copy
         bdata = buffer(data, i)
         parser = AutoParser(bdata, search=False)
-        if parser.type() is not 'unknown':
+        if parser.type() != 'unknown':
             _process_show_extract(parser.parse())
             break
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
             print("%s: %s" % (file_name, red(parser.type())))
             continue
 
-        if parser.type() is 'unknown':
+        if parser.type() == 'unknown':
             print("Error: cannot parse %s, could not detect firmware type." % (file_name))
             continue
 
