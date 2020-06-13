@@ -99,8 +99,8 @@ class MeModule(MeObject):
             )
 
         self.guid = self.structure.Guid
-        self.name = self.structure.Name
-        self.tag = self.structure.Tag
+        self.name = self.structure.Name.decode()
+        self.tag = self.structure.Tag.decode()
 
         self.attrs["module_size"] = self.structure.Size
         if structure_type == MeModuleHeader1Type:
@@ -205,11 +205,11 @@ class MeVariableModule(MeObject):
         pass
 
     def process(self):
-        if self.tag == b'$UDC':
+        if self.tag == '$UDC':
             subtag, _hash, name, offset, size = struct.unpack(
                 self.type.udc_format, self.data[:self.type.udc_length])
             self.add_update(subtag, name, offset, size)
-        if self.tag in [b'$SKU', b'$UVR']:
+        if self.tag in ['$SKU', '$UVR']:
             # SKU is not handled
             self.values = [0, 0]
             return True
@@ -226,7 +226,7 @@ class MeVariableModule(MeObject):
     def showinfo(self, ts='', index=None):
         print("%s%s tag= %s, size= %d" % (
             ts, blue("VModule"), purple(self.tag), self.size))
-        if self.tag == b'$UDC':
+        if self.tag == '$UDC':
             print("%s%s name= %s, offset= %d, size= %s" % (
                 ts, blue("%s Update" % self.update["tag"]),
                 purple(self.update["name"]),
@@ -246,7 +246,7 @@ class MeModuleFile(MeObject):
             return
 
         self.parse_structure(data, MeModuleFileHeader1Type)
-        self.name = self.structure.Name.rstrip('\0')
+        self.name = self.structure.Name.rstrip('\0').decode()
         self.size = self.structure.Size
         pass
 
@@ -328,7 +328,7 @@ class MeManifestHeader(MeObject):
         '''Skipped.'''
         #ModuleType, ModuleSubType, size, tag, num_modules, keysize, scratchsize, rsa
 
-        self.partition_name = self.structure.PartitionName.rstrip(b"\0")
+        self.partition_name = self.structure.PartitionName.rstrip(b"\0").decode()
         if not self.partition_name:
             self.partition_name = "(none)"
 
@@ -411,7 +411,7 @@ class MeManifestHeader(MeObject):
             # module.size))
             if not module.process():
                 return False
-            if module.tag == b'$MCP':
+            if module.tag == '$MCP':
                 # The end of a manifest partition is stored in MCP
                 self.partition_end = module.values[0] + module.values[1]
             self.variable_modules.append(module)
@@ -501,11 +501,11 @@ class CPDEntry(MeObject):
     def process(self):
         if not self.valid_header:
             return False
-        self.name = self.structure.Name.rstrip(b'\0')
+        self.name = self.structure.Name.rstrip(b'\0').decode()
 
         # Not sure why the placement of data determines compression type.
         compression = self.structure.Offset >> 24
-        if self.name.find(b'.met') > 0:
+        if self.name.find('.met') > 0:
             self.compression = COMP_TYPE_NOT_COMPRESSED
         elif compression == 0x02:
             self.compression = COMP_TYPE_HUFFMAN
@@ -622,17 +622,17 @@ class PartitionEntry(MeObject):
     def showinfo(self, ts='', index=None):
         print("%s%s name= %s owner= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME Partition Entry"),
-            purple(self.structure.Name), purple(self.structure.Owner),
+            purple(self.structure.Name.decode()), purple(self.structure.Owner),
             self.structure.Offset, self.structure.Size, self.structure.Size, self.structure.Flags))
         if self.manifest is not None:
             self.manifest.showinfo("%s  " % ts)
 
     def dump(self, parent=""):
         if self.has_content:
-            dump_data(os.path.join(parent, "%s.partition" % self.structure.Name),
+            dump_data(os.path.join(parent, "%s.partition" % self.structure.Name.decode()),
                 self.data)
         if self.manifest is not None:
-            self.manifest.dump(os.path.join(parent, self.structure.Name))
+            self.manifest.dump(os.path.join(parent, self.structure.Name.decode()))
 
 class MeContainer(MeObject):
 
