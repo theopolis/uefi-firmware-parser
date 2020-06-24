@@ -168,7 +168,7 @@ class FlashDescriptor(FirmwareObject):
         })
         gbe_region.process()
         self.regions.append(gbe_region)
-        
+
         pdr_base = self.region.structure.PdrBase
         pdr_limit = self.region.structure.PdrLimit
         pdr_size = _region_offset(pdr_base) + _region_size(pdr_base, pdr_limit)
@@ -184,14 +184,14 @@ class FlashDescriptor(FirmwareObject):
 
     def showinfo(self, ts='', index=None):
         print("%s%s chips 0x%02x, regions 0x%02x, masters 0x%02x, PCH straps 0x%02x, "
-                "PROC straps 0x%02x, ICC entries 0x%02x") % (
+                "PROC straps 0x%02x, ICC entries 0x%02x" % (
             ts, blue("Flash Descriptor (Intel PCH)"),
             self.map.structure.NumberOfFlashChips,
             self.map.structure.NumberOfRegions,
             self.map.structure.NumberOfMasters,
             self.map.structure.NumberOfPchStraps,
             self.map.structure.NumberOfProcStraps,
-            self.map.structure.NumberOfIccTableEntries)
+            self.map.structure.NumberOfIccTableEntries))
         for region in self.regions:
             region.showinfo(ts="%s  " % ts)
 
