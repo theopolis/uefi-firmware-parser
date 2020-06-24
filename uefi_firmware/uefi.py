@@ -1081,10 +1081,11 @@ class FirmwareVolume(FirmwareObject):
         UCHAR: FileSystemGUID[16]
         UINT64: Length
         UINT32: Signature (_FVH)
-        UINT8: Attribute mask
+        UINT32: Attribute mask
         UINT16: Header Length
         UINT16: Checksum
-        UINT8: Reserved[3]
+        UINT16: ExtHeaderOffset
+        UINT8: Reserved[1]
         UINT8: Revision
         [<BlockMap>]+, <BlockMap(0,0)>
     };
@@ -1097,9 +1098,17 @@ class FirmwareVolume(FirmwareObject):
         UINT32: Block size
     };
 
+    ExtHeaderOffset is an offset to a EFI_FIRMWARE_VOLUME_EXT_HEADER structure:
+
+    struct EFI_FIRMWARE_VOLUME_EXT_HEADER {
+        UCHAR: FvName[16]
+        UINT32: ExtHeaderSize
+    };
     '''
 
     _HEADER_SIZE = 0x38
+
+    _EXT_HEADER_SIZE = 0x14
 
     name = None
     '''string: An optional name or offset of the firmware volume.'''
@@ -1121,8 +1130,8 @@ class FirmwareVolume(FirmwareObject):
         try:
             header = data[:self._HEADER_SIZE]
             self.rsvd, self.guid, self.size, self.magic, self.attributes, \
-                self.hdrlen, self.checksum, self.rsvd2, \
-                self.revision = struct.unpack("<16s16sQ4sIHH3sB", header)
+                self.hdrlen, self.checksum, self.exthdroff, self.rsvd2, \
+                self.revision = struct.unpack("<16s16sQ4sIHHHsB", header)
         except Exception as e:
             dlog(self, name, "Exception in __init__: %s" % (str(e)))
             # print "Error: cannot parse FV header (%s)." % str(e)
@@ -1148,6 +1157,15 @@ class FirmwareVolume(FirmwareObject):
             dlog(self, name, "Exception in __init__: %s" % (str(e)))
             print_error("Error invalid FV header data (%s)." % str(e))
             return
+
+        try:
+            exthdr = self._data[self.exthdroff:self.exthdroff + self._EXT_HEADER_SIZE]
+            self.fvname, self.exthdrsize = struct.unpack("<16sI", exthdr)
+            assert self.exthdrsize == self._EXT_HEADER_SIZE
+        except Exception as e:
+            dlog(self, name, "Exception in __init__: %s" % (str(e)))
+            print_error("Error invalid FV header data (%s)." % str(e))
+            # not fatal
 
         self.valid_header = True
         pass
