@@ -999,6 +999,13 @@ class FirmwareFile(FirmwareObject):
             for i, section in enumerate(self.sections):
                 section.dump(parent, index=i)
 
+    def get_section(self, section_type, section_instance=0):
+        instance = -1
+        for section in self.sections:
+            if section.type == section_type:
+                instance += 1
+                if instance == section_instance:
+                    return section
 
 class FirmwareFileSystem(FirmwareObject):
     '''A potential UEFI firmware filesystem (FFS) data stream.
