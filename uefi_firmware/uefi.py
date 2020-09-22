@@ -193,7 +193,7 @@ class NVARVariable(FirmwareVariable):
             offset += var_name_size
 
         # The variable's meta-data is the value.
-        self.data_offset = self.size - self.structure_size
+        self.data_offset = offset
 
         # if self.data_offset+1 < self.size:
         #    self.subsections.append(RawObject(self.data[offset:]))
