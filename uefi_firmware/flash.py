@@ -195,6 +195,20 @@ class FlashDescriptor(FirmwareObject):
         for region in self.regions:
             region.showinfo(ts="%s  " % ts)
 
+    def to_dict(self):
+        res = []
+        # TODO: ME, PSP, ...
+        for region in self.regions:
+            if region.name == "bios":
+                fvs = []
+                for s in region.sections:
+                    fvs.append(s.to_dict())
+                res.append({
+                    'type': region.name,
+                    'data': { 'firmwareVolumes': fvs },
+                })
+        return { 'regions': res }
+
     def dump(self, parent, index=None):
         dump_data(os.path.join(parent, "flash.fd"), self.data)
 
