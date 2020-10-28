@@ -1362,6 +1362,10 @@ class FirmwareVolume(FirmwareObject):
         ]
         for block in self.blocks:
             if sguid(self.guid) in ffs_guids:
+                # FIXME: there may only be a single FFS, which is the FV body
+                # see https://uefi.org/sites/default/files/resources/PI_Spec_1_7_A_final_May1.pdf
+                # Volume 3, section 2.1.2
+                # and https://edk2-docs.gitbook.io/edk-ii-build-specification/2_design_discussion/22_uefipi_firmware_images
                 firmware_filesystem = FirmwareFileSystem(
                     data[:block[0] * block[1]])
                 ffs_status = firmware_filesystem.process()
