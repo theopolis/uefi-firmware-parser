@@ -129,6 +129,19 @@ class MultiObject(FirmwareObject):
         for i in range(len(self.objs)):
             self.objs[i].showinfo(ts, i)
 
+    def to_dict(self):
+        volumes = []
+        for i in range(len(self.objs)):
+            obj = self.objs[i]
+            if type(obj) is uefi.FirmwareVolume:
+                volumes.append(obj.to_dict())
+        return { 'regions': [
+            {
+                'type': 'bios',
+                'data': { 'firmwareVolumes': volumes },
+            }
+        ] }
+
     def dump(self, parent='', index=None):
         for i in range(len(self.objs)):
             self.objs[i].dump(parent, i)

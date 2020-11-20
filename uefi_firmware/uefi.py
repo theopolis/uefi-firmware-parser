@@ -224,6 +224,13 @@ class NVARVariable(FirmwareVariable):
                 "attrs= %s" % self.attrs["attrs"]
             ))
 
+    def to_dict(self):
+        if self.guid is not None and self.name is not None:
+            return {
+                'guid': sguid(self.guid),
+                'name': self.name,
+                'attributes': self.attrs["attrs"]
+            }
 
 class NVARVariableStore(FirmwareVariableStore):
     '''NVAR has no header, only a series of variable headers.'''
@@ -281,6 +288,16 @@ class NVARVariableStore(FirmwareVariableStore):
         for i, variable in enumerate(self.variables):
             variable.showinfo("%s  " % ts, i)
 
+    def to_dict(self):
+        if not self.valid_header:
+            return None
+        variables = []
+        for variable in self.variables:
+            variables.append(variable.to_dict())
+        return {
+            'variables': variables,
+        }
+
 
 class EfiSection(FirmwareObject):
     subsections = []
@@ -330,6 +347,15 @@ class EfiSection(FirmwareObject):
 
     def showinfo(self, ts='', index=-1):
         pass
+
+    def to_dict(self):
+        subsections = []
+        for subsection in self.subsections:
+            subsections.append(subsection.to_dict())
+        return {
+            'name': self.name,
+            'subsections': subsections,
+        }
 
     def dump(self, parent="", index=0):
         for i, subsection in enumerate(self.subsections):
@@ -450,6 +476,15 @@ class CompressedSection(EfiSection):
         for i, _object in enumerate(self.subsections):
             _object.showinfo(ts, i)
 
+    def to_dict(self):
+        subsections = []
+        for subsection in self.subsections:
+            subsections.append(subsection.to_dict())
+        return {
+            'name': self.name,
+            'subsections': subsections,
+        };
+
 
 class VersionSection(EfiSection):
 
@@ -487,6 +522,12 @@ class FreeformGuidSection(EfiSection):
         # print "%sGUID: %s" % (ts, green(sguid(self.guid)))
         if self.name is not None:
             print ("%sGUID Description: %s" % (ts, purple(self.name)))
+
+    def to_dict(self):
+        return {
+            'guid': sguid(self.guid),
+            'name': self.name,
+        }
 
 
 class GuidDefinedSection(EfiSection):
@@ -588,6 +629,26 @@ class GuidDefinedSection(EfiSection):
             for i, section in enumerate(self.subsections):
                 section.showinfo("%s  " % ts, index=i)
 
+    def to_dict(self):
+        auth_status = "ATTR_UNKNOWN"
+        if self.attrs["attrs"] == self.ATTR_AUTH_STATUS_VALID:
+            auth_status = "AUTH_VALID"
+        if self.attrs["attrs"] == self.ATTR_PROCESSING_REQUIRED:
+            auth_status = "PROCESSING_REQUIRED"
+
+        subsections = []
+        if len(self.subsections) > 0:
+            for section in self.subsections:
+                subsections.append(section.to_dict())
+
+        return {
+            'guid': sguid(self.guid),
+            'offset': self.offset,
+            'attributes': self.attrs["attrs"],
+            'authStatus': auth_status,
+            'subsections': subsections,
+        }
+
     def dump(self, parent="", generate_checksum=False, debug=False):
         for i, subsection in enumerate(self.subsections):
             subsection.dump(parent, i)
@@ -642,6 +703,7 @@ class FirmwareFileSystemSection(EfiSection):
         self.data = data[0x4:]
 
     def process(self):
+        # section types, see PI spec v1.7 Errata A Volume 3, 2.1.5.1, table 3-4
         dlog(self, sguid(self.guid))
         self.parsed_object = None
         raw_object = False
@@ -763,6 +825,53 @@ class FirmwareFileSystemSection(EfiSection):
         if self.parsed_object is not None:
             '''If this is a specific object, show that object's info.'''
             self.parsed_object.showinfo(ts + '  ')
+
+    def to_dict(self):
+        data = None
+        if self.parsed_object is not None:
+            data = self.parsed_object.to_dict()
+        # section types see PI spec v1.7 Errata A Volume 3, 2.1.5.1, table 3-4
+        # 0x13 - DXE DepEx
+        # 0x1b - PEI DepEx
+        # 0x1c - SMM DepEx
+        if self.type == 0x13 or self.type == 0x1b or self.type == 0x1c:
+            depex = []
+            offset = 0
+            while offset < len(self.data):
+                opcode = ord(self.data[offset:offset+1])
+                offset = offset + 1
+                if opcode == 0x02:
+                    guid = self.data[offset:offset+16]
+                    guid_name = get_guid_name(guid)
+                    offset = offset + 16
+                    depex.append({
+                        'op': "PUSH",
+                        'name': guid_name,
+                        'guid': sguid(guid),
+                    })
+                elif opcode == 0x03:
+                    depex.append({ 'op': "AND" })
+                elif opcode == 0x04:
+                    depex.append({ 'op': "OR" })
+                elif opcode == 0x05:
+                    depex.append({ 'op': "NOT" })
+                elif opcode == 0x06:
+                    depex.append({ 'op': "TRUE" })
+                elif opcode == 0x06:
+                    depex.append({ 'op': "FALSE" })
+                elif opcode == 0x08:
+                    depex.append({ 'op': "END" })
+                else:
+                    depex.append({ 'op': opcode })
+            data = depex
+
+        return {
+            'type': self.type,
+            'name': self.name, # only for section type 0x15 - User Interface
+            'size': self.size,
+            'sectionType': _get_section_type(self.type)[0],
+            'data': data,
+        }
 
     def dump(self, parent="", index=0):
         self.path = os.path.join(
@@ -972,7 +1081,7 @@ class FirmwareFile(FirmwareObject):
             if type(blob) not in [str, bytes]:
                 blob.showinfo(ts + "  ", index=i)
             else:
-                self._guessinfo(ts + "  ", blob, index=i)
+                self._guessinfo_text(ts + "  ", blob, index=i)
 
         if self.sections is None:
             # padding file, skip for now
@@ -981,9 +1090,45 @@ class FirmwareFile(FirmwareObject):
         for i, section in enumerate(self.sections):
             section.showinfo(ts + "  ", index=i)
 
-    def _guessinfo(self, ts, data, index="N/A"):
-        if data[:4] == "\x01\x00\x00\x00" and data[
-                20:24] == "\x01\x00\x00\x00":
+    def to_dict(self):
+        sections = []
+        for section in self.sections:
+            s = section.to_dict()
+            if s is not None:
+                sections.append(s)
+
+        blobs = []
+        for i, blob in enumerate(self.raw_blobs):
+            if type(blob) not in [str, bytes]:
+                blobs.append(blob.to_dict())
+            else:
+                info = {
+                    'note': self._guessinfo_dict(blob),
+                }
+                blobs.append(info)
+
+        # file types see PI spec v1.7 Errata A Volume 3, 2.1.4.1, table 3-3
+        return {
+            'guid': sguid(self.guid),
+            'name': get_guid_name(self.guid),
+            'type': self.type,
+            'attributes': self.attributes,
+            'state': self.state ^ 0xFF,
+            'size': self.size,
+            'fileType': _get_file_type(self.type)[0],
+            'sections': sections,
+            'blobs': blobs,
+        }
+
+    def _is_ucode(self, data):
+        return data[:4] == "\x01\x00\x00\x00" and data[20:24] == "\x01\x00\x00\x00"
+
+    def _guessinfo_dict(self, data):
+        if _is_ucode(data):
+            return "Might contain CPU microcodes"
+
+    def _guessinfo_text(self, ts, data, index="N/A"):
+        if _is_ucode(data):
             print ("%s Might contain CPU microcodes" % (
                 blue("%sBlob %d:" % (ts, index))))
 
@@ -1065,6 +1210,12 @@ class FirmwareFileSystem(FirmwareObject):
     def showinfo(self, ts='', index=None):
         for i, firmware_file in enumerate(self.files):
             firmware_file.showinfo(ts + ' ', index=i)
+
+    def to_dict(self):
+        res = []
+        for firmware_file in self.files:
+            res.append(firmware_file.to_dict())
+        return res
 
     def dump(self, parent=""):
         dump_data(os.path.join(parent, "filesystem.ffs"), self._data)
@@ -1211,6 +1362,10 @@ class FirmwareVolume(FirmwareObject):
         ]
         for block in self.blocks:
             if sguid(self.guid) in ffs_guids:
+                # FIXME: there may only be a single FFS, which is the FV body
+                # see https://uefi.org/sites/default/files/resources/PI_Spec_1_7_A_final_May1.pdf
+                # Volume 3, section 2.1.2
+                # and https://edk2-docs.gitbook.io/edk-ii-build-specification/2_design_discussion/22_uefipi_firmware_images
                 firmware_filesystem = FirmwareFileSystem(
                     data[:block[0] * block[1]])
                 ffs_status = firmware_filesystem.process()
@@ -1276,6 +1431,33 @@ class FirmwareVolume(FirmwareObject):
             _ffs.showinfo(ts + " ")
         for raw in self.raw_objects:
             print("%s%s NVRAM" % ("%s  " % ts, blue("Raw section:")))
+
+    def to_dict(self):
+        if not self.valid_header or len(self.data) == 0:
+            return
+
+        blocks = []
+        for block_size, block_length in self.blocks:
+            blocks.append({
+                'size': block_size,
+                'length': block_length,
+            })
+        ffs = []
+        if len(self.firmware_filesystems) > 0:
+            ffs = (self.firmware_filesystems[0].to_dict())
+
+        # TODO? for raw in self.raw_objects:
+
+        return {
+            'guid': sguid(self.guid),
+            'nameGuid': sguid(self.fvname),
+            'attributes': self.attributes,
+            'revision': self.revision,
+            'checksum': self.checksum,
+            'size': self.size,
+            'blocks': blocks,
+            'ffs': ffs,
+        }
 
     def dump(self, parent="", index=None):
         if len(self.data) == 0:
@@ -1458,6 +1640,28 @@ class FirmwareCapsule(FirmwareObject):
         if self.capsule_body is not None:
             self.capsule_body.showinfo(ts)
         pass
+
+    def to_dict(self):
+        if not self.valid_header or len(self.data) == 0:
+            return
+
+        body = None
+        if self.capsule_body is not None:
+            body = self.capsule_body.to_dict()
+
+        return {
+            'capsuleGuid': sguid(self.capsule_guid),
+            'guid': sguid(self.guid),
+            'flags': self.flags,
+            'size': self.size,
+            'imageSize': self.image_size,
+            'offsets': {
+                'capsuleBody': self.offsets["capsule_body"],
+                'oemHeader': self.offsets["oem_header"],
+                'authorInfo': self.offsets["author_info"],
+            },
+            'body': body,
+        }
 
     def dump(self, parent="", index=None):
         if len(self.data) == 0:

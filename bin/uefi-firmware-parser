@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -40,17 +41,30 @@ def superbrute_search(data):
             break
 
 
-def brute_search_volumes(data):
+def brute_search_volumes(data, to_json=False):
     volumes = search_firmware_volumes(data)
+    res = []
     for index in volumes:
-        parse_firmware_volume(data[index - 40:], name=index - 40)
+        fv = parse_firmware_volume(data[index - 40:], name=index - 40, to_json=to_json)
+        if fv:
+            res.append(fv.to_dict())
+    if to_json:
+        out = { 'regions': [
+            {
+                'type': 'bios',
+                'data': { 'firmwareVolumes': res },
+            }
+        ] }
+        print(json.dumps(out))
     pass
 
 
-def parse_firmware_volume(data, name=0):
+def parse_firmware_volume(data, name=0, to_json=False):
     firmware_volume = FirmwareVolume(data, name)
     if not firmware_volume.valid_header or not firmware_volume.process():
         return
+    if to_json:
+        return firmware_volume
     print("Found volume magic at 0x%x" % name)
     _process_show_extract(firmware_volume)
 
@@ -94,6 +108,9 @@ if __name__ == "__main__":
         '-g', "--generate", default=None,
         help="Generate a FDF, implies extraction (volumes only)")
     argparser.add_argument(
+        '-j', "--json", default=False, action='store_true',
+        help="Output in JSON format")
+    argparser.add_argument(
         "--test", default=False, action='store_true',
         help="Test file parsing, output name/success.")
     argparser.add_argument('--verbose', default=False, action='store_true',
@@ -130,7 +147,7 @@ if __name__ == "__main__":
             continue
 
         if args.brute:
-            brute_search_volumes(input_data)
+            brute_search_volumes(input_data, to_json=args.json)
             continue
 
         parser = AutoParser(input_data, search=True)
@@ -143,4 +160,10 @@ if __name__ == "__main__":
             continue
 
         firmware = parser.parse()
+
+        if args.json:
+            res = firmware.to_dict()
+            print(json.dumps(res))
+            continue
+
         _process_show_extract(firmware)

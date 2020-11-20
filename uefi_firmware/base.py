@@ -156,6 +156,11 @@ class RawObject(FirmwareObject, BaseObject):
             ts, blue("RawObject:"), len(self.data)
         ))
 
+    def to_dict(self):
+        return {
+            'size': len(self.data),
+        }
+
     def dump(self, parent='', index=0):
         path = os.path.join(parent, "object-%s.raw" % (str(index)))
         dump_data(path, self.data)
@@ -188,6 +193,11 @@ class AutoRawObject(RawObject):
             ))
             return
         self.object.showinfo(ts)
+
+    def to_dict(self):
+        return {
+            'size': len(self.data),
+        }
 
     def dump(self, parent='', index=None):
         if self.object is None:
