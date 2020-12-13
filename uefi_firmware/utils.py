@@ -119,7 +119,7 @@ def dump_data(name, data):
         data (binary): Content to be written.
     '''
     try:
-        if os.path.dirname(name) is not '':
+        if os.path.dirname(name) != '':
             if not os.path.exists(os.path.dirname(name)):
                 os.makedirs(os.path.dirname(name))
         with open(name, 'wb') as fh:
