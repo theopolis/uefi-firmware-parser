@@ -128,6 +128,8 @@ if __name__ == "__main__":
     # Pass the no color flag to the util config
     uefi_firmware.utils.nocolor = args.nocolor
 
+    errcode = 0
+
     for file_name in args.file:
         FILENAME = file_name
         START = datetime.now()
@@ -139,6 +141,7 @@ if __name__ == "__main__":
                 input_data = fh.read()
         except Exception as e:
             print("Error: Cannot read file (%s) (%s)." % (file_name, str(e)))
+            errcode = max(errcode, 1)
             continue
 
         if args.superbrute:
@@ -157,6 +160,7 @@ if __name__ == "__main__":
 
         if parser.type() == 'unknown':
             print("Error: cannot parse %s, could not detect firmware type." % (file_name))
+            errcode = max(errcode, 2)
             continue
 
         firmware = parser.parse()
@@ -167,3 +171,6 @@ if __name__ == "__main__":
             continue
 
         _process_show_extract(firmware)
+
+    if errcode:
+        sys.exit(errcode)
