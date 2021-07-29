@@ -16,6 +16,37 @@ from .structs.flash_structs import *
 
 from uefi_firmware import efi_compressor
 
+def parse_depex(input_data):
+    depex = []
+    offset = 0
+    while offset < len(input_data):
+        opcode = ord(input_data[offset:offset+1])
+        offset = offset + 1
+        if opcode == 0x02:
+            guid = input_data[offset:offset+16]
+            guid_name = get_guid_name(guid)
+            offset = offset + 16
+            depex.append({
+                'op': "PUSH",
+                'name': guid_name,
+                'guid': sguid(guid),
+            })
+        elif opcode == 0x03:
+            depex.append({ 'op': "AND" })
+        elif opcode == 0x04:
+            depex.append({ 'op': "OR" })
+        elif opcode == 0x05:
+            depex.append({ 'op': "NOT" })
+        elif opcode == 0x06:
+            depex.append({ 'op': "TRUE" })
+        elif opcode == 0x06:
+            depex.append({ 'op': "FALSE" })
+        elif opcode == 0x08:
+            depex.append({ 'op': "END" })
+        else:
+            depex.append({ 'op': opcode })
+
+    return depex
 
 def dlog(kls, name, msg=""):
     logging.info("%s %s %s" % (str(kls.__class__.__name__), name, msg))
@@ -830,40 +861,13 @@ class FirmwareFileSystemSection(EfiSection):
         data = None
         if self.parsed_object is not None:
             data = self.parsed_object.to_dict()
+
         # section types see PI spec v1.7 Errata A Volume 3, 2.1.5.1, table 3-4
         # 0x13 - DXE DepEx
         # 0x1b - PEI DepEx
         # 0x1c - SMM DepEx
         if self.type == 0x13 or self.type == 0x1b or self.type == 0x1c:
-            depex = []
-            offset = 0
-            while offset < len(self.data):
-                opcode = ord(self.data[offset:offset+1])
-                offset = offset + 1
-                if opcode == 0x02:
-                    guid = self.data[offset:offset+16]
-                    guid_name = get_guid_name(guid)
-                    offset = offset + 16
-                    depex.append({
-                        'op': "PUSH",
-                        'name': guid_name,
-                        'guid': sguid(guid),
-                    })
-                elif opcode == 0x03:
-                    depex.append({ 'op': "AND" })
-                elif opcode == 0x04:
-                    depex.append({ 'op': "OR" })
-                elif opcode == 0x05:
-                    depex.append({ 'op': "NOT" })
-                elif opcode == 0x06:
-                    depex.append({ 'op': "TRUE" })
-                elif opcode == 0x06:
-                    depex.append({ 'op': "FALSE" })
-                elif opcode == 0x08:
-                    depex.append({ 'op': "END" })
-                else:
-                    depex.append({ 'op': opcode })
-            data = depex
+            data = parse_depex(self.data)
 
         return {
             'type': self.type,

@@ -16,7 +16,7 @@ GUID_TABLES = [
 
 
 def get_guid_name(guid):
-    raw_guid = aguid(guid) if isinstance(guid, str) else guid
+    raw_guid = aguid(guid)
 
     for guid_table in GUID_TABLES:
         for name, match_guid in list(guid_table.items()):

@@ -85,6 +85,9 @@ if __name__ == "__main__":
     argparser.add_argument(
         '--superbrute', default=False, action="store_true",
         help='The input is a blob and may contain any sort of firmware object')
+    argparser.add_argument(
+        '--depex', default=False, action="store_true",
+        help='The input is a DEPEX blob')
 
     argparser.add_argument(
         '-q', "--quiet", default=False, action="store_true",
@@ -142,6 +145,18 @@ if __name__ == "__main__":
         except Exception as e:
             print("Error: Cannot read file (%s) (%s)." % (file_name, str(e)))
             errcode = max(errcode, 1)
+            continue
+
+        if args.depex:
+            depex = parse_depex(input_data)
+            for op in depex:
+                if 'guid' in op:
+                    if 'name' in op and op['name'] is not None:
+                        print("{} {} ({})".format(op['op'], op['guid'], op['name']))
+                    else:
+                        print("{} {}".format(op['op'], op['guid']))
+                else:
+                    print("{}".format(op['op']))
             continue
 
         if args.superbrute:
