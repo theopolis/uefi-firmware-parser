@@ -210,7 +210,7 @@ class NVARVariable(FirmwareVariable):
             offset += 1
 
         if bit_set(self.structure.Attributes, NVRAM_ATTRIBUTES["DATA"]):
-            self.data_offset = self.size - self.structure_size
+            self.data_offset = offset
             # self.subsections.append(RawObject(self.data[offset:]))
             return True
 
@@ -232,9 +232,11 @@ class NVARVariable(FirmwareVariable):
 
     def build(self, generate_checksum=False, debug=False):
         header = self.structure_data
-        data = ""
+        data = b""
         for section in self.subsections:
             data += section.build(generate_checksum, debug)
+        if len(self.subsections) == 0:
+            data = self.data[self.data_offset:]
         # Metadata includes optional guid/name.
         meta_data = self.data[self.structure_size:self.data_offset]
         return header + meta_data + data
