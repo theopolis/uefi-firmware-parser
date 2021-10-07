@@ -57,7 +57,7 @@ def parse_file(data):
             for sub_obj in obj["objects"]:
                 _print_obj(sub_obj)
 
-    ff = FirmwareFile(data)
+    ff = FirmwareFile(data, parent=None)
     if not ff.process():
         print("[!] Error: Cannot parse FirmwareFile.")
         return None

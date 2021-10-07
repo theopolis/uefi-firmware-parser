@@ -35,7 +35,7 @@ class UEFIFirmwareVolumeTester(TypeTester):
     parser = FirmwareVolume
 
     def match(self, data):
-        fv = FirmwareVolume(data)
+        fv = FirmwareVolume(data, parent=None)
         return fv.valid_header
 
 

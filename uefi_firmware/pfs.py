@@ -19,7 +19,7 @@ def _discover_volumes(data):
     volumes = []
     fv_offset = 0
     while fv_offset < len(data):
-        fv = FirmwareVolume(data[fv_offset:], hex(fv_offset))
+        fv = FirmwareVolume(data[fv_offset:], hex(fv_offset), base=fv_offset)
         if not fv.valid_header:
             break
         if not fv.process():

@@ -27,7 +27,7 @@ class AutoParser(object):
     the type by applying basic checks for known headers.
     '''
 
-    def __init__(self, data, search=True):
+    def __init__(self, data, search=True, parent=None, base=0):
         '''Create an AutoParser instance.
 
         Args:
@@ -38,6 +38,8 @@ class AutoParser(object):
         self.constructor = None
         self.firmware = None
         self.offset = 0
+        self.parent = parent
+        self.base = base
 
         if search:
             self.offset = 0
@@ -94,7 +96,7 @@ class AutoParser(object):
             else:
                 break
 
-        mfc = MultiVolumeContainer(self.data[size:])
+        mfc = MultiVolumeContainer(self.data[size:], parent=self.parent, base=self.base+size+self.offset)
         if mfc.has_indexes():
             # Headers were discovered, attempt to process.
             if mfc.process():
@@ -103,10 +105,10 @@ class AutoParser(object):
                 objs = objs + mfc.volumes
 
         if size < len(self.data):
-            objs.append(RawObject(self.data[size:]))
+            objs.append(RawObject(self.data[size:], parent=self.parent, base=self.base+size+self.offset))
 
         if self.offset > 0:
-            objs = [RawObject('\xFF' * self.offset)] + objs
+            objs = [RawObject('\xFF' * self.offset, parent=self.parent, base=self.base)] + objs
 
         if len(objs) == 1:
             return objs[0]
@@ -158,12 +160,15 @@ class MultiVolumeContainer(FirmwareObject):
     instead of a UEFIFirmwareVolume.
     '''
 
-    def __init__(self, data):
+    def __init__(self, data, parent, base=0):
         '''Initialize the container with the tail content from a volume.'''
         self.data = data
         self.indexes = search_firmware_volumes(data)
         self.volumes = []
         self.size = 0
+        self.base = base
+        self._data_offset = None
+        self.parent = parent
 
     def has_indexes(self):
         '''Check if any indexes were discovered.'''
@@ -175,7 +180,7 @@ class MultiVolumeContainer(FirmwareObject):
 
     def process(self):
         for index in self.indexes:
-            volume = uefi.FirmwareVolume(self.data[index - 40:], index)
+            volume = uefi.FirmwareVolume(self.data[index - 40:], index, parent=self, base=self._add_base_to_offset(index-40))
             if volume.process():
                 self.size += volume.size
                 self.volumes.append(volume)
