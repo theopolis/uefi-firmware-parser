@@ -629,7 +629,7 @@ class GuidDefinedSection(EfiSection):
             return self.process_subsections()
 
         status = True
-        if sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
+        if sguid(self.guid) in [FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"], FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED_HP"]]:
             status = decompress_guid(efi_compressor.LzmaDecompress)
         if sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["TIANO_COMPRESSED"]:
             status = decompress_guid(efi_compressor.TianoDecompress)
@@ -660,7 +660,7 @@ class GuidDefinedSection(EfiSection):
     def build(self, generate_checksum=False, debug=False):
         data = self._build_subsections(generate_checksum)
 
-        if sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"]:
+        if sguid(self.guid) in [FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"], FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED_HP"]]:
             data = str(efi_compressor.LzmaCompress(data, len(data)))
             pass
 
