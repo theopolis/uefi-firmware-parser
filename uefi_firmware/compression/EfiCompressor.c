@@ -29,7 +29,7 @@ This includes minor API changes for Tiano and EFI decompressor, as well as LZMA.
 #define TIANO_COMPRESSION 2 //not defined, section type= 0x01
 #define LZMA_COMPRESSION  3 //not defined, section type= 0x02
 
-#define MAX_DSTSZ 40000000 //40MB -- Max destination buffer size allowed. 
+#define MAX_DSTSZ 100000000 //100MB -- Max destination buffer size allowed. 
                            //I don't think there is an image to decompress bigger than this. In any case, feel free to change.
 
 EFI_STATUS
