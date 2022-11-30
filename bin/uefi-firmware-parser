@@ -93,8 +93,11 @@ if __name__ == "__main__":
         '-q', "--quiet", default=False, action="store_true",
         help="Do not show info.")
     argparser.add_argument(
-        '-p', "--nocolor", default=False, action="store_true",
-        help="Plain text output. Do not use ANSI colors.")
+        "--color", default="auto", choices=("always", "never", "auto"),
+        help="Control the use of ANSI colors in the output. (auto is default)")
+    argparser.add_argument(
+        '-p', "--nocolor", const="never", dest="color", action="store_const",
+        help="Plain text output. Do not use ANSI colors. (Alias for --color=never)")
     argparser.add_argument(
         '-o', "--output", default=".",
         help="Dump firmware objects to this folder.")
@@ -128,8 +131,11 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
 
-    # Pass the no color flag to the util config
-    uefi_firmware.utils.nocolor = args.nocolor
+    # Do not use colors when piping the output
+    if args.color == "auto":
+        args.color = "always" if sys.stdout.isatty() else "never"
+    # Pass the color flag to the util config
+    uefi_firmware.utils.nocolor = (args.color == "never")
 
     errcode = 0
 
