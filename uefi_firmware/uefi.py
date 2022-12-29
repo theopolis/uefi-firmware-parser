@@ -636,7 +636,7 @@ class GuidDefinedSection(EfiSection):
             status = decompress_guid(efi_compressor.TianoDecompress)
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_QC"]:
             try:
-                data = zlib.decompress(b'0'+self.preamble + self.data, 31)
+                data = zlib.decompress(self.preamble + self.data, 31)
                 if data is not None:
                     self.subtype = 0
                     self.data = data
