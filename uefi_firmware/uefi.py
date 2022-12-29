@@ -641,13 +641,12 @@ class GuidDefinedSection(EfiSection):
                     self.subtype = 0
                     self.data = data
                     self.process_subsections()
-                
                 else:
                     status = False
-                    dlog(self, sguid(self.guid), f'error, empty zlib decompress')
+                    dlog(self, sguid(self.guid), 'error, empty zlib decompress')
             except zlib.error as err:
                 status = False
-                dlog(self, sguid(self.guid), f'zlib error: {str(err)}')
+                dlog(self, sguid(self.guid), 'zlib error: ' + str(err))
         # Todo: check for processing required attribute
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             # Todo: verify this (FirmwareFile hack)
