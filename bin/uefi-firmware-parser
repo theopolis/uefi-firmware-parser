@@ -22,8 +22,10 @@ def _process_show_extract(parsed_object):
         autodir = "%s_output" % FILENAME
         if os.path.exists(autodir):
             print("Skipping %s (_output directory exists)..." % (FILENAME))
-            return
-        os.makedirs(autodir)
+            if not args.brute:
+                return
+        else:
+            os.makedirs(autodir)
         args.output = autodir
 
     if args.extract:
