@@ -3,6 +3,7 @@ from . import efiguids_ami
 from . import efiguids_dell
 from . import efiguids_lenovo
 from . import efiguids_asrock
+from . import efiguids_qualcomm
 
 from ..utils import aguid
 
@@ -12,6 +13,7 @@ GUID_TABLES = [
     efiguids_dell.GUIDs,
     efiguids_lenovo.GUIDs,
     efiguids_asrock.GUIDs,
+    efiguids_qualcomm.GUIDS,
 ]
 
 

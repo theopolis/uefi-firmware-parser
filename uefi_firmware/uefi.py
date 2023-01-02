@@ -7,6 +7,7 @@ from __future__ import print_function
 import os
 import struct
 import logging
+import zlib
 
 from .base import FirmwareObject, StructuredObject, RawObject, AutoRawObject
 from .utils import *
@@ -631,8 +632,21 @@ class GuidDefinedSection(EfiSection):
         status = True
         if sguid(self.guid) in [FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"], FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED_HP"]]:
             status = decompress_guid(efi_compressor.LzmaDecompress)
-        if sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["TIANO_COMPRESSED"]:
+        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["TIANO_COMPRESSED"]:
             status = decompress_guid(efi_compressor.TianoDecompress)
+        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_QC"]:
+            try:
+                data = zlib.decompress(self.preamble + self.data, 31)
+                if data is not None:
+                    self.subtype = 0
+                    self.data = data
+                    self.process_subsections()
+                else:
+                    status = False
+                    dlog(self, sguid(self.guid), 'error, empty zlib decompress')
+            except zlib.error as err:
+                status = False
+                dlog(self, sguid(self.guid), 'zlib error: ' + str(err))
         # Todo: check for processing required attribute
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             # Todo: verify this (FirmwareFile hack)

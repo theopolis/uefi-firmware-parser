@@ -187,3 +187,4 @@ or extraction from the distribution update mechanism (typically a PE).
 - MSI
 - VMware
 - Apple
+- Qualcomm
