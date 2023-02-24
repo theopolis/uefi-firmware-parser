@@ -102,6 +102,9 @@ def a2sguid(a):
 
 def aguid(b, big=False):
     '''RFC4122 binary GUID as int array.'''
+    if len(b) < 16:
+        for i in range(16 - len(b)):
+            b += b'\0'
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
     return [a, b, c] + [_c for _c in d]
 
