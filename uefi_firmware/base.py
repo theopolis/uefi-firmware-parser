@@ -27,7 +27,10 @@ class FirmwareObject(object):
     @name.setter
     def name(self, name):
         if isinstance(name, bytes):
-            name = name.decode("utf-8")
+            try:
+                name = name.decode("utf-8")
+            except UnicodeDecodeError:
+                name = "0x[{}]".format(name.hex())
         self._name = name
 
     @property
