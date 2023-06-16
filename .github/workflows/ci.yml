@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: '${{ matrix.python-version }}'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-dev
+        if [[ "${{ matrix.python-version }}" == "3"* ]]; then
+          pip install --upgrade 'importlib-metadata > 4'
+        fi
+        python setup.py install
+
+    - name: Clone public samples
+      run: git clone https://github.com/theopolis/uefi-firmware-samples samples
+
+    - name: Run unit tests
+      run: python -bb ./tests/test_compression.py
+
+    - name: Run test script against all samples
+      run: |
+        cd samples
+        python -bb ./test_samples.py
