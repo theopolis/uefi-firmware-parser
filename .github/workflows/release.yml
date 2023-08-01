@@ -37,6 +37,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v3
 
+      # Used for aarch64 build on linux
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        if: contains(matrix.os, 'ubuntu')
+
       # Used to host cibuildwheel
       - name: Setup Python
         uses: actions/setup-python@v3
