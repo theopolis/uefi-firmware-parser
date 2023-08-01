@@ -1,0 +1,83 @@
+name: Build release artifacts
+
+on: [push, pull_request]
+
+jobs:
+  build_sdist:
+    name: Build sdist
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      # Used to host build
+      - name: Setup Python
+        uses: actions/setup-python@v3
+
+      - name: Install python-build
+        run: python -m pip install build>=0.10.0
+
+      - name: Build sdist
+        run: python -m build -s -o dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sdist
+          path: ./dist/*
+
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019, macos-11]
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      # Used for aarch64 build on linux
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        if: contains(matrix.os, 'ubuntu')
+
+      # Used to host cibuildwheel
+      - name: Setup Python
+        uses: actions/setup-python@v3
+
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel>=2.14.1
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
+          CIBW_ARCHS_LINUX: "x86_64 i686 aarch64"
+          CIBW_ARCHS_WINDOWS: "AMD64 x86 ARM64"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels-${{ matrix.os }}
+          path: ./dist/*
+
+  publish_pypi:
+    name: Publish artifacts to PyPI
+    runs-on: ubuntu-20.04
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+    needs: [build_sdist, build_wheels]
+    permissions:
+      id-token: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist
+
+      - name: Flatten dist directory
+        run: find dist -type f -exec mv -f {} dist/ \; -exec sh -c 'rmdir "$(dirname "$1")"' _ {} \;
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
