@@ -94,10 +94,7 @@ setup(
         'Intended Audience :: System Administrators',
         'Topic :: Security',
         'License :: OSI Approved :: BSD License',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Programming Language :: Python :: 3.12',
-        'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3',
     ],
     keywords="security uefi firmware parsing bios",
 )
