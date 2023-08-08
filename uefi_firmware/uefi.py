@@ -634,10 +634,19 @@ class GuidDefinedSection(EfiSection):
             status = decompress_guid(efi_compressor.LzmaDecompress)
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["TIANO_COMPRESSED"]:
             status = decompress_guid(efi_compressor.TianoDecompress)
-        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_QC"]:
+        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_AMD"]:
+            body = self.preamble + self.data
+            if len(body) < 0x100:
+                dlog(self, sguid(self.guid), 'error, invalid AMD zlib section header size')
+                return False
+            header = EfiAmdZlibSectionHeader.from_buffer_copy(body[:0x100])
+            compressed_data = body[0x100:]
+            if len(compressed_data) != header.CompressedSize:
+                dlog(self, sguid(self.guid), 'error, invalid AMD zlib section header')
+                return False
             try:
-                data = zlib.decompress(self.preamble + self.data, 31)
-                if data is not None:
+                data = zlib.decompress(compressed_data)
+                if data:
                     self.subtype = 0
                     self.data = data
                     self.process_subsections()
@@ -646,7 +655,20 @@ class GuidDefinedSection(EfiSection):
                     dlog(self, sguid(self.guid), 'error, empty zlib decompress')
             except zlib.error as err:
                 status = False
-                dlog(self, sguid(self.guid), 'zlib error: ' + str(err))
+                dlog(self, sguid(self.guid), 'zlib error: %s' % str(err))
+        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_QC"]:
+            try:
+                data = zlib.decompress(self.preamble + self.data, 31)
+                if data:
+                    self.subtype = 0
+                    self.data = data
+                    self.process_subsections()
+                else:
+                    status = False
+                    dlog(self, sguid(self.guid), 'error, empty zlib decompress')
+            except zlib.error as err:
+                status = False
+                dlog(self, sguid(self.guid), 'zlib error: %s' % str(err))
         # Todo: check for processing required attribute
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             # Todo: verify this (FirmwareFile hack)
@@ -669,7 +691,6 @@ class GuidDefinedSection(EfiSection):
         if not status:
             dlog(self, sguid(self.guid), 'Could not parse GUID object')
         return status
-        pass
 
     def build(self, generate_checksum=False, debug=False):
         data = self._build_subsections(generate_checksum)

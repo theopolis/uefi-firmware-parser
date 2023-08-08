@@ -29,13 +29,14 @@ FIRMWARE_CAPSULE_GUIDS = [
 ]
 
 FIRMWARE_GUIDED_GUIDS = {
-    "LZMA_COMPRESSED":    "ee4e5898-3914-4259-9d6e-dc7bd79403cf",
-    "LZMA_COMPRESSED_HP": "0ed85e23-f253-413f-a03c-901987b04397",
-    "TIANO_COMPRESSED":   "a31280ad-481e-41b6-95e8-127f4c984779",
-    "FIRMWARE_VOLUME":    "24400798-3807-4a42-b413-a1ecee205dd8",
-    #"VOLUME_SECTION":    "367ae684-335d-4671-a16d-899dbfea6b88",
-    "STATIC_GUID":        "fc1bcdb0-7d31-49aa-936a-a4600d9dd083",
-    "ZLIB_COMPRESSED_QC": "1d301fe9-be79-4353-91c2-d23bc959ae0c"
+    "LZMA_COMPRESSED":     "ee4e5898-3914-4259-9d6e-dc7bd79403cf",
+    "LZMA_COMPRESSED_HP":  "0ed85e23-f253-413f-a03c-901987b04397",
+    "TIANO_COMPRESSED":    "a31280ad-481e-41b6-95e8-127f4c984779",
+    "FIRMWARE_VOLUME":     "24400798-3807-4a42-b413-a1ecee205dd8",
+    #"VOLUME_SECTION":     "367ae684-335d-4671-a16d-899dbfea6b88",
+    "STATIC_GUID":         "fc1bcdb0-7d31-49aa-936a-a4600d9dd083",
+    "ZLIB_COMPRESSED_QC":  "1d301fe9-be79-4353-91c2-d23bc959ae0c",
+    "ZLIB_COMPRESSED_AMD": "ce3233f5-2cd6-4d87-9152-4a238bb6d1c4",
 }
 
 FIRMWARE_FREEFORM_GUIDS = {
@@ -196,4 +197,12 @@ class FirmwareVolumeType(ctypes.LittleEndianStructure):
         ("Checksum",   uint16_t),
         ("Reserved2",  uint8_t),
         ("Revision",   uint8_t)
+    ]
+
+class EfiAmdZlibSectionHeader(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("ZeroHeader", uint8_t * 0x14),
+        ("CompressedSize", uint32_t),
+        ("ZeroFooter", uint8_t * (0x100 - 0x14 - 4))   
     ]
