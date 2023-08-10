@@ -4,9 +4,10 @@ extracting, and rebuilding UEFI data.
 '''
 from __future__ import print_function
 
+import gzip
+import logging
 import os
 import struct
-import logging
 import zlib
 
 from .base import FirmwareObject, StructuredObject, RawObject, AutoRawObject
@@ -656,19 +657,19 @@ class GuidDefinedSection(EfiSection):
             except zlib.error as err:
                 status = False
                 dlog(self, sguid(self.guid), 'zlib error: %s' % str(err))
-        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_QC"]:
+        elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["GZIP_COMPRESSED_QC"]:
             try:
-                data = zlib.decompress(self.preamble + self.data, 31)
+                data = gzip.decompress(self.preamble + self.data)
                 if data:
                     self.subtype = 0
                     self.data = data
                     self.process_subsections()
                 else:
                     status = False
-                    dlog(self, sguid(self.guid), 'error, empty zlib decompress')
-            except zlib.error as err:
+                    dlog(self, sguid(self.guid), 'error, empty gzip decompress')
+            except Exception as err:
                 status = False
-                dlog(self, sguid(self.guid), 'zlib error: %s' % str(err))
+                dlog(self, sguid(self.guid), 'gzip error: %s' % str(err))
         # Todo: check for processing required attribute
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             # Todo: verify this (FirmwareFile hack)
