@@ -1186,11 +1186,11 @@ class FirmwareFile(FirmwareObject):
         return data[:4] == "\x01\x00\x00\x00" and data[20:24] == "\x01\x00\x00\x00"
 
     def _guessinfo_dict(self, data):
-        if _is_ucode(data):
+        if self._is_ucode(data):
             return "Might contain CPU microcodes"
 
     def _guessinfo_text(self, ts, data, index="N/A"):
-        if _is_ucode(data):
+        if self._is_ucode(data):
             print ("%s Might contain CPU microcodes" % (
                 blue("%sBlob %d:" % (ts, index))))
 
