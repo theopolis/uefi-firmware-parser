@@ -3,9 +3,6 @@
 import os
 
 from . import uefi
-from . import pfs
-from . import me
-from . import flash
 
 from .misc import checker
 from .base import FirmwareObject, RawObject, AutoRawObject

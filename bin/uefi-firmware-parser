@@ -14,6 +14,9 @@ from uefi_firmware import AutoParser
 import uefi_firmware.utils # import nocolor
 
 def _process_show_extract(parsed_object):
+    if parsed_object is None:
+        return
+
     global FILENAME
     if not args.quiet:
         parsed_object.showinfo('')

@@ -850,6 +850,9 @@ class FirmwareFileSystemSection(EfiSection):
             if raw_object:
                 self.parsed_object = RawObject(self.data)
                 status = True
+            elif isinstance(self.parsed_object, GuidDefinedSection):
+                self.parsed_object = None
+                return True
         return status
 
     def build(self, generate_checksum=False, debug=False):
@@ -872,7 +875,6 @@ class FirmwareFileSystemSection(EfiSection):
         string_size = struct.pack("<I", size)
         header = struct.pack("<3sB", string_size[:3], self.type)
         return size, header + data
-        pass
 
     def showinfo(self, ts='', index=-1):
         print ("%s type 0x%02x, size 0x%x (%d bytes) (%s section)" % (
@@ -1186,11 +1188,11 @@ class FirmwareFile(FirmwareObject):
         return data[:4] == "\x01\x00\x00\x00" and data[20:24] == "\x01\x00\x00\x00"
 
     def _guessinfo_dict(self, data):
-        if _is_ucode(data):
+        if self._is_ucode(data):
             return "Might contain CPU microcodes"
 
     def _guessinfo_text(self, ts, data, index="N/A"):
-        if _is_ucode(data):
+        if self._is_ucode(data):
             print ("%s Might contain CPU microcodes" % (
                 blue("%sBlob %d:" % (ts, index))))
 
