@@ -850,9 +850,13 @@ class FirmwareFileSystemSection(EfiSection):
             if raw_object:
                 self.parsed_object = RawObject(self.data)
                 status = True
+
+            # If we failed to unpack/parse one of the GuidDefinedSections
+            # we can skip it and continue parsing the rest of the objects
             elif isinstance(self.parsed_object, GuidDefinedSection):
                 self.parsed_object = None
                 return True
+
         return status
 
     def build(self, generate_checksum=False, debug=False):
@@ -895,9 +899,9 @@ class FirmwareFileSystemSection(EfiSection):
                     guid_name = get_guid_name(guid)
                     offset = offset + 16
                     if guid_name is not None:
-                            print ("%s  PUSH %s (%s)" % (ts, guid_name, sguid(guid)))
+                        print ("%s  PUSH %s (%s)" % (ts, guid_name, sguid(guid)))
                     else:
-                            print ("%s  PUSH %s" % (ts, sguid(guid)))
+                        print ("%s  PUSH %s" % (ts, sguid(guid)))
                 elif opcode == 0x03:
                     print ("%s  AND" % (ts))
                 elif opcode == 0x04:
