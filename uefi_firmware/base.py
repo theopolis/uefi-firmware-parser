@@ -5,7 +5,7 @@
 import os
 import ctypes
 
-from .utils import dump_data, sguid, blue
+from .utils import dump_data, sguid, blue, utf8_decode_safe
 
 
 class BaseObject(object):
@@ -27,10 +27,7 @@ class FirmwareObject(object):
     @name.setter
     def name(self, name):
         if isinstance(name, bytes):
-            try:
-                name = name.decode("utf-8")
-            except UnicodeDecodeError:
-                name = "0x[{}]".format(name.hex())
+            name = utf8_decode_safe(name)
         self._name = name
 
     @property

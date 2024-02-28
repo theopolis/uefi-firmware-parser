@@ -356,7 +356,7 @@ class MeManifestHeader(MeObject):
         print("%s%s type= %d, subtype= %d, partition name= %s" % (
             ts, blue("ME Module Manifest"),
             self.structure.ModuleType, self.structure.ModuleSubType,
-            purple(self.structure.PartitionName.decode("utf-8"))))
+            purple(utf8_decode_safe(self.structure.PartitionName))))
         for module in self.modules:
             module.showinfo(ts="  %s" % ts)
         for module in self.variable_modules:
@@ -480,7 +480,7 @@ class MeManifestHeader(MeObject):
             module.dump(parent)
         if self.huffman_llut is not None:
             self.huffman_llut.dump(
-                os.path.join(parent, self.structure.PartitionName.decode("utf-8")))
+                os.path.join(parent, utf8_decode_safe(self.structure.PartitionName)))
 
 
 class CPDEntry(MeObject):
@@ -622,17 +622,17 @@ class PartitionEntry(MeObject):
     def showinfo(self, ts='', index=None):
         print("%s%s name= %s owner= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME Partition Entry"),
-            purple(self.structure.Name.decode("utf-8")), purple(self.structure.Owner),
+            purple(utf8_decode_safe(self.structure.Name)), purple(self.structure.Owner),
             self.structure.Offset, self.structure.Size, self.structure.Size, self.structure.Flags))
         if self.manifest is not None:
             self.manifest.showinfo("%s  " % ts)
 
     def dump(self, parent=""):
         if self.has_content:
-            dump_data(os.path.join(parent, "%s.partition" % self.structure.Name.decode("utf-8")),
+            dump_data(os.path.join(parent, "%s.partition" % utf8_decode_safe(self.structure.Name)),
                 self.data)
         if self.manifest is not None:
-            self.manifest.dump(os.path.join(parent, self.structure.Name.decode("utf-8")))
+            self.manifest.dump(os.path.join(parent, utf8_decode_safe(self.structure.Name)))
 
 class MeContainer(MeObject):
 

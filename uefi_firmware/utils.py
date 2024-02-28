@@ -165,3 +165,18 @@ def flatten_firmware_objects(base_objects):
         if "objects" in _object and len(_object["objects"]) > 0:
             objects += flatten_firmware_objects(_object["objects"])
     return objects
+
+def utf8_decode_safe(byte_array):
+    '''Safely decode a byte array into a UTF-8 string.
+
+    Args:
+        byte_array (bytes): Unsafe (presumably) UTF-8 encoded string
+
+    Returns:
+        str: A proper string OR a 0x-prefixed hex representation of input byte array
+    '''
+
+    try:
+        return byte_array.decode("utf-8")
+    except UnicodeDecodeError:
+        return "0x[{}]".format(byte_array.hex())
