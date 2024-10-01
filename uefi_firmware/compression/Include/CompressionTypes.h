@@ -39,7 +39,7 @@ EFI_STATUS
 typedef
 EFI_STATUS
 (*GETINFO_FUNCTION) (
-  IN      VOID    *Source,
+  IN      CONST VOID    *Source,
   IN      size_t  SrcSize,
   OUT     size_t  *DstSize,
   OUT     size_t  *ScratchSize
@@ -48,7 +48,7 @@ EFI_STATUS
 typedef
 EFI_STATUS
 (*DECOMPRESS_FUNCTION) (
-  IN      VOID    *Source,
+  IN      CONST VOID    *Source,
   IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
   IN      size_t  DstSize,

@@ -26,7 +26,7 @@ Abstract:
 
 EFI_STATUS
 EfiGetInfo (
-  IN      VOID    *Source,
+  IN      CONST VOID    *Source,
   IN      size_t  SrcSize,
   OUT     size_t  *DstSize,
   OUT     size_t  *ScratchSize
@@ -53,7 +53,7 @@ Returns:
 
 EFI_STATUS
 EfiDecompress (
-  IN      VOID    *Source,
+  IN      CONST VOID    *Source,
   IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
   IN      size_t  DstSize,
@@ -84,7 +84,7 @@ Returns:
 
 EFI_STATUS
 TianoGetInfo (
-  IN      VOID    *Source,
+  IN      CONST VOID    *Source,
   IN      size_t   SrcSize,
   OUT     size_t   *DstSize,
   OUT     size_t   *ScratchSize
@@ -111,7 +111,7 @@ Returns:
 
 EFI_STATUS
 TianoDecompress (
-  IN      VOID    *Source,
+  IN      CONST VOID    *Source,
   IN      size_t  SrcSize,
   IN OUT  VOID    *Destination,
   IN      size_t  DstSize,

@@ -88,9 +88,10 @@ buffer was returned ScratchSize.
 EFI_STATUS
 EFIAPI
 LzmaGetInfo (
-    CONST VOID  *Source,
-    UINT32       SourceSize,
-    UINT32       *DestinationSize
+    CONST VOID   *Source,
+    size_t       SourceSize,
+    size_t       *DestinationSize,
+    size_t       *_ScratchSize
     )
 {
     UINT64 DecodedSize;
@@ -131,8 +132,11 @@ EFI_STATUS
 EFIAPI
 LzmaDecompress (
     CONST VOID  *Source,
-    UINT32      SourceSize,
-    VOID        *Destination
+    size_t      SourceSize,
+    VOID        *Destination,
+    size_t      _DstSize,
+    VOID        *_Scratch,
+    size_t      _ScratchSize
     )
 {
     SRes              LzmaResult;
