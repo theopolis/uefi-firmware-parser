@@ -1377,14 +1377,15 @@ class FirmwareVolume(FirmwareObject):
             print_error("Error invalid FV header data (%s)." % str(e))
             return
 
-        try:
-            exthdr = self._data[self.exthdroff:self.exthdroff + self._EXT_HEADER_SIZE]
-            self.fvname, self.exthdrsize = struct.unpack("<16sI", exthdr)
-            assert self.exthdrsize == self._EXT_HEADER_SIZE
-        except Exception as e:
-            dlog(self, name, "Exception in __init__: %s" % (str(e)))
-            print_error("Error invalid FV header data (%s)." % str(e))
-            # not fatal
+        if self.exthdroff != 0:
+            try:
+                exthdr = self._data[self.exthdroff:self.exthdroff + self._EXT_HEADER_SIZE]
+                self.fvname, self.exthdrsize = struct.unpack("<16sI", exthdr)
+                assert self.exthdrsize == self._EXT_HEADER_SIZE
+            except Exception as e:
+                dlog(self, name, "Exception in __init__: %s" % (str(e)))
+                print_error("Error invalid FV header data (%s)." % str(e))
+                # not fatal
 
         self.valid_header = True
         pass
