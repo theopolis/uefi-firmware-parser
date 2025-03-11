@@ -806,7 +806,8 @@ class FirmwareFileSystemSection(EfiSection):
             self.parsed_object = guid_defined
 
         elif self.type == 0x14:  # version string
-            self.name = uefi_name(self.data)
+            self.build_number = struct.unpack("<H", self.data[0:2])[0]
+            self.name = uefi_name(self.data[2:])
 
         elif self.type == 0x15:  # user interface name
             self.name = uefi_name(self.data)
@@ -887,7 +888,9 @@ class FirmwareFileSystemSection(EfiSection):
             _get_section_type(self.type)[0]
         ))
         if self.type == 0x15 and self.name is not None:
-            print ("%sName: %s" % (ts, purple(self.name)))
+            print ("%s  Name: %s" % (ts, purple(self.name)))
+        if self.type == 0x14 and self.name is not None:
+            print ("%s  Version: %s BuildNum: %d" % (ts, self.name, self.build_number))
         # DXE, PEI and SMM DEPEX sections
         if self.type == 0x13 or self.type == 0x1b or self.type == 0x1c:
             offset = 0
