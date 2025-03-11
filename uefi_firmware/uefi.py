@@ -763,12 +763,14 @@ class FirmwareFileSystemSection(EfiSection):
         header = data[:0x4]
 
         self.valid_header = True
+        large_header = False
         try:
             self.size, self.type = struct.unpack("<3sB", header)
             self.size = struct.unpack("<I", self.size + b"\x00")[0]
 
             # check if ExtendedSize is used (FFSv3 only)
             if self.size == 0xffffff:
+                large_header = True
                 self.size = struct.unpack("<I", data[4:8])[0]
 
         except Exception:
@@ -779,7 +781,10 @@ class FirmwareFileSystemSection(EfiSection):
             return
 
         self._data = data[:self.size]
-        self.data = data[0x4:self.size]
+        if large_header:
+            self.data = data[0x8:self.size]
+        else:
+            self.data = data[0x4:self.size]
         self.name = None
 
     @property
