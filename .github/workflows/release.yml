@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Used to host build
       - name: Setup Python
@@ -21,7 +21,7 @@ jobs:
         run: python -m build -s -o dist
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sdist
           path: ./dist/*
@@ -35,16 +35,16 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Used for aarch64 build on linux
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         if: contains(matrix.os, 'ubuntu')
 
       # Used to host cibuildwheel
       - name: Setup Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel>=2.14.1
@@ -57,7 +57,7 @@ jobs:
           CIBW_ARCHS_WINDOWS: "AMD64 x86 ARM64"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
           path: ./dist/*
@@ -71,7 +71,7 @@ jobs:
       id-token: write
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist
 
