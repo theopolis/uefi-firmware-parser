@@ -1486,15 +1486,55 @@ class FirmwareVolume(FirmwareObject):
         if not self.valid_header or len(self.data) == 0:
             return
 
-        print("%s %s attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
-            blue("%sFirmware Volume:" % (ts)),
-            green(sguid(self.guid)),
-            self.attributes,
-            self.revision,
-            self.checksum,
-            self.size,
-            self.size
-        ))
+        fvtype = None
+        for fvtypestr in FIRMWARE_VOLUME_GUIDS:
+            if sguid(self.guid) == FIRMWARE_VOLUME_GUIDS[fvtypestr]:
+                fvtype = fvtypestr
+                break
+        if fvtype is not None:
+            if hasattr(self, 'fvname'):
+                print("%s %s %s, attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
+                    blue("%sFirmware Volume:" % (ts)),
+                    green(fvtype),
+                    "%s %s" % ("nameGuid", green(sguid(self.fvname))),
+                    self.attributes,
+                    self.revision,
+                    self.checksum,
+                    self.size,
+                    self.size
+                ))
+            else:
+                print("%s %s attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
+                    blue("%sFirmware Volume:" % (ts)),
+                    green(fvtype),
+                    self.attributes,
+                    self.revision,
+                    self.checksum,
+                    self.size,
+                    self.size
+                ))
+        else:
+            if hasattr(self, 'fvname'):
+                print("%s %s %s, attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
+                    blue("%sFirmware Volume:" % (ts)),
+                    green(sguid(self.guid)),
+                    "%s %s" % ("nameGuid", green(sguid(self.fvname))),
+                    self.attributes,
+                    self.revision,
+                    self.checksum,
+                    self.size,
+                    self.size
+                ))
+            else:
+                print("%s %s attr 0x%08x, rev %d, cksum 0x%x, size 0x%x (%d bytes)" % (
+                    blue("%sFirmware Volume:" % (ts)),
+                    green(sguid(self.guid)),
+                    self.attributes,
+                    self.revision,
+                    self.checksum,
+                    self.size,
+                    self.size
+                ))
         print(blue("%s  Firmware Volume Blocks: " % (ts)), end="")
         for block_size, block_length in self.blocks:
             print("(%d, 0x%x)" % (block_size, block_length), end="")
