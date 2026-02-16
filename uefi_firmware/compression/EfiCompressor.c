@@ -179,20 +179,32 @@ UefiCompress(
   SrcBuf = SrcData->ob_sval;
 
   if (type == LZMA_COMPRESSION) {
-    CompressFunction = (COMPRESS_FUNCTION) LzmaCompress;
+    // LzmaCompress takes a 5th DictionarySize parameter, so it cannot be
+    // called through the 4-parameter COMPRESS_FUNCTION pointer.
+    UINT32 LzmaDstSize = 0;
+    Status = LzmaCompress((CONST UINT8 *)SrcBuf, (UINT32)SrcDataSize, NULL, &LzmaDstSize, DEFAULT_LZMA_DICTIONARY_SIZE);
+    if (Status == EFI_BUFFER_TOO_SMALL) {
+      DstBuf = malloc(LzmaDstSize);
+      if (!DstBuf) {
+        errorHandling(SrcBuf, DstBuf);
+        return NULL;
+      }
+      Status = LzmaCompress((CONST UINT8 *)SrcBuf, (UINT32)SrcDataSize, (UINT8 *)DstBuf, &LzmaDstSize, DEFAULT_LZMA_DICTIONARY_SIZE);
+    }
+    DstDataSize = (SizeT)LzmaDstSize;
   } else {
     CompressFunction = (COMPRESS_FUNCTION) ((type == EFI_COMPRESSION) ? EfiCompress : TianoCompress);
-  }
-  Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
-  if (Status == EFI_BUFFER_TOO_SMALL) {
-    // The first call to compress fills in the expected destination size.
-    DstBuf = malloc (DstDataSize);
-    if (!DstBuf) {
-      errorHandling(SrcBuf, DstBuf);
-      return NULL;
-    }
-    // The second call to compress compresses.
     Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
+    if (Status == EFI_BUFFER_TOO_SMALL) {
+      // The first call to compress fills in the expected destination size.
+      DstBuf = malloc (DstDataSize);
+      if (!DstBuf) {
+        errorHandling(SrcBuf, DstBuf);
+        return NULL;
+      }
+      // The second call to compress compresses.
+      Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
+    }
   }
 
   if (Status != EFI_SUCCESS) {
