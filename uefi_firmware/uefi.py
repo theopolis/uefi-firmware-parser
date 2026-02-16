@@ -865,7 +865,7 @@ class FirmwareFileSystemSection(EfiSection):
         return status
 
     def build(self, generate_checksum=False, debug=False):
-        data = ""
+        data = b""
         # Add section data (either raw, or a partitioned section)
         if self.parsed_object is not None:
             data = self.parsed_object.build(generate_checksum)
@@ -876,7 +876,7 @@ class FirmwareFileSystemSection(EfiSection):
         size = self.size
         trailling_bytes = (self.size - 4) - len(data)
         if trailling_bytes > 0:
-            data += '\x00' * trailling_bytes
+            data += b'\x00' * trailling_bytes
         if trailling_bytes < 0:
             size = self.size - trailling_bytes
             pass
@@ -1090,13 +1090,13 @@ class FirmwareFile(FirmwareObject):
         return status
 
     def build(self, generate_checksum=False, debug=False):
-        data = ""
+        data = b""
         for i, section in enumerate(self.sections):
             section_size, section_data = section.build(generate_checksum)
             data += section_data
             if (i + 1 < len(self.sections)):
                 # Nibble-align inter-file sections
-                data += "\x00" * (((section_size + 3) & (~3)) - section_size)
+                data += b"\x00" * (((section_size + 3) & (~3)) - section_size)
 
         for blob in self.raw_blobs:
             if isinstance(blob, FirmwareObject):
@@ -1457,17 +1457,17 @@ class FirmwareVolume(FirmwareObject):
 
     def build(self, generate_checksum=False, debug=False):
         # Generate blocks from FirmwareFileSystems
-        data = ""
+        data = b""
         for filesystem in self.firmware_filesystems:
             # print "Building filesystem"
             data += filesystem.build(generate_checksum)
 
         # Generate block map from original block map (assume no size change)
-        block_map = ""
+        block_map = b""
         for block in self.blocks:
             block_map += struct.pack("<II", block[0], block[1])
         # Add a trailing-NULL to the block map
-        block_map += "\x00" * 8
+        block_map += b"\x00" * 8
 
         if generate_checksum:
             pass
