@@ -5,6 +5,7 @@ import os
 import sys
 import struct
 from builtins import bytes
+import binascii
 
 nocolor = False
 
@@ -47,8 +48,10 @@ def print_error(msg):
 
 def ascii_char(c):
     '''Return the ASCII or (.) representation of the input character.'''
-    if ord(c) >= 32 and ord(c) <= 126:
-        return c
+    if isinstance(c, str):
+        c = ord(c)
+    if c >= 32 and c <= 126:
+        return chr(c)
     return '.'
 
 
@@ -61,12 +64,12 @@ def hex_dump(data, size=16):
     '''
     def print_line(line):
         print("%s | %s" % (
-            line.encode("hex"),
+            binascii.hexlify(line).decode(),
             "".join([ascii_char(c) for c in line])
         ))
         pass
 
-    for i in range(0, len(data) / size):
+    for i in range(0, len(data) // size):
         data_line = data[i * size:i * size + size]
         print_line(data_line)
 
