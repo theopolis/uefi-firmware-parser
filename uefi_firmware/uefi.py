@@ -1561,9 +1561,13 @@ class FirmwareVolume(FirmwareObject):
 
         # TODO? for raw in self.raw_objects:
 
+        fvname = None
+        if hasattr(self, 'fvname'):
+            fvname = sguid(self.fvname)
+
         return {
             'guid': sguid(self.guid),
-            'nameGuid': sguid(self.fvname),
+            'nameGuid': fvname,
             'attributes': self.attributes,
             'revision': self.revision,
             'checksum': self.checksum,
