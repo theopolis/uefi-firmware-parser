@@ -127,11 +127,17 @@ class MultiObject(FirmwareObject):
             self.objs[i].showinfo(ts, i)
 
     def to_dict(self):
-        volumes = []
-        for i in range(len(self.objs)):
-            obj = self.objs[i]
-            if type(obj) is uefi.FirmwareVolume:
-                volumes.append(obj.to_dict())
+        def get_fvs(multi_object):
+            volumes = []
+            for i in range(len(multi_object.objs)):
+                obj = multi_object.objs[i]
+                if type(obj) is uefi.FirmwareVolume:
+                    volumes.append(obj.to_dict())
+                if type(obj) is MultiObject:
+                    volumes.extend(get_fvs(obj))
+            return volumes
+        volumes = get_fvs(self)
+
         return { 'regions': [
             {
                 'type': 'bios',
