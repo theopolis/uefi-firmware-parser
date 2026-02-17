@@ -73,7 +73,7 @@ EFI_SECTION_TYPES = {
     0x12: ("Terse executable (TE)",     "te",           "TE"),
     0x13: ("DXE dependency expression", "dxe.depex",    "DXE_DEPEX"),
     # Added from previous code (not in Phoenix spec
-    0x14: ("Version section",           "version",      "VERSION"),
+    0x14: ("Version",                   "version",      "VERSION"),
     0x15: ("User interface name",       "ui",           "UI"),
 
     0x16: ("IA-32 16-bit image",        "ia32.16bit",   "COMPAT16"),
