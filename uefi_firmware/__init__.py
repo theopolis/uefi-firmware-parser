@@ -44,7 +44,7 @@ class AutoParser(object):
                 data = data[self.offset:]
         self.data = data
 
-        header = data[:100]
+        header = data[:200]
         for tester in checker.TESTERS:
             if tester().match(header):
                 self.data_type = tester().name
