@@ -304,7 +304,7 @@ class PFSSection(FirmwareObject, BaseObject):
         pass
 
     def build(self, generate_checksum=False, debug=False):
-        body = ""
+        body = b""
         for sub_object in self.section_objects:
             body += sub_object.build(generate_checksum, debug=debug)
         return self.header + body + \
@@ -407,7 +407,7 @@ class PFSFile(FirmwareObject):
         return self.sections
 
     def build(self, generate_checksum=False, debug=False):
-        body = ""
+        body = b""
         for section in self.sections:
             body += section.build(generate_checksum, debug=debug)
         return self.data[:16] + body + self.data[-16:]

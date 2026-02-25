@@ -319,7 +319,7 @@ class NVARVariableStore(FirmwareVariableStore):
         return True
 
     def build(self, generate_checksum=False, debug=False):
-        data = ""
+        data = b""
         for variable in self.variables:
             data += variable.build(generate_checksum, debug)
         return data
@@ -417,13 +417,13 @@ class EfiSection(FirmwareObject):
             subsection.dump(parent, i)
 
     def _build_subsections(self, generate_checksum=False):
-        data = ""
+        data = b""
         for i, section in enumerate(self.subsections):
             subsection_size, subsection_data = section.build(generate_checksum)
             data += subsection_data
             if (i + 1 < len(self.subsections)):
                 # Nibble-align inter-section subsections
-                data += "\x00" * \
+                data += b"\x00" * \
                     (((subsection_size + 3) & (~3)) - subsection_size)
 
         # Pad the pre-compression data
@@ -513,11 +513,11 @@ class CompressedSection(EfiSection):
 
         if self.type == 0x01:
             if self.subtype == 0x01:
-                data = str(efi_compressor.EfiCompress(data, len(data)))
+                data = efi_compressor.EfiCompress(data, len(data))
             elif self.subtype == 0x02:
-                data = str(efi_compressor.TianoCompress(data, len(data)))
+                data = efi_compressor.TianoCompress(data, len(data))
         elif self.type == 0x02:
-            data = str(efi_compressor.LzmaCompress(data, len(data)))
+            data = efi_compressor.LzmaCompress(data, len(data))
         elif self.type == 0x00:
             pass
 
@@ -697,7 +697,7 @@ class GuidDefinedSection(EfiSection):
         data = self._build_subsections(generate_checksum)
 
         if sguid(self.guid) in [FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED"], FIRMWARE_GUIDED_GUIDS["LZMA_COMPRESSED_HP"]]:
-            data = str(efi_compressor.LzmaCompress(data, len(data)))
+            data = efi_compressor.LzmaCompress(data, len(data))
             pass
 
         header = struct.pack(
@@ -1265,11 +1265,11 @@ class FirmwareFileSystem(FirmwareObject):
     def build(self, generate_checksum=False, debug=False):
 
         # Generate the file system data as an unstructed set of file data.
-        data = ""
+        data = b""
         for firmware_file in self.files:
             file_size, file_data = firmware_file.build(generate_checksum)
             data += file_data
-            data += "\xFF" * (((file_size + 7) & (~7)) - file_size)
+            data += b"\xFF" * (((file_size + 7) & (~7)) - file_size)
 
         data += self.overflow_data
 
