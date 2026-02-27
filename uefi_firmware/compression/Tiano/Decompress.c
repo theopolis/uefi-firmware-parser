@@ -208,6 +208,7 @@ Returns:
   UINT16  Avail;
   UINT16  NextCode;
   UINT16  Mask;
+  UINT16  MaxTableLength;
 
   TableSize = (UINT16) (1U << TableBits);
 
@@ -216,6 +217,9 @@ Returns:
   }
 
   for (Index = 0; Index < NumOfChar; Index++) {
+    if (BitLen[Index] > 16) {
+      return (UINT16) BAD_TABLE;
+    }
     Count[BitLen[Index]]++;
   }
 
@@ -245,18 +249,20 @@ Returns:
   Index = (UINT16) (Start[TableBits + 1] >> JuBits);
 
   if (Index != 0) {
-    while (Index != TableSize) {
+    Index3 = (UINT16) (1U << TableBits);
+    while (Index != Index3) {
       Table[Index++] = 0;
     }
   }
 
   Avail = NumOfChar;
   Mask  = (UINT16) (1U << (15 - TableBits));
+  MaxTableLength = (UINT16) (1U << TableBits);
 
   for (Char = 0; Char < NumOfChar; Char++) {
 
     Len = BitLen[Char];
-    if (Len == 0) {
+    if (Len == 0 || Len >= 17) {
       continue;
     }
 
@@ -264,12 +270,11 @@ Returns:
 
     if (Len <= TableBits) {
 
+      if (Start[Len] >= NextCode || NextCode > MaxTableLength) {
+        return (UINT16) BAD_TABLE;
+      }
+
       for (Index = Start[Len]; Index < NextCode; Index++) {
-        if(Index >= TableSize)
-        {
-          Sd->mBadAlgorithm = 1;
-          return (UINT16) BAD_TABLE;
-        } 
         Table[Index] = Char;
       }
     } else {
@@ -411,9 +416,7 @@ Returns:
 
   Index = 0;
 
-  while (Index < Number) {
-
-
+  while (Index < Number && Index < NPT) {
 
     CharC = (UINT16) (Sd->mBitBuf >> (BITBUFSIZ - 3));
 
@@ -432,14 +435,14 @@ Returns:
     if (Index == Special) {
       CharC = (UINT16) GetBits (Sd, 2);
       CharC--;
-      while ((INT16) (CharC) >= 0) {
+      while ((INT16) (CharC) >= 0 && Index < NPT) {
         Sd->mPTLen[Index++] = 0;
         CharC--;
       }
     }
   }
 
-  while (Index < nn) {
+  while (Index < nn && Index < NPT) {
     Sd->mPTLen[Index++] = 0;
   }
 
@@ -521,7 +524,7 @@ Returns: (VOID)
       }
 
       CharC--;
-      while ((INT16) (CharC) >= 0) {
+      while ((INT16) (CharC) >= 0 && Index < NC) {
         Sd->mCLen[Index++] = 0;
         CharC--;
       }
@@ -537,7 +540,7 @@ Returns: (VOID)
     Sd->mCLen[Index++] = 0;
   }
 
-  MakeTable (Sd, NC, Sd->mCLen, 12, Sd->mCTable);
+  Sd->mBadTableFlag = MakeTable (Sd, NC, Sd->mCLen, 12, Sd->mCTable);
 
   return ;
 }
@@ -660,17 +663,21 @@ Returns: (VOID)
 
       DataIdx     = Sd->mOutBuf - DecodeP (Sd) - 1;
       // If this is not the correct decompression algorithm, this is an overflow possibility.
-      if (DataIdx > Sd->mOrigSize) {
-        Sd->mBadAlgorithm = 1;
+      if (DataIdx >= Sd->mOrigSize) {
+        Sd->mBadTableFlag = (UINT16) BAD_TABLE;
         return;
       }
 
       BytesRemain--;
       while ((INT16) (BytesRemain) >= 0) {
-        Sd->mDstBase[Sd->mOutBuf++] = Sd->mDstBase[DataIdx++];
         if (Sd->mOutBuf >= Sd->mOrigSize) {
           return;
         }
+        if (DataIdx >= Sd->mOrigSize) {
+          Sd->mBadTableFlag = (UINT16) BAD_TABLE;
+          return;
+        }
+        Sd->mDstBase[Sd->mOutBuf++] = Sd->mDstBase[DataIdx++];
         BytesRemain--;
       }
     }
