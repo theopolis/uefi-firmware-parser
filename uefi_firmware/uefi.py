@@ -594,13 +594,17 @@ class GuidDefinedSection(EfiSection):
     ATTR_PROCESSING_REQUIRED = 0x01
     ATTR_AUTH_STATUS_VALID = 0x02
 
-    def __init__(self, data):
+    def __init__(self, data, large_header):
         self.guid, self.offset, self.attr_mask = struct.unpack(
             "<16sHH", data[:20])
 
-        # A guid-defined section includes an offset
-        self.preamble = data[20:self.offset]
-        self.data = data[self.offset:]
+        # DataOffset (self.offset) is measured from the start of the section
+        # including the common header, which was already stripped before passing
+        # data here. Subtract it from the offset to get the correct data_start
+        common_header_size = 8 if large_header else 4
+        data_start = self.offset - common_header_size
+        self.preamble = data[20:data_start]
+        self.data = data[data_start:]
         self.attrs = {"attrs": self.attr_mask}
         self.subsections = []
 
@@ -672,8 +676,6 @@ class GuidDefinedSection(EfiSection):
                 dlog(self, sguid(self.guid), 'gzip error: %s' % str(err))
         # Todo: check for processing required attribute
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
-            # Todo: verify this (FirmwareFile hack)
-            self.data = self.preamble[-4:] + self.data
             status = self.process_subsections()
             if len(self.subsections) == 0:
                 # There were no subsections parsed, treat as a firmware volume
@@ -763,14 +765,14 @@ class FirmwareFileSystemSection(EfiSection):
         header = data[:0x4]
 
         self.valid_header = True
-        large_header = False
+        self.large_header = False
         try:
             self.size, self.type = struct.unpack("<3sB", header)
             self.size = struct.unpack("<I", self.size + b"\x00")[0]
 
             # check if ExtendedSize is used (FFSv3 only)
             if self.size == 0xffffff:
-                large_header = True
+                self.large_header = True
                 self.size = struct.unpack("<I", data[4:8])[0]
 
         except Exception:
@@ -781,7 +783,7 @@ class FirmwareFileSystemSection(EfiSection):
             return
 
         self._data = data[:self.size]
-        if large_header:
+        if self.large_header:
             self.data = data[0x8:self.size]
         else:
             self.data = data[0x4:self.size]
@@ -807,7 +809,7 @@ class FirmwareFileSystemSection(EfiSection):
             self.parsed_object = compressed_section
 
         elif self.type == 0x02:  # GUID-defined
-            guid_defined = GuidDefinedSection(self.data)
+            guid_defined = GuidDefinedSection(self.data, self.large_header)
             self.parsed_object = guid_defined
 
         elif self.type == 0x14:  # version string
