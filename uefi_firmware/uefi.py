@@ -875,17 +875,17 @@ class FirmwareFileSystemSection(EfiSection):
         else:
             data = self.data
 
-        # Pad the data and check for potential overflows.
-        size = self.size
-        trailling_bytes = (self.size - 4) - len(data)
-        if trailling_bytes > 0:
-            data += b'\x00' * trailling_bytes
-        if trailling_bytes < 0:
-            size = self.size - trailling_bytes
-            pass
+        size = len(data) + 4 # for the EFI_COMMON_SECTION_HEADER size
 
-        string_size = struct.pack("<I", size)
-        header = struct.pack("<3sB", string_size[:3], self.type)
+        if size >= 0xffffff:
+            # EFI_COMMON_SECTION_HEADER2
+            # 4 additional bytes in size for the ExtendedSize
+            size = size + 4
+            header = struct.pack("<3sBI", b"\xff\xff\xff", self.type, size)
+        else:
+            # EFI_COMMON_SECTION_HEADER
+            string_size = struct.pack("<I", size)
+            header = struct.pack("<3sB", string_size[:3], self.type)
         return size, header + data
 
     def showinfo(self, ts='', index=-1):
