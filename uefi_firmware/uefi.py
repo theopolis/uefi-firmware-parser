@@ -1481,10 +1481,10 @@ class FirmwareVolume(FirmwareObject):
 
         # Assume no size change
         header = struct.pack(
-            "<16s16sQ4sIHH3sB",
+            "<16s16sQ4sIHHHsB",
             self.rsvd, self.guid, self.size,
             self.magic, self.attributes, self.hdrlen,
-            self.checksum, self.rsvd2, self.revision
+            self.checksum, self.exthdroff, self.rsvd2, self.revision
         )
         return header + block_map + data
         pass
