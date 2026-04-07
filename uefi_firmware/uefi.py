@@ -169,6 +169,23 @@ def find_volumes(data, process=True):
         objects.append(RawObject(data))
     return objects
 
+def calculate_checksum8(data):
+      sum_val = 0x100
+      for byte in data:
+          sum_val = (sum_val - byte) & 0xFF
+
+      return sum_val
+
+def calculate_checksum16(data):
+      if len(data) % 2 != 0:
+          raise ValueError("Buffer length must be even for 16-bit checksum")
+
+      sum_val = 0x10000
+      for word, in struct.iter_unpack('<H', data):
+          sum_val = (sum_val - word) & 0xFFFF
+
+      return sum_val
+
 
 class FirmwareVariableStore(FirmwareObject, StructuredObject):
 
@@ -509,7 +526,7 @@ class CompressedSection(EfiSection):
         pass
 
     def build(self, generate_checksum=False, debug=False):
-        data = self._build_subsections()
+        data = self._build_subsections(generate_checksum)
 
         if self.type == 0x01:
             if self.subtype == 0x01:
@@ -1116,23 +1133,38 @@ class FirmwareFile(FirmwareObject):
             data = self.data
 
         if generate_checksum:
-            pass
+            self.size = len(data) + 24
+            size = self.size
+            string_size = struct.pack("<I", self.size)
+            if self.attributes & 0x40 == 0:
+                file = 0xaa
+            else:
+                file = calculate_checksum8(data)
 
-        size = self.size
-        trailling_bytes = size - (len(data) + 24)
-        if trailling_bytes < 0:
-            print ("%s adding %s-bytes to GUID: %s" % (
-                red("Warning"),
-                red(trailling_bytes * -1),
-                red(sguid(self.guid))
-            ))
-            size += (trailling_bytes * -1)
+            header_data = struct.pack(
+                "<16sHBB3sB",
+                self.guid, 0, self.type, self.attributes,
+                string_size[:3], 0
+            )
+            header = calculate_checksum8(header_data)
+            self.checksum = (header | (file << 8)) & 0xffff
+        else:
+            size = self.size
+            trailling_bytes = size - (len(data) + 24)
+            if trailling_bytes < 0:
+                print ("%s adding %s-bytes to GUID: %s" % (
+                    red("Warning"),
+                    red(trailling_bytes * -1),
+                    red(sguid(self.guid))
+                ))
+                size += (trailling_bytes * -1)
 
-        string_size = struct.pack("<I", size)
+            string_size = struct.pack("<I", size)
+
         header = struct.pack(
             "<16sHBB3sB",
-            self.guid, self.checksum, self.type, self.attributes, string_size[
-                :3], self.state
+            self.guid, self.checksum, self.type, self.attributes,
+            string_size[:3], self.state
         )
         return size, header + data
 
@@ -1143,12 +1175,13 @@ class FirmwareFile(FirmwareObject):
         else:
             guid_display = "%s (%s)" % (
                 green(sguid(self.guid)), purple(guid_name))
-        print("%s %s type 0x%02x, attr 0x%02x, state 0x%02x, size 0x%x "
+        print("%s %s type 0x%02x, attr 0x%02x, chsm 0x%04x, state 0x%02x, size 0x%x "
             "(%d bytes), (%s)" % (
             blue("%sFile %s:" % (ts, index)),
             guid_display,
             self.type,
             self.attributes,
+            self.checksum,
             self.state ^ 0xFF,
             self.size,
             self.size,
@@ -1476,10 +1509,35 @@ class FirmwareVolume(FirmwareObject):
         # Add a trailing-NULL to the block map
         block_map += b"\x00" * 8
 
+        size = len(data) + len(block_map) + self._HEADER_SIZE
         if generate_checksum:
-            pass
+            self.size = size
+            header = struct.pack(
+                "<16s16sQ4sIHHHsB",
+                self.rsvd, self.guid, self.size,
+                self.magic, self.attributes, self.hdrlen,
+                0, self.exthdroff, self.rsvd2, self.revision
+            )
+            self.checksum = calculate_checksum16(header + block_map)
+        elif self.size > size:
+            print ("%s adding %s-bytes to FirmwareVolume: %s" % (
+                red("Warning"),
+                red(self.size - size),
+                red(sguid(self.guid))
+            ))
+            trailing_bytes = b"\x00" * (self.size - size)
+            data = data + trailing_bytes
+        elif self.size < size:
+            print ("%s truncating %s-bytes from FirmwareVolume: %s" % (
+                red("Warning"),
+                red(size - self.size),
+                red(sguid(self.guid))
+            ))
+            # self.size - size gives us negative how many bytes to truncate
+            # arr[:-2] gives us arr without last 2 elem
+            data = data[:self.size - size]
 
-        # Assume no size change
+        # Assume no size change if generate_checksum=False
         header = struct.pack(
             "<16s16sQ4sIHHHsB",
             self.rsvd, self.guid, self.size,
