@@ -10,11 +10,9 @@ from uefi_firmware.utils import dump_data, flatten_firmware_objects
 from uefi_firmware.pfs import PFSFile
 
 try:
-    import __builtin__
-
-    input = getattr(__builtin__, 'raw_input')
-except (ImportError, AttributeError):
-    pass
+    input_func = raw_input
+except NameError:
+    input_func = input
 
 
 def brute_search(data):
@@ -68,7 +66,7 @@ def parse_file(data):
     selection = 0
 
     while True:
-        selection = input(
+        selection = input_func(
             "[#] Replace what section: [1-%d]: " % len(obj_references))
         try:
             selection = int(selection)

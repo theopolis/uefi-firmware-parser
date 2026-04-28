@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 from __future__ import print_function
 
 import os
 import sys
 import struct
-from builtins import bytes
 import binascii
 
 nocolor = False
@@ -46,6 +44,12 @@ def print_error(msg):
     print(msg, file=sys.stderr)
 
 
+def from_hex(text):
+    '''Convert a hex string into bytes in Python 2/3.'''
+    # py2 returns a byte string (`str`), py3 returns `bytes`, both are binary data.
+    return binascii.unhexlify(text)
+
+
 def ascii_char(c):
     '''Return the ASCII or (.) representation of the input character.'''
     if isinstance(c, str):
@@ -82,7 +86,9 @@ def sguid(b, big=False):
     if b is None or len(b) != 16:
         return ""
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
-    d = ''.join('%02x' % c for c in bytes(d))
+    d = binascii.hexlify(d)
+    if not isinstance(d, str):
+        d = d.decode('ascii')
     return "%08x-%04x-%04x-%s-%s" % (a, b, c, d[:4], d[4:])
 
 
@@ -90,17 +96,16 @@ def s2aguid(s):
     '''RFC4122 string GUID as int array.'''
     guid = [s[:8], s[8 + 1:9 + 4], s[13 + 1:14 + 4],
             s[18 + 1:19 + 4] + s[-12:]]
-    return aguid(b"".join([bytes.fromhex(part) for part in guid]), True)
+    return aguid(b"".join([from_hex(part) for part in guid]), True)
 
 
 def a2sguid(a):
     '''RFC4122 int array GUID as string.'''
-    guid = ""
+    guid = bytearray()
     for value in a:
         value = format(value, 'x')
-        guid += value.zfill(len(value) + len(value) % 2).decode("hex")
-    guid = guid.zfill(len(guid) + len(guid) % 2)
-    return sguid(guid, True)
+        guid.extend(from_hex(value.zfill(len(value) + len(value) % 2)))
+    return sguid(bytes(guid), True)
 
 
 def aguid(b, big=False):
@@ -109,7 +114,8 @@ def aguid(b, big=False):
         for i in range(16 - len(b)):
             b += b'\0'
     a, b, c, d = struct.unpack("%sIHH8s" % (">" if big else "<"), b)
-    return [a, b, c] + [_c for _c in d]
+    tail = bytearray(d)
+    return [a, b, c] + [value for value in tail]
 
 
 def bit_set(field, bit):

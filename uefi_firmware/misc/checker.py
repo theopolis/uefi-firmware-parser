@@ -3,14 +3,13 @@ These are misc functions/classes to implement several type checkers.
 The TypeTester may be useful if parsing a large number of UEFI-related binaries.
 """
 
-
-from builtins import bytes
 import re
 
 from ..uefi import FirmwareVolume, FirmwareCapsule, FirmwareFile
 from ..pfs import PFSFile, PFHeader
 from ..flash import FlashDescriptor
 from ..me import MeContainer, MeManifestHeader
+from ..utils import from_hex
 
 
 class TypeTester(object):
@@ -48,19 +47,19 @@ class FlashDescriptorTester(TypeTester):
 
 
 class EFICapsuleTester(TypeTester):
-    static = bytes.fromhex("".join(
+    static = from_hex("".join(
         "BD 86 66 3B 76 0D 30 40 B7 0E B5 51 9E 2F C5 A0".split()))
     parser = FirmwareCapsule
 
 
 class UEFICapsuleTester(TypeTester):
-    static = bytes.fromhex("".join(
+    static = from_hex("".join(
         "B9 82 91 53 B5 AB 91 43 B6 9A E3 A9 43 F7 2F CC".split()))
     parser = FirmwareCapsule
 
 
 class IntelMEPartitionManifestTester(TypeTester):
-    static = bytes.fromhex("".join("04 00 00 00 A1 00 00 00".split()))
+    static = from_hex("".join("04 00 00 00 A1 00 00 00".split()))
     parser = MeManifestHeader
 
 
