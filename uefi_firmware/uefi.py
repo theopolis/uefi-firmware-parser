@@ -1444,6 +1444,8 @@ class FirmwareVolume(FirmwareObject):
             dlog(self, self.name, 'Block Map was not parsed')
             return False
 
+        self.blocks = []
+
         block_data = self.block_map
         while len(block_data) > 0:
             block = block_data[:8]
