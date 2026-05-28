@@ -1500,14 +1500,29 @@ class FirmwareVolume(FirmwareObject):
     def build(self, generate_checksum=False, debug=False):
         # Generate blocks from FirmwareFileSystems
         data = b""
-        for filesystem in self.firmware_filesystems:
-            # print "Building filesystem"
-            data += filesystem.build(generate_checksum)
-
-        # Generate block map from original block map (assume no size change)
         block_map = b""
-        for block in self.blocks:
-            block_map += struct.pack("<II", block[0], block[1])
+        for (filesystem, block) in zip(self.firmware_filesystems, self.blocks):
+            data += filesystem.build(generate_checksum)
+            if generate_checksum:
+                # The full FV (header + block_map + data) must fit in n_blocks.
+                total = self.hdrlen + len(data)
+                n_blocks = (total + block[1] - 1) // block[1]
+            else:
+                n_blocks = block[0]
+            padding = (n_blocks * block[1]) - (self.hdrlen + len(data))
+            if padding > 0:
+                print ("%s adding %s-bytes to filesystem" % (
+                    red("Warning"),
+                    red(padding),
+                ))
+                data += b"\xff" * padding
+            elif padding < 0:
+                print ("%s truncating %s-bytes from filesystem" % (
+                    red("Warning"),
+                    red(padding),
+                ))
+                data = data[:padding]
+            block_map += struct.pack("<II", n_blocks, block[1])
         # Add a trailing-NULL to the block map
         block_map += b"\x00" * 8
 
@@ -1539,7 +1554,6 @@ class FirmwareVolume(FirmwareObject):
             # arr[:-2] gives us arr without last 2 elem
             data = data[:self.size - size]
 
-        # Assume no size change if generate_checksum=False
         header = struct.pack(
             "<16s16sQ4sIHHHsB",
             self.rsvd, self.guid, self.size,
@@ -1547,7 +1561,6 @@ class FirmwareVolume(FirmwareObject):
             self.checksum, self.exthdroff, self.rsvd2, self.revision
         )
         return header + block_map + data
-        pass
 
     def showinfo(self, ts='', index=None):
         if not self.valid_header or len(self.data) == 0:
