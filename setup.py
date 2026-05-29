@@ -2,6 +2,7 @@
 
 import os
 import re
+import sysconfig
 
 from setuptools import Command, Extension, find_packages, setup
 
@@ -63,6 +64,18 @@ for root, directory, paths in os.walk("uefi_firmware/compression"):
         elif os.path.splitext(path)[1][1:] == "c":
             COMPRESSION_SOURCES.append(os.path.join(root, path))
 
+IS_FREE_THREADED = sysconfig.get_config_var("Py_GIL_DISABLED") == 1
+
+if IS_FREE_THREADED:
+    options = {}
+else:
+    options = {
+        "bdist_wheel": {
+            "py_limited_api": "cp310",
+        }
+    }
+
+
 setup(
     name="uefi_firmware",
     version=VERSION,
@@ -87,11 +100,7 @@ setup(
         )
     ],
     python_requires=">=3.10",
-    options={
-        "bdist_wheel": {
-            "py_limited_api": "cp310",
-        }
-    },
+    options=options,
     scripts=[
         "bin/uefi-firmware-parser",
     ],
