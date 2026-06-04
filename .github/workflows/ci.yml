@@ -36,7 +36,9 @@ jobs:
       run: git clone https://github.com/theopolis/uefi-firmware-samples samples
 
     - name: Run unit tests
-      run: python -bb -m unittest discover -s tests
+      run: |
+        cd tests
+        python -bb -m unittest discover
 
     - name: Run test script against all samples
       run: |
