@@ -110,7 +110,7 @@ setup(
     scripts=[
         "bin/uefi-firmware-parser",
     ],
-    install_requires=["future"],
+    install_requires=[],
     extras_require={
         "tests": ["dictdiffer"],
     },
