@@ -117,6 +117,29 @@ def bit_set(field, bit):
     return (field & bit == bit)
 
 
+def safe_path_component(component):
+    '''Return a filesystem-safe representation of a single path component.'''
+    if isinstance(component, bytes):
+        component = utf8_decode_safe(component)
+    else:
+        component = str(component)
+
+    component = component.replace('\x00', '')
+    for separator in ('/', '\\'):
+        component = component.replace(separator, '_')
+    component = component.replace(':', '_')
+
+    if component in ('', '.', '..'):
+        return '_'
+    return component
+
+
+def safe_path(parent, *components):
+    '''Join parent with sanitized path components.'''
+    return os.path.join(
+        parent, *[safe_path_component(part) for part in components])
+
+
 def dump_data(name, data):
     '''Write binary data to name.
 

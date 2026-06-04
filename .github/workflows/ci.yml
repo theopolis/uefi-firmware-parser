@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -28,13 +30,13 @@ jobs:
         if [[ "${{ matrix.python-version }}" == "3"* ]]; then
           pip install --upgrade 'importlib-metadata > 4'
         fi
-        pip install .[tests]
+        pip install '.[tests]'
 
     - name: Clone public samples
       run: git clone https://github.com/theopolis/uefi-firmware-samples samples
 
     - name: Run unit tests
-      run: python -bb ./tests/test_compression.py
+      run: python -bb -m unittest discover -s tests
 
     - name: Run test script against all samples
       run: |

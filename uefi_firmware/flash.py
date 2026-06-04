@@ -77,9 +77,9 @@ class FlashRegion(FirmwareObject, BaseObject):
         pass
 
     def dump(self, parent=""):
-        dump_data(os.path.join(parent, "region-%s.fd" % self.name), self.data)
+        dump_data(safe_path(parent, "region-%s.fd" % self.name), self.data)
 
-        parent = os.path.join(parent, "region-%s" % self.name)
+        parent = safe_path(parent, "region-%s" % self.name)
         for section in self.sections:
             section.dump(parent)
         pass
