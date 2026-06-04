@@ -28,7 +28,7 @@ jobs:
         if [[ "${{ matrix.python-version }}" == "3"* ]]; then
           pip install --upgrade 'importlib-metadata > 4'
         fi
-        pip install .
+        pip install .[tests]
 
     - name: Clone public samples
       run: git clone https://github.com/theopolis/uefi-firmware-samples samples

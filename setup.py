@@ -105,6 +105,9 @@ setup(
         "bin/uefi-firmware-parser",
     ],
     install_requires=["future"],
+    extras_require={
+        "tests": ["dictdiffer"],
+    },
     classifiers=[
         # https://pypi.python.org/pypi?%3Aaction=list_classifiers
         "Development Status :: 4 - Beta",
