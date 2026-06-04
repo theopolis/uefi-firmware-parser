@@ -2,7 +2,6 @@
 import os
 import sys
 import struct
-from builtins import bytes
 import binascii
 
 nocolor = False
