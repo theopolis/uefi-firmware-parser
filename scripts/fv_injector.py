@@ -7,13 +7,6 @@ from uefi_firmware.utils import dump_data, flatten_firmware_objects
 
 from uefi_firmware.pfs import PFSFile
 
-try:
-    import __builtin__
-
-    input = getattr(__builtin__, 'raw_input')
-except (ImportError, AttributeError):
-    pass
-
 
 def brute_search(data):
     volumes = search_firmware_volumes(data)
