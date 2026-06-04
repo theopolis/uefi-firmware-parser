@@ -48,9 +48,6 @@ with open("README.rst") as f:
 with open("uefi_firmware/__init__.py", "r") as f:
     __INIT__ = f.read()
 
-VERSION = re.search(
-    r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', __INIT__, re.MULTILINE
-).group(1)
 AUTHOR = re.search(
     r'^__author__\s*=\s*[\'"]([^\'"]*)[\'"]', __INIT__, re.MULTILINE
 ).group(1)
@@ -78,11 +75,14 @@ else:
 
 setup(
     name="uefi_firmware",
-    version=VERSION,
+    use_scm_version={
+        "write_to": "uefi_firmware/_version.py",
+        "fallback_version": "0.1.0+unknown",
+    },
     description="Various data structures and parsing tools for UEFI firmware.",
     long_description=README,
     author=AUTHOR,
-    author_email="teddy@prosauce.org",
+    author_email="",
     url="https://github.com/theopolis/uefi-firmware-parser",
     license="BSD",
     packages=find_packages(exclude=("tests", "docs")),

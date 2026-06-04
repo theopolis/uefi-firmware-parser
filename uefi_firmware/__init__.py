@@ -202,6 +202,9 @@ class MultiVolumeContainer(FirmwareObject):
 
 
 __title__ = "uefi_firmware"
-__version__ = "1.11"
-__author__ = "Teddy Reed"
+try:
+    from ._version import version as __version__
+except ImportError:
+    __version__ = "0.1.0+unknown"
+__author__ = "UEFI Firmware Parser developers"
 __license__ = "BSD"
