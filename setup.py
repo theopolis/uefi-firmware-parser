@@ -84,9 +84,8 @@ setup(
     author=AUTHOR,
     author_email="",
     url="https://github.com/theopolis/uefi-firmware-parser",
-    license="BSD",
+    license="BSD-3-Clause",
     packages=find_packages(exclude=("tests", "docs")),
-    test_suite="tests",
     cmdclass={
         "lint": LintCommand,
     },
@@ -113,7 +112,6 @@ setup(
         "Development Status :: 4 - Beta",
         "Intended Audience :: System Administrators",
         "Topic :: Security",
-        "License :: OSI Approved :: BSD License",
         "Programming Language :: Python :: 3",
     ],
     keywords="security uefi firmware parsing bios",
