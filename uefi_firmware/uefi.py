@@ -2,8 +2,6 @@
 This package defines firmware structures for unpacking, decompressing,
 extracting, and rebuilding UEFI data.
 '''
-from __future__ import print_function
-
 import gzip
 import logging
 import os
