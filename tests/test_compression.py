@@ -1,10 +1,31 @@
-import unittest
+import importlib.machinery
+import os
 import struct
+import sysconfig
+import unittest
 
 from uefi_firmware import efi_compressor
 
 
 class CompressionTest(unittest.TestCase):
+
+    def test_extension_uses_abi3_suffix(self):
+        if sysconfig.get_config_var("Py_GIL_DISABLED") == 1:
+            self.skipTest("free-threaded CPython does not use abi3 wheels")
+
+        abi3_suffix = None
+        for suffix in importlib.machinery.EXTENSION_SUFFIXES:
+            if ".abi3" in suffix or suffix == ".pyd":
+                abi3_suffix = suffix
+                break
+
+        if abi3_suffix is None:
+            self.skipTest("interpreter does not advertise an abi3 extension suffix")
+
+        self.assertEqual(
+            os.path.basename(efi_compressor.__file__),
+            "efi_compressor" + abi3_suffix,
+        )
 
     def _test_compress(self, compress_algorithm):
         default_buffer = b"AAAAAAAA" * 90

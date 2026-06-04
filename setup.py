@@ -62,15 +62,21 @@ for root, directory, paths in os.walk("uefi_firmware/compression"):
             COMPRESSION_SOURCES.append(os.path.join(root, path))
 
 IS_FREE_THREADED = sysconfig.get_config_var("Py_GIL_DISABLED") == 1
+USE_LIMITED_API = not IS_FREE_THREADED
 
-if IS_FREE_THREADED:
-    options = {}
-else:
+if USE_LIMITED_API:
+    extension_options = {
+        "define_macros": [("Py_LIMITED_API", "0x030A0000")],
+        "py_limited_api": True,
+    }
     options = {
         "bdist_wheel": {
             "py_limited_api": "cp310",
         }
     }
+else:
+    extension_options = {}
+    options = {}
 
 
 setup(
@@ -96,6 +102,7 @@ setup(
             sources=COMPRESSION_SOURCES,
             include_dirs=[os.path.join("uefi_firmware", "compression", "Include")],
             depends=COMPRESSION_HEADERS,
+            **extension_options,
         )
     ],
     python_requires=">=3.10",

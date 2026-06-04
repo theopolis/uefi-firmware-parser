@@ -119,7 +119,7 @@ UefiDecompress(
   UINT8       type
   )
 {
-  PyBytesObject *SrcData;
+  PyObject      *SrcData;
   SizeT         SrcDataSize;
   SizeT         DstDataSize;
   EFI_STATUS    Status;
@@ -134,7 +134,10 @@ UefiDecompress(
     return NULL;
   }
 
-  SrcBuf = SrcData->ob_sval;
+  SrcBuf = PyBytes_AsString(SrcData);
+  if (SrcBuf == NULL) {
+    return NULL;
+  }
 
   Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, type);
   if (Status != EFI_SUCCESS) {
@@ -157,7 +160,7 @@ UefiCompress(
   UINT8       type
   )
 {
-  PyBytesObject *SrcData;
+  PyObject      *SrcData;
   SizeT         SrcDataSize;
   SizeT         DstDataSize;
   EFI_STATUS    Status;
@@ -176,7 +179,10 @@ UefiCompress(
     return NULL;
   }
 
-  SrcBuf = SrcData->ob_sval;
+  SrcBuf = PyBytes_AsString(SrcData);
+  if (SrcBuf == NULL) {
+    return NULL;
+  }
 
   if (type == LZMA_COMPRESSION) {
     // LzmaCompress takes a 5th DictionarySize parameter, so it cannot be
@@ -328,5 +334,4 @@ initefi_compressor(VOID) {
   Py_InitModule3("efi_compressor", EfiCompressor_Funcs, "Various EFI Compression Algorithms Extension Module");
 }
 #endif
-
 
