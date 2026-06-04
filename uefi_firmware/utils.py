@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-
 import os
 import sys
 import struct
-from builtins import bytes
 import binascii
 
 nocolor = False
