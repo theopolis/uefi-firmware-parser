@@ -66,17 +66,17 @@ class MeObject(StructuredObject, FirmwareObject):
             print("")
 
     def dump_module(self, parent):
+        name = safe_path_component(self.name)
         if self.compression == COMP_TYPE_LZMA:
-            dump_data("%s.module.lzma" %
-                      os.path.join(parent, self.name), self.data)
+            dump_data(safe_path(parent, "%s.module.lzma" % name), self.data)
             try:
                 data = efi_compressor.LzmaDecompress(self.data, len(self.data))
-                dump_data("%s.module" % os.path.join(parent, self.name), data)
+                dump_data(safe_path(parent, "%s.module" % name), data)
             except Exception as e:
                 print("Cannot extract (%s), %s" % (self.name, str(e)))
                 return
         elif self.compression == COMP_TYPE_NOT_COMPRESSED:
-            dump_data("%s.module" % os.path.join(parent, self.name), self.data)
+            dump_data(safe_path(parent, "%s.module" % name), self.data)
 
 
 class MeModule(MeObject):
@@ -478,7 +478,8 @@ class MeManifestHeader(MeObject):
             module.dump(parent)
         if self.huffman_llut is not None:
             self.huffman_llut.dump(
-                os.path.join(parent, utf8_decode_safe(self.structure.PartitionName)))
+                safe_path(
+                    parent, utf8_decode_safe(self.structure.PartitionName)))
 
 
 class CPDEntry(MeObject):
@@ -627,10 +628,12 @@ class PartitionEntry(MeObject):
 
     def dump(self, parent=""):
         if self.has_content:
-            dump_data(os.path.join(parent, "%s.partition" % utf8_decode_safe(self.structure.Name)),
+            dump_data(safe_path(
+                parent, "%s.partition" % utf8_decode_safe(self.structure.Name)),
                 self.data)
         if self.manifest is not None:
-            self.manifest.dump(os.path.join(parent, utf8_decode_safe(self.structure.Name)))
+            self.manifest.dump(
+                safe_path(parent, utf8_decode_safe(self.structure.Name)))
 
 class MeContainer(MeObject):
 

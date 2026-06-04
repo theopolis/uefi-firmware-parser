@@ -1658,11 +1658,11 @@ class FirmwareVolume(FirmwareObject):
         if len(self.data) == 0:
             return
 
-        path = os.path.join(parent, "volume-%s.fv" % self.name)
+        path = safe_path(parent, "volume-%s.fv" % self.name)
         dump_data(path, self._data)
 
         for _ffs in self.firmware_filesystems:
-            _ffs.dump(os.path.join(parent, "volume-%s" % self.name))
+            _ffs.dump(safe_path(parent, "volume-%s" % self.name))
 
 1
 class FirmwareCapsule(FirmwareObject):
@@ -1862,14 +1862,14 @@ class FirmwareCapsule(FirmwareObject):
         if len(self.data) == 0:
             return
 
-        path = os.path.join(parent, "capsule-%s.cap" % self.name)
+        path = safe_path(parent, "capsule-%s.cap" % self.name)
         dump_data(path, self._data)
 
         if self.capsule_body is not None:
             self.capsule_body.dump(
-                os.path.join(parent, "capsule-%s" % self.name))
+                safe_path(parent, "capsule-%s" % self.name))
         else:
             # Write the raw image data from the capsule.
-            path = os.path.join(parent, "capsule-%s.image" % self.name)
+            path = safe_path(parent, "capsule-%s.image" % self.name)
             offset = self.offsets["capsule_body"]
             dump_data(path, self.data[offset:offset + self.image_size])
