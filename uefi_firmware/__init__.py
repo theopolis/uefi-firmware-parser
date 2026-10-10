@@ -1,8 +1,7 @@
 '''UEFI Firmware parser utils.
 '''
-import os
-
 from . import uefi
+from .uefi import MultiVolumeContainer
 
 from .misc import checker
 from .base import FirmwareObject, RawObject, AutoRawObject
@@ -148,57 +147,6 @@ class MultiObject(FirmwareObject):
     def dump(self, parent='', index=None):
         for i in range(len(self.objs)):
             self.objs[i].dump(parent, i)
-
-
-class MultiVolumeContainer(FirmwareObject):
-    '''The AutoParser attempts to search for 'stacked' UEFIFirmwareVolumes.
-
-    By default if a volume does not consist of the entire input content the
-    AutoParser will attempt to search for additional volume headers. This can
-    be disabled with the associated 'search' optional parameter.
-
-    If additional volumes are discovered this MultiVolumeContainer is returned
-    instead of a UEFIFirmwareVolume.
-    '''
-
-    def __init__(self, data):
-        '''Initialize the container with the tail content from a volume.'''
-        self.data = data
-        self.indexes = search_firmware_volumes(data)
-        self.volumes = []
-        self.size = 0
-
-    def has_indexes(self):
-        '''Check if any indexes were discovered.'''
-        return len(self.indexes) > 0
-
-    def append_base(self, volume):
-        '''Set the base volume as the first within the list.'''
-        self.volumes = [volume] + self.volumes
-
-    def process(self):
-        for index in self.indexes:
-            volume = uefi.FirmwareVolume(self.data[index - 40:], index)
-            if volume.process():
-                self.size += volume.size
-                self.volumes.append(volume)
-        valid = len(self.volumes) > 0
-        return valid
-
-    @property
-    def objects(self):
-        return self.volumes
-
-    def showinfo(self, ts='', index=None):
-        '''Write structure information to stdout.'''
-        for volume in self.volumes:
-            volume.showinfo(ts, index)
-
-    def dump(self, parent, index=None):
-        '''Allow a caller to dump the content of volumes.'''
-        for i, volume in enumerate(self.volumes):
-            path = os.path.join(parent, "volume-%d" % i)
-            volume.dump(path)
 
 
 __title__ = "uefi_firmware"
