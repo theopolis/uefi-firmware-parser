@@ -1664,7 +1664,63 @@ class FirmwareVolume(FirmwareObject):
         for _ffs in self.firmware_filesystems:
             _ffs.dump(safe_path(parent, "volume-%s" % self.name))
 
-1
+
+class MultiVolumeContainer(FirmwareObject):
+    '''The AutoParser attempts to search for 'stacked' UEFIFirmwareVolumes.
+
+    By default if a volume does not consist of the entire input content the
+    AutoParser will attempt to search for additional volume headers. This can
+    be disabled with the associated 'search' optional parameter.
+
+    If additional volumes are discovered this MultiVolumeContainer is returned
+    instead of a UEFIFirmwareVolume.
+    '''
+
+    def __init__(self, data):
+        '''Initialize the container with the tail content from a volume.'''
+        self.data = data
+        self.indexes = search_firmware_volumes(data)
+        self.volumes = []
+        self.size = 0
+
+    def has_indexes(self):
+        '''Check if any indexes were discovered.'''
+        return len(self.indexes) > 0
+
+    def append_base(self, volume):
+        '''Set the base volume as the first within the list.'''
+        self.volumes = [volume] + self.volumes
+
+    def process(self):
+        for index in self.indexes:
+            volume = FirmwareVolume(self.data[index - 40:], index)
+            if volume.process():
+                self.size += volume.size
+                self.volumes.append(volume)
+        valid = len(self.volumes) > 0
+        return valid
+
+    @property
+    def objects(self):
+        return self.volumes
+
+    def showinfo(self, ts='', index=None):
+        '''Write structure information to stdout.'''
+        for volume in self.volumes:
+            volume.showinfo(ts, index)
+
+    def to_dict(self):
+        return {
+            'firmwareVolumes': [volume.to_dict() for volume in self.volumes],
+        }
+
+    def dump(self, parent, index=None):
+        '''Allow a caller to dump the content of volumes.'''
+        for i, volume in enumerate(self.volumes):
+            path = os.path.join(parent, "volume-%d" % i)
+            volume.dump(path)
+
+
 class FirmwareCapsule(FirmwareObject):
     '''EFI Capsule Header.
 
@@ -1695,7 +1751,7 @@ class FirmwareCapsule(FirmwareObject):
         self.data = None
 
         self.capsule_guid = data[:16]
-        self.guid = "\x00" * 16
+        self.guid = b"\x00" * 16
         if sguid(self.capsule_guid) not in FIRMWARE_CAPSULE_GUIDS:
             self.valid_header = False
             return
@@ -1714,6 +1770,10 @@ class FirmwareCapsule(FirmwareObject):
         self.data = data[self.header_size:]
 
         pass
+
+    def is_aptio(self):
+        return sguid(self.capsule_guid) in (
+            APTIO_SIGNED_CAPSULE_GUID, APTIO_UNSIGNED_CAPSULE_GUID)
 
     def parse_capsule_header(self, data):
         if sguid(self.capsule_guid) == FIRMWARE_CAPSULE_GUIDS[0]:
@@ -1742,27 +1802,23 @@ class FirmwareCapsule(FirmwareObject):
                 "long_desc": long_desc,
                 "compatibility": compatibility
             }
-        elif sguid(self.capsule_guid) == FIRMWARE_CAPSULE_GUIDS[1]:
-            # EFI2Capsule
+        elif self.is_aptio():
+            # AMI Aptio extended capsule:
+            #   EFI_CAPSULE_HEADER + UINT16 RomImageOffset + UINT16 RomLayoutOffset
+            # RomImageOffset points to the ROM image. The body it introduces is a
+            # full SPI flash image (option ROM + several firmware volumes), not a
+            # single firmware volume.
             self.size, self.flags, self.image_size = struct.unpack(
                 "<III", data[:4 * 3])
-            fv_image, oem_header = struct.unpack("<HH", data[12:12 + 4])
+            rom_image_offset, rom_layout_offset = struct.unpack(
+                "<HH", data[12:12 + 4])
             self.offsets = {
-                "capsule_body": fv_image,
-                "oem_header": oem_header,
+                "capsule_body": rom_image_offset,
+                "oem_header": rom_layout_offset,
                 "author_info": 0
             }
         elif sguid(self.capsule_guid) == FIRMWARE_CAPSULE_GUIDS[2]:
             # UEFI Capsule
-            self.size, self.flags, self.image_size = struct.unpack(
-                "<III", data[:4 * 3])
-            self.offsets = {
-                "capsule_body": self.size,
-                "oem_header": 0,
-                "author_info": 0
-            }
-        elif sguid(self.capsule_guid) == FIRMWARE_CAPSULE_GUIDS[4]:
-            # AMI Aptio Capsule
             self.size, self.flags, self.image_size = struct.unpack(
                 "<III", data[:4 * 3])
             self.offsets = {
@@ -1788,6 +1844,9 @@ class FirmwareCapsule(FirmwareObject):
         self.preamble = self.data[:self.offsets["capsule_body"]]
         self.parse_sections(None)
 
+        if self.is_aptio():
+            return self.process_rom_image()
+
         fv = FirmwareVolume(self.data[self.offsets["capsule_body"]:])
         if not fv.valid_header:
             # The body could be an offset from the end of the header (Intel
@@ -1805,7 +1864,24 @@ class FirmwareCapsule(FirmwareObject):
         self.capsule_body = fv
         return True
 
+    def process_rom_image(self):
+        # The body at RomImageOffset is a complete SPI flash image (option ROM,
+        # padding and several firmware volumes), not a single firmware volume.
+        # CapsuleImageSize covers both the capsule header and the ROM image.
+        size = min(self.image_size, len(self._data))
+        volumes = MultiVolumeContainer(
+            self._data[self.offsets["capsule_body"]:size])
+        if not volumes.process():
+            return False
+        self.size = size
+        self.capsule_body = volumes
+        return True
+
     def build(self, generate_checksum=False, debug=False):
+        if self.is_aptio():
+            # The ROM image is not rebuilt from its volumes, keep the raw bytes.
+            return self._data[:self.size]
+
         if self.capsule_body is not None:
             body = self.capsule_body.build(generate_checksum, debug=debug)
         else:

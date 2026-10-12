@@ -21,11 +21,16 @@ FIRMWARE_VOLUME_GUIDS = {
     #'08758b38-458d-50e8-56e8-3bffffff83c4'
 }
 
+# AMI Aptio extended capsule GUIDs.
+APTIO_SIGNED_CAPSULE_GUID = '4a3ca68b-7723-48fb-803d-578cc1fec44d'
+APTIO_UNSIGNED_CAPSULE_GUID = '14eebb90-890a-43db-aed1-5d3c4588a418'
+
 FIRMWARE_CAPSULE_GUIDS = [
-    '3b6686bd-0d76-4030-b70e-b5519e2fc5a0',  # EFI Capsule
-    '4a3ca68b-7723-48fb-3d80-578cc1fec44d',  # EFI Capsule v2
-    '539182b9-abb5-4391-b69a-e3a943f72fcc',  # UEFI Capsule
-    '6dcbd5ed-e82d-4c44-bda1-7194199ad92a',  # Firmware Management Capsule
+    '3b6686bd-0d76-4030-b70e-b5519e2fc5a0',  # [0] EFI Capsule
+    APTIO_SIGNED_CAPSULE_GUID,               # [1] AMI Aptio signed capsule
+    '539182b9-abb5-4391-b69a-e3a943f72fcc',  # [2] UEFI / Intel Capsule
+    '6dcbd5ed-e82d-4c44-bda1-7194199ad92a',  # [3] Firmware Management Capsule
+    APTIO_UNSIGNED_CAPSULE_GUID,             # [4] AMI Aptio unsigned capsule
 ]
 
 FIRMWARE_GUIDED_GUIDS = {
