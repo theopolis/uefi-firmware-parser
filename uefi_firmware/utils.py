@@ -155,6 +155,11 @@ def dump_data(name, data):
         print("Error: could not write (%s), (%s)." % (name, str(e)))
 
 
+def is_erased(data):
+    '''Check if data holds only erased flash, all 0xFF or all 0x00 bytes.'''
+    return data.strip(b"\xff") == b"" or data.strip(b"\x00") == b""
+
+
 def search_firmware_volumes(data, byte_align=16, limit=None):
     '''"Search a blob for '_FVH' magics, related to firmware volume headers.'''
     potential_volumes = []

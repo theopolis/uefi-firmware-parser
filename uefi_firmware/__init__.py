@@ -96,7 +96,7 @@ class AutoParser(object):
             if mfc.process():
                 size += mfc.size
                 # Add the base (first) firmware volume
-                objs = objs + mfc.volumes
+                objs = objs + mfc.objects
 
         if size < len(self.data):
             objs.append(RawObject(self.data[size:]))
