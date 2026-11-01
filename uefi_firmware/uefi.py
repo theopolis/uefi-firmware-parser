@@ -234,6 +234,10 @@ class NVARVariable(FirmwareVariable):
             return False
         self.parse_structure(self.data, NVARVariableHeaderType)
         self.size = self.structure.TotalSize
+        if self.size < self.structure_size:
+            # A variable cannot be smaller than its own header. Stop here,
+            # or the store would never advance past it.
+            return False
         self.attrs = {"attrs": self.structure.Attributes}
 
         # Now with structure parsed, set bounds on the data
