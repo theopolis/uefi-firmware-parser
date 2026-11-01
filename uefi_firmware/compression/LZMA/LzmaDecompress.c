@@ -72,7 +72,7 @@ checking of the validity of the source data. It just retrieves the "Original Siz
 field from the LZMA_HEADER_SIZE beginning bytes of the source data and output it as DestinationSize.
 And ScratchSize is specific to the decompression implementation.
 
-If SourceSize is less than LZMA_HEADER_SIZE, then ASSERT().
+If SourceSize is less than LZMA_HEADER_SIZE, then EFI_INVALID_PARAMETER is returned.
 
 @param  Source          The source buffer containing the compressed data.
 @param  SourceSize      The size, bytes, of the source buffer.
@@ -95,8 +95,11 @@ LzmaGetInfo (
     )
 {
     UINT64 DecodedSize;
-    ASSERT(SourceSize >= LZMA_HEADER_SIZE);
-    (void)SourceSize;
+
+    // ASSERT is compiled out in release builds, so check the size here.
+    if (SourceSize < LZMA_HEADER_SIZE) {
+        return EFI_INVALID_PARAMETER;
+    }
 
     DecodedSize = GetDecodedSizeOfBuf((UINT8*)Source);
 
@@ -144,7 +147,12 @@ LzmaDecompress (
     SizeT             DecodedBufSize;
     SizeT             EncodedDataSize;
 
-    DecodedBufSize = (SizeT)GetDecodedSizeOfBuf((UINT8*)Source);
+    if (SourceSize < LZMA_HEADER_SIZE) {
+        return EFI_INVALID_PARAMETER;
+    }
+
+    // The Destination buffer holds _DstSize bytes, from LzmaGetInfo.
+    DecodedBufSize = (SizeT)_DstSize;
     EncodedDataSize = (SizeT)(SourceSize - LZMA_HEADER_SIZE);
 
     LzmaResult = LzmaDecode(
@@ -159,7 +167,11 @@ LzmaDecompress (
         &SzAllocForLzma
         );
 
-    if (LzmaResult == SZ_OK) {
+    // A stream can end (with an end marker) before filling Destination, so
+    // check that every byte was decoded rather than returning stale memory.
+    if (LzmaResult == SZ_OK && DecodedBufSize == _DstSize &&
+        (Status == LZMA_STATUS_FINISHED_WITH_MARK ||
+         Status == LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK)) {
         return EFI_SUCCESS;
     }
     else {

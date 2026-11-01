@@ -71,13 +71,24 @@ LzmaCompress (
     SRes              LzmaResult;
     CLzmaEncProps     props;
     SizeT propsSize = LZMA_PROPS_SIZE;
-    SizeT destLen = SourceSize + SourceSize / 3 + 128;
+    SizeT destLen;
+    // Worst case output: the header plus 4/3 of the input. Compute it in 64
+    // bits so a large SourceSize cannot wrap to a small buffer.
+    UINT64 maxSize = (UINT64)SourceSize + SourceSize / 3 + 128 + LZMA_HEADER_SIZE;
 
-    if (*DestinationSize < (UINT32)destLen)
+    if (maxSize > UINT32_MAX)
     {
-        *DestinationSize = (UINT32)destLen;
+        return EFI_INVALID_PARAMETER;
+    }
+
+    if (*DestinationSize < (UINT32)maxSize)
+    {
+        *DestinationSize = (UINT32)maxSize;
         return EFI_BUFFER_TOO_SMALL;
     }
+
+    // The encoder writes after the header, so only the rest is available.
+    destLen = (SizeT)(*DestinationSize - LZMA_HEADER_SIZE);
 
     LzmaEncProps_Init(&props);
     props.dictSize = DictionarySize;

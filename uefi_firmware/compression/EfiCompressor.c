@@ -16,6 +16,7 @@ This includes minor API changes for Tiano and EFI decompressor, as well as LZMA.
 
 **/
 
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "CompressionTypes.h"
@@ -85,15 +86,18 @@ Extract (
         Scratch = (VOID *)malloc(ScratchSize);
       }
       if(*DstSize <= MAX_DSTSZ){
-        *Destination = (VOID *)malloc(*DstSize);
+        // malloc(0) may return NULL, so always allocate at least one byte.
+        *Destination = (VOID *)malloc(*DstSize > 0 ? *DstSize : 1);
       }
       if (((ScratchSize > 0 && Scratch != NULL) || ScratchSize == 0) && *Destination != NULL) {
         Status = DecompressFunction(Source, SrcSize, *Destination, *DstSize, Scratch, ScratchSize);
       } else {
         free(*Destination);
-        free(Scratch);
+        // The caller frees *Destination on failure too.
+        *Destination = NULL;
         Status = EFI_OUT_OF_RESOURCES;
       }
+      free(Scratch);
     }
   }
   return Status;
@@ -109,6 +113,34 @@ errorHandling(
 }
 
 /*
+ Parse the (data_buffer, size) arguments. The size is used as the source
+ length, so it must not be larger than data_buffer.
+*/
+STATIC
+int
+ParseSourceArgs(
+  PyObject    *Args,
+  const char  **SrcBuf,
+  SizeT       *SrcDataSize
+  )
+{
+  Py_ssize_t          SrcLength;
+  unsigned long long  RequestedSize;
+
+  if (!PyArg_ParseTuple(Args, "y#K", SrcBuf, &SrcLength, &RequestedSize)) {
+    return 0;
+  }
+
+  if (RequestedSize > (unsigned long long)SrcLength) {
+    PyErr_SetString(PyExc_ValueError, "size is larger than the data buffer\n");
+    return 0;
+  }
+
+  *SrcDataSize = (SizeT)RequestedSize;
+  return 1;
+}
+
+/*
  UefiDecompress(data_buffer, size, huffman_type)
 */
 STATIC
@@ -119,34 +151,30 @@ UefiDecompress(
   UINT8       type
   )
 {
-  PyObject      *SrcData;
   SizeT         SrcDataSize;
   SizeT         DstDataSize;
   EFI_STATUS    Status;
-  char          *SrcBuf;
+  const char    *SrcBuf;
   char          *DstBuf;
+  PyObject      *Result;
 
   DstDataSize = 0;
   DstBuf = NULL;
 
-  Status = PyArg_ParseTuple(Args, "OK", &SrcData, &SrcDataSize); //-V111
-  if (Status == 0) {
-    return NULL;
-  }
-
-  SrcBuf = PyBytes_AsString(SrcData);
-  if (SrcBuf == NULL) {
+  if (!ParseSourceArgs(Args, &SrcBuf, &SrcDataSize)) {
     return NULL;
   }
 
   Status = Extract((VOID *)SrcBuf, SrcDataSize, (VOID **)&DstBuf, &DstDataSize, type);
   if (Status != EFI_SUCCESS) {
     PyErr_SetString(PyExc_Exception, "Failed to decompress\n");
-    errorHandling(SrcBuf, DstBuf);
+    errorHandling((VOID *)SrcBuf, DstBuf);
     return NULL;
   }
 
-  return PyBytes_FromStringAndSize(DstBuf, (Py_ssize_t)DstDataSize);
+  Result = PyBytes_FromStringAndSize(DstBuf, (Py_ssize_t)DstDataSize);
+  free(DstBuf);
+  return Result;
 }
 
 /*
@@ -160,12 +188,12 @@ UefiCompress(
   UINT8       type
   )
 {
-  PyObject      *SrcData;
   SizeT         SrcDataSize;
   SizeT         DstDataSize;
   EFI_STATUS    Status;
-  char          *SrcBuf;
+  const char    *SrcBuf;
   char          *DstBuf;
+  PyObject      *Result;
 
   // Pick the compress function based on compression type
   COMPRESS_FUNCTION CompressFunction;
@@ -174,13 +202,7 @@ UefiCompress(
   DstBuf = NULL;
   CompressFunction = NULL;
 
-  Status = PyArg_ParseTuple(Args, "OK", &SrcData, &SrcDataSize); //-V111
-  if (Status == 0) {
-    return NULL;
-  }
-
-  SrcBuf = PyBytes_AsString(SrcData);
-  if (SrcBuf == NULL) {
+  if (!ParseSourceArgs(Args, &SrcBuf, &SrcDataSize)) {
     return NULL;
   }
 
@@ -188,11 +210,15 @@ UefiCompress(
     // LzmaCompress takes a 5th DictionarySize parameter, so it cannot be
     // called through the 4-parameter COMPRESS_FUNCTION pointer.
     UINT32 LzmaDstSize = 0;
+    if (SrcDataSize > UINT32_MAX) {
+      PyErr_SetString(PyExc_ValueError, "data is too large to compress\n");
+      return NULL;
+    }
     Status = LzmaCompress((CONST UINT8 *)SrcBuf, (UINT32)SrcDataSize, NULL, &LzmaDstSize, DEFAULT_LZMA_DICTIONARY_SIZE);
     if (Status == EFI_BUFFER_TOO_SMALL) {
       DstBuf = malloc(LzmaDstSize);
       if (!DstBuf) {
-        errorHandling(SrcBuf, DstBuf);
+        errorHandling((VOID *)SrcBuf, DstBuf);
         return NULL;
       }
       Status = LzmaCompress((CONST UINT8 *)SrcBuf, (UINT32)SrcDataSize, (UINT8 *)DstBuf, &LzmaDstSize, DEFAULT_LZMA_DICTIONARY_SIZE);
@@ -200,26 +226,28 @@ UefiCompress(
     DstDataSize = (SizeT)LzmaDstSize;
   } else {
     CompressFunction = (COMPRESS_FUNCTION) ((type == EFI_COMPRESSION) ? EfiCompress : TianoCompress);
-    Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
+    Status = CompressFunction((VOID *)SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
     if (Status == EFI_BUFFER_TOO_SMALL) {
       // The first call to compress fills in the expected destination size.
       DstBuf = malloc (DstDataSize);
       if (!DstBuf) {
-        errorHandling(SrcBuf, DstBuf);
+        errorHandling((VOID *)SrcBuf, DstBuf);
         return NULL;
       }
       // The second call to compress compresses.
-      Status = CompressFunction(SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
+      Status = CompressFunction((VOID *)SrcBuf, SrcDataSize, DstBuf, &DstDataSize);
     }
   }
 
   if (Status != EFI_SUCCESS) {
     PyErr_SetString(PyExc_Exception, "Failed to compress\n");
-    errorHandling(SrcBuf, DstBuf);
+    errorHandling((VOID *)SrcBuf, DstBuf);
     return NULL;
   }
 
-  return PyBytes_FromStringAndSize(DstBuf, (Py_ssize_t)DstDataSize);
+  Result = PyBytes_FromStringAndSize(DstBuf, (Py_ssize_t)DstDataSize);
+  free(DstBuf);
+  return Result;
 }
 
 /**
