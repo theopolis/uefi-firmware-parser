@@ -1245,8 +1245,12 @@ class FirmwareFile(FirmwareObject):
             print ("%s Might contain CPU microcodes" % (
                 blue("%sBlob %d:" % (ts, index))))
 
-    def dump(self, parent=""):
-        parent = os.path.join(parent, "file-%s" % sguid(self.guid))
+    def dump(self, parent="", duplicate=0):
+        name = "file-%s" % sguid(self.guid)
+        if duplicate > 0:
+            # Pad files all share the same GUID; keep each one's output.
+            name += "-%d" % duplicate
+        parent = os.path.join(parent, name)
 
         dump_data(os.path.join(parent, "file.obj"), self._data)
         if self.raw_blobs is not None:
@@ -1269,7 +1273,7 @@ class FirmwareFileSystem(FirmwareObject):
         self._data = data
 
         # Overflow data is non-file data within the filesystem
-        self.overflow_data = ""
+        self.overflow_data = b""
 
     @property
     def objects(self):
@@ -1333,8 +1337,11 @@ class FirmwareFileSystem(FirmwareObject):
     def dump(self, parent=""):
         dump_data(os.path.join(parent, "filesystem.ffs"), self._data)
 
+        seen = {}
         for _file in self.files:
-            _file.dump(parent)
+            guid = sguid(_file.guid)
+            _file.dump(parent, duplicate=seen.get(guid, 0))
+            seen[guid] = seen.get(guid, 0) + 1
 
 
 class FirmwareVolume(FirmwareObject):

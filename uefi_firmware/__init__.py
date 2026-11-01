@@ -102,7 +102,7 @@ class AutoParser(object):
             objs.append(RawObject(self.data[size:]))
 
         if self.offset > 0:
-            objs = [RawObject('\xFF' * self.offset)] + objs
+            objs = [RawObject(b'\xFF' * self.offset)] + objs
 
         if len(objs) == 1:
             return objs[0]
