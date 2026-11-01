@@ -5,7 +5,7 @@
 import os
 import ctypes
 
-from .utils import dump_data, sguid, blue, utf8_decode_safe
+from .utils import dump_data, sguid, blue, utf8_decode_safe, is_erased
 
 
 class BaseObject(object):
@@ -163,6 +163,38 @@ class RawObject(FirmwareObject, BaseObject):
 
     def dump(self, parent='', index=0):
         path = os.path.join(parent, "object-%s.raw" % (str(index)))
+        dump_data(path, self.data)
+
+
+class PaddingObject(RawObject):
+    '''Data between parsed objects, such as the gap between two volumes.
+
+    Padding is usually erased flash. It is only shown and dumped when it
+    holds something else, since vendors sometimes store data there.
+    '''
+
+    def __init__(self, data, offset):
+        RawObject.__init__(self, data)
+        self.offset = offset
+
+    @property
+    def erased(self):
+        return is_erased(self.data)
+
+    def process(self):
+        return True
+
+    def showinfo(self, ts='', index=None):
+        if self.erased:
+            return
+        print("%s%s offset= 0x%x, size= 0x%x (%d bytes)" % (
+            ts, blue("Padding:"), self.offset, self.size, self.size
+        ))
+
+    def dump(self, parent='', index=None):
+        if self.erased:
+            return
+        path = os.path.join(parent, "padding-0x%x.raw" % self.offset)
         dump_data(path, self.data)
 
 

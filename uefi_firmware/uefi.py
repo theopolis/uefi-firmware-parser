@@ -8,7 +8,8 @@ import os
 import struct
 import zlib
 
-from .base import FirmwareObject, StructuredObject, RawObject, AutoRawObject
+from .base import FirmwareObject, StructuredObject, RawObject, AutoRawObject, \
+    PaddingObject
 from .utils import *
 from .guids import get_guid_name
 from .structs.uefi_structs import *
@@ -1327,6 +1328,12 @@ class FirmwareFileSystem(FirmwareObject):
     def showinfo(self, ts='', index=None):
         for i, firmware_file in enumerate(self.files):
             firmware_file.showinfo(ts + ' ', index=i)
+        if not is_erased(self.overflow_data):
+            offset = len(self._data) - len(self.overflow_data)
+            print("%s%s offset= 0x%x, size= 0x%x (%d bytes), not erased" % (
+                ts + ' ', blue("Free space:"), offset,
+                len(self.overflow_data), len(self.overflow_data)
+            ))
 
     def to_dict(self):
         res = []
@@ -1342,6 +1349,10 @@ class FirmwareFileSystem(FirmwareObject):
             guid = sguid(_file.guid)
             _file.dump(parent, duplicate=seen.get(guid, 0))
             seen[guid] = seen.get(guid, 0) + 1
+
+        if not is_erased(self.overflow_data):
+            dump_data(os.path.join(parent, "free-space.raw"),
+                      self.overflow_data)
 
 
 class FirmwareVolume(FirmwareObject):
@@ -1692,6 +1703,9 @@ class MultiVolumeContainer(FirmwareObject):
         self.data = data
         self.indexes = search_firmware_volumes(data)
         self.volumes = []
+        # Volumes and the padding before each one, in order.
+        self.objs = []
+        # Offset of the end of the last volume.
         self.size = 0
 
     def has_indexes(self):
@@ -1701,24 +1715,33 @@ class MultiVolumeContainer(FirmwareObject):
     def append_base(self, volume):
         '''Set the base volume as the first within the list.'''
         self.volumes = [volume] + self.volumes
+        self.objs = [volume] + self.objs
 
     def process(self):
         for index in self.indexes:
-            volume = FirmwareVolume(self.data[index - 40:], index)
+            start = index - 40
+            if start < self.size:
+                # This header is inside the previous volume.
+                continue
+            volume = FirmwareVolume(self.data[start:], index)
             if volume.process():
-                self.size += volume.size
+                if start > self.size:
+                    self.objs.append(PaddingObject(
+                        self.data[self.size:start], self.size))
                 self.volumes.append(volume)
+                self.objs.append(volume)
+                self.size = start + volume.size
         valid = len(self.volumes) > 0
         return valid
 
     @property
     def objects(self):
-        return self.volumes
+        return self.objs
 
     def showinfo(self, ts='', index=None):
         '''Write structure information to stdout.'''
-        for volume in self.volumes:
-            volume.showinfo(ts, index)
+        for obj in self.objs:
+            obj.showinfo(ts, index)
 
     def to_dict(self):
         return {
@@ -1730,6 +1753,9 @@ class MultiVolumeContainer(FirmwareObject):
         for i, volume in enumerate(self.volumes):
             path = os.path.join(parent, "volume-%d" % i)
             volume.dump(path)
+        for obj in self.objs:
+            if isinstance(obj, PaddingObject):
+                obj.dump(parent)
 
 
 class FirmwareCapsule(FirmwareObject):
