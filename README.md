@@ -166,10 +166,6 @@ python scripts/fv_injector.py --guid GUID --injection payload.efi -o patched.rom
 With `-g LABEL` it prints them as a Python dictionary that you can import into IDA
 using Snare's plugins.
 
-**Dell HDR extraction.** `scripts/contrib/dell_extract_hdr.py` extracts the
-compressed HDR payload from a Dell BIOS update executable so that the parser can
-read it.
-
 Run any script with `-h` for its full options.
 
 ## Tested vendors
@@ -178,7 +174,8 @@ The parser has been tested on BIOS, UEFI, and firmware updates from ASRock, Appl
 Dell, Gigabyte, HP, Intel, Lenovo, MSI, Qualcomm, and VMware. Not every update for
 every product will parse. Some updates are wrapped in a vendor installer (usually a
 PE executable) and need to be extracted or decompressed before the parser can read
-them.
+them. The parser does unwrap Dell BIOS update executables, finding and
+decompressing the PFS inside them.
 
 ## Development
 

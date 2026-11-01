@@ -4,10 +4,8 @@ The TypeTester may be useful if parsing a large number of UEFI-related binaries.
 """
 
 
-import re
-
 from ..uefi import FirmwareVolume, FirmwareCapsule, FirmwareFile
-from ..pfs import PFSFile, PFHeader
+from ..pfs import PFSFile, PFHeader, DellUpdateBinary
 from ..flash import FlashDescriptor
 from ..me import MeContainer, MeManifestHeader
 
@@ -15,6 +13,8 @@ from ..me import MeContainer, MeManifestHeader
 class TypeTester(object):
     parser = None
     static = b"MZ"
+    # How much of the input match() needs; None means all of it.
+    header_size = 200
 
     def match(self, data):
         if data[:self.size] == self.static:
@@ -97,15 +97,12 @@ class DellPFSTester(TypeTester):
 
 
 class DellUpdateBinaryTester(TypeTester):
-    hdr_pattern = re.compile(
-        b'.{4}\xAA\xEE\xAA\x76\x1B\xEC\xBB\x20\xF1\xE6\x51.{1}\x78\x9C')
-    static = b"\x00" * 100
+    parser = DellUpdateBinary
+    # The compressed PFS can be anywhere in the program, not just its header.
+    header_size = None
 
     def match(self, data):
-        hdr_match = self.hdr_pattern.search(data)
-        if hdr_match is None:
-            return False
-        return True
+        return DellUpdateBinary(data).valid_header
 
 TESTERS = [
     FlashDescriptorTester,
