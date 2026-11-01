@@ -189,7 +189,7 @@ def calculate_checksum16(data):
 class FirmwareVariableStore(FirmwareObject, StructuredObject):
 
     '''An firmware-related variable storage structure (think NVRAM).'''
-    variables = []
+    variables = ()
 
     @property
     def objects(self):
@@ -199,7 +199,7 @@ class FirmwareVariableStore(FirmwareObject, StructuredObject):
 class FirmwareVariable(FirmwareObject, StructuredObject):
 
     '''A firmware-related variable, found in a variable store.'''
-    subsections = []
+    subsections = ()
 
     @property
     def objects(self):
@@ -375,7 +375,9 @@ class NVARVariableStore(FirmwareVariableStore):
 
 
 class EfiSection(FirmwareObject):
-    subsections = []
+    # Immutable so that a subclass which appends without creating its own
+    # list fails loudly, rather than sharing children across every instance.
+    subsections = ()
 
     @property
     def objects(self):
@@ -464,6 +466,7 @@ class CompressedSection(EfiSection):
         self.guid = guid
         self.data = None
         self.parsed_objects = []
+        self.subsections = []
 
         # http://dox.ipxe.org/PiFirmwareFile_8h_source.html
         self.decompressed_size, self.type = struct.unpack("<Ic", data[:5])
@@ -564,6 +567,7 @@ class CompressedSection(EfiSection):
 class VersionSection(EfiSection):
 
     def __init__(self, data):
+        self.subsections = []
         self.data = data
         self.build_number = struct.unpack("<16s", self.data[:16])
 
@@ -577,6 +581,7 @@ class FreeformGuidSection(EfiSection):
     name = None
 
     def __init__(self, data):
+        self.subsections = []
         self.guid = struct.unpack("<16s", data[:16])[0]
         self.data = data[16:]
 
@@ -1398,10 +1403,10 @@ class FirmwareVolume(FirmwareObject):
     block_map = None
     '''list: An empty block set.'''
 
-    firmware_filesystems = []
+    firmware_filesystems = ()
     '''list: Set of FirmwareFileSystems discovered in volume.'''
 
-    raw_objects = []
+    raw_objects = ()
     '''list: Set of RawObjects discovered in volume.'''
 
     def __init__(self, data, name="0"):
