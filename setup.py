@@ -20,7 +20,6 @@ class LintCommand(Command):
         "uefi_firmware/*/*.py",
         "tests/*.py",
         "scripts/*.py",
-        "scripts/contrib/*.py",
     ]
 
     def initialize_options(self):

@@ -1,5 +1,7 @@
 import struct
 import os
+import re
+import zlib
 
 from .base import FirmwareObject, RawObject, BaseObject, AutoRawObject
 from .uefi import FirmwareVolume
@@ -428,3 +430,59 @@ class PFSFile(FirmwareObject):
         path = os.path.join(parent, "pfsobject")
         for section in self.sections:
             section.dump(path)
+
+
+class DellUpdateBinary(FirmwareObject):
+    '''A Dell BIOS update program (PE) with an embedded, compressed PFS.
+
+    The PFS follows a 16-byte header: its little-endian compressed size, a
+    static marker, and one unknown byte. The marker appears several times in
+    the program, so the zlib header (0x789C) is matched to find the right one.
+
+    See https://forums.mydigitallife.net/threads/i-present-you-a-tool-to-decompress-dell-uefi-bios.44785/
+    '''
+    HDR_PATTERN = re.compile(
+        b'.{4}\xAA\xEE\xAA\x76\x1B\xEC\xBB\x20\xF1\xE6\x51.\x78\x9C',
+        re.DOTALL)
+    HDR_SIZE = 0x10
+
+    def __init__(self, data):
+        self.data = data
+        self.size = len(data)
+        self.pfs = None
+        self.pfs_offset = None
+        self.valid_header = False
+        if data[:2] == b"MZ":
+            match = self.HDR_PATTERN.search(data)
+            if match is not None:
+                self.pfs_offset = match.start()
+                self.valid_header = True
+
+    def process(self):
+        if not self.valid_header:
+            return False
+        compressed_size, = struct.unpack(
+            "<I", self.data[self.pfs_offset:self.pfs_offset + 4])
+        compressed_offset = self.pfs_offset + self.HDR_SIZE
+        try:
+            pfs_data = zlib.decompress(
+                self.data[compressed_offset:compressed_offset + compressed_size])
+        except zlib.error as err:
+            print_error("Cannot decompress Dell PFS: %s" % str(err))
+            return False
+        self.pfs = PFSFile(pfs_data)
+        return self.pfs.process()
+
+    @property
+    def objects(self):
+        return [self.pfs]
+
+    def showinfo(self, ts='', index=None):
+        print("%s%s size 0x%x (%d bytes) PFS offset 0x%x" % (
+            ts, blue("DellUpdateBinary:"),
+            self.size, self.size, self.pfs_offset
+        ))
+        self.pfs.showinfo("%s  " % ts)
+
+    def dump(self, parent='', index=None):
+        self.pfs.dump(parent)
