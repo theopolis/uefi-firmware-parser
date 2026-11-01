@@ -125,7 +125,7 @@ class MeModule(MeObject):
 
         # print "Debug: module data 0x%08X - 0x%08X" % (
         #    self.offset, self.offset + self.structure.Size)
-        self.data = data[self.offset:self.offset + self.structure.Size]
+        self.data = bytes(data[self.offset:self.offset + self.structure.Size])
 
     def process(self):
         if self.compression == COMP_TYPE_HUFFMAN:
@@ -176,7 +176,7 @@ class MeVariableModule(MeObject):
         self.data = None
         self.size = 0
 
-        hdr = data[:self.HEADER_SIZE]
+        hdr = bytes(data[:self.HEADER_SIZE])
         self.valid_header = True
         self.header_blank = False
 
@@ -192,7 +192,13 @@ class MeVariableModule(MeObject):
         self.tag = hdr[:4]
         # Note the elen size includes the header size
         self.size = struct.unpack("<I", hdr[4:])[0] * 4 - self.HEADER_SIZE
-        self.data = data[self.HEADER_SIZE:self.HEADER_SIZE + self.size]
+        if self.size < 0:
+            # A length smaller than the header would move the parser
+            # backwards, so the variable modules would never end.
+            self.valid_header = False
+            return
+        self.data = bytes(
+            data[self.HEADER_SIZE:self.HEADER_SIZE + self.size])
         pass
 
     def add_update(self, tag, name, offset, size):
@@ -365,11 +371,15 @@ class MeManifestHeader(MeObject):
     def _parse_mods(self):
         # Parse the module headers (two types of headers, specified by the
         # manifest).
+        view = memoryview(self.data)
         module_offset = 0
         huffman_offset = 0
         for module_index in range(self.structure.NumModules):
+            if module_offset >= len(self.data):
+                # NumModules is larger than the module headers present.
+                break
             module = MeModule(
-                self.data[module_offset:],
+                view[module_offset:],
                 self.header_type, module_offset + self.partition_offset)
             # print "Debug: found me module header (%s) at (%d)." %
             # (module.tag, module_offset)
@@ -395,10 +405,11 @@ class MeManifestHeader(MeObject):
     def _parse_variable_mods(self, module_offset):
         # Parse additional tagged modules.
         self.partition_end = 0
+        view = memoryview(self.data)
         while module_offset < self.structure.Size * 4:
             # There is more module header to process.
             module = MeVariableModule(
-                self.data[module_offset:], self.header_type)
+                view[module_offset:], self.header_type)
             if not module.valid_header:
                 break
             module_offset += module.HEADER_SIZE
@@ -418,10 +429,11 @@ class MeManifestHeader(MeObject):
 
     def _parse_module_files(self):
         file_offset = self.structure.Size * 4
+        view = memoryview(self.data)
         # print "Debug: looking for module files at (%08X)." % file_offset
         while True:
-            module_file = MeModuleFile(self.data[file_offset:])
-            if not module_file.valid_header:
+            module_file = MeModuleFile(view[file_offset:])
+            if not module_file.valid_header or module_file.size <= 0:
                 break
             if module_file.name in module_map:
                 # A module file header corresponds to the module header
@@ -485,7 +497,9 @@ class MeManifestHeader(MeObject):
 class CPDEntry(MeObject):
 
     def __init__(self, data, header_offset):
-        self.parse_structure(data[header_offset:], MeCpdEntryType)
+        self.parse_structure(
+            data[header_offset:header_offset + MeCpdEntryType.size],
+            MeCpdEntryType)
         self.valid_header = False
         if self.structure.Offset > len(data):
             # This is invalid, offset (start) out of bounds
@@ -554,6 +568,9 @@ class CPDManifestHeader(MeObject):
         offset = MeCpdHeaderType.size
         for i in range(self.structure.NumModules - 1):
             offset += MeCpdEntryType.size
+            if offset + MeCpdEntryType.size > len(self.data):
+                # NumModules is larger than the entry table.
+                break
             entry = CPDEntry(self.data, offset)
             if entry.process():
                 self.modules.append(entry)
@@ -576,7 +593,8 @@ class PartitionEntry(MeObject):
 
     def __init__(self, data, offset):
         self.manifest = None
-        self.parse_structure(data[offset:], MeFptEntryType)
+        self.parse_structure(
+            data[offset:offset + PartitionEntry.size], MeFptEntryType)
 
         self.has_content = True
         if self.structure.Owner == b"\xFF\xFF\xFF\xFF":
@@ -660,6 +678,9 @@ class MeContainer(MeObject):
         for i in range(self.structure.Entries):
             offset = self.partition_offset + 0x30
             offset += i * PartitionEntry.size
+            if offset + PartitionEntry.size > len(self.data):
+                # Entries is larger than the partition table.
+                break
             entry = PartitionEntry(self.data, offset)
             if entry.process():
                 self.size += entry.size

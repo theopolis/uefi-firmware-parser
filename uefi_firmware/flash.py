@@ -48,21 +48,22 @@ class FlashRegion(FirmwareObject, BaseObject):
         if self.name == "bios":
             # Offsets are relative to the region. Bytes between volumes are
             # kept as padding so the sections cover the whole region.
+            view = memoryview(self.data)
             search_offset = 0
             padding_offset = 0
             while True:
                 volume_index = search_firmware_volumes(
-                    self.data[search_offset:], limit=1)
+                    self.data, limit=1, start=search_offset)
                 if len(volume_index) == 0:
                     break
-                volume_offset = search_offset + volume_index[0] - 40
+                volume_offset = volume_index[0] - 40
                 fv = None
                 if volume_offset >= padding_offset:
                     fv = FirmwareVolume(
-                        self.data[volume_offset:], hex(volume_offset))
+                        view[volume_offset:], hex(volume_offset))
                 if fv is None or not fv.valid_header or \
                         fv.size < FirmwareVolume._HEADER_SIZE:
-                    search_offset += volume_index[0] + 8
+                    search_offset = volume_index[0] + 8
                     continue
                 self._add_padding(padding_offset, volume_offset)
                 self.sections.append(fv)

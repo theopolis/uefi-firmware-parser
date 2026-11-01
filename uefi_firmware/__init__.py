@@ -5,7 +5,7 @@ from .uefi import MultiVolumeContainer
 
 from .misc import checker
 from .base import FirmwareObject, RawObject, AutoRawObject
-from .utils import search_firmware_volumes
+from .utils import limit_nesting, search_firmware_volumes
 
 
 class AutoParser(object):
@@ -58,6 +58,7 @@ class AutoParser(object):
         '''
         return self.data_type
 
+    @limit_nesting(None)
     def parse(self):
         '''Call the 'process' method for the discovered type using the input
         file contents. If the file type's parser returns False indicating a
@@ -80,14 +81,18 @@ class AutoParser(object):
 
         objs = [self.firmware]
         size = self.firmware.size
+        if size <= 0:
+            # Without the object's extent, the trailing data would be parsed
+            # again from the same offset.
+            return self.firmware
 
         while size < len(self.data):
             raw = AutoRawObject(self.data[size:])
-            if raw.process():
-                size += raw.object.size
-                objs.append(raw.object)
-            else:
+            if not raw.process() or raw.object.size <= 0:
+                # An object that covers no bytes would be found again here.
                 break
+            size += raw.object.size
+            objs.append(raw.object)
 
         mfc = MultiVolumeContainer(self.data[size:])
         if mfc.has_indexes():

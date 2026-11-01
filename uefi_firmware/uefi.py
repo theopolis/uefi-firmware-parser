@@ -2,7 +2,6 @@
 This package defines firmware structures for unpacking, decompressing,
 extracting, and rebuilding UEFI data.
 '''
-import gzip
 import logging
 import os
 import struct
@@ -109,8 +108,27 @@ def compare(data1, data2):
     return True
 
 
+# efi_compressor refuses (before decoding) any output larger than this; see
+# MAX_DSTSZ in compression/EfiCompressor.c.
+_MAX_EXTENSION_OUTPUT = 100000000
+
+
+def _claimed_size(algorithm, compressed_data):
+    '''The output size a compressed header claims, which bounds the work an
+    efi_compressor call does whether or not it succeeds.'''
+    if algorithm is efi_compressor.LzmaDecompress:
+        header = compressed_data[5:13]
+        size = struct.unpack("<Q", header)[0] if len(header) == 8 else 0
+    else:
+        header = compressed_data[4:8]
+        size = struct.unpack("<I", header)[0] if len(header) == 4 else 0
+    return size if size <= _MAX_EXTENSION_OUTPUT else 0
+
+
 def decompress(algorithms, compressed_data):
     '''Attempt to decompress using a set of algorithms.
+
+    Each attempt is charged against the parse's decompression budget.
 
     Args:
         algorithms (list): A set of decompression methods.
@@ -120,6 +138,9 @@ def decompress(algorithms, compressed_data):
         pair (int, binary): Return the algorithm index, and decompressed stream.
     '''
     for i, algorithm in enumerate(algorithms):
+        if not reserve_decompression(
+                _claimed_size(algorithm, compressed_data)):
+            return None
         try:
             data = algorithm(compressed_data, len(compressed_data))
             if data:
@@ -149,23 +170,30 @@ def find_volumes(data, process=True):
         list: The set of discovered firmware objects.
     '''
     objects = []
+    view = memoryview(data)
+    # Bytes before raw_start are already covered by an object.
+    raw_start = 0
+    search_start = 0
     while True:
-        volume_index = data.find(b"_FVH")
-        if volume_index < 0:
+        magic = data.find(b"_FVH", search_start)
+        if magic < 0:
             break
-        volume_index -= (8 + 16 * 2)
-        fv = FirmwareVolume(data[volume_index:])
-        if not fv.valid_header:
-            data = data[16 * 3:]
+        search_start = magic + 4
+        volume_start = magic - (8 + 16 * 2)
+        if volume_start < raw_start:
             continue
-        if volume_index > 0:
-            objects.append(RawObject(data[:volume_index]))
+        fv = FirmwareVolume(view[volume_start:])
+        if not fv.valid_header:
+            continue
+        if volume_start > raw_start:
+            objects.append(RawObject(data[raw_start:volume_start]))
         if process:
             fv.process()
         objects.append(fv)
-        data = data[volume_index + fv.size:]
-    if len(data) > 0:
-        objects.append(RawObject(data))
+        raw_start = volume_start + fv.size
+        search_start = max(search_start, raw_start)
+    if raw_start < len(data):
+        objects.append(RawObject(data[raw_start:]))
     return objects
 
 def calculate_checksum8(data):
@@ -241,8 +269,9 @@ class NVARVariable(FirmwareVariable):
             return False
         self.attrs = {"attrs": self.structure.Attributes}
 
-        # Now with structure parsed, set bounds on the data
-        self.data = self.data[:self.size]
+        # Now with structure parsed, set bounds on the data. The store passes
+        # a memoryview of the rest of its data, so keep only this variable.
+        self.data = bytes(self.data[:self.size])
         offset = self.structure_size
         if bit_set(self.structure.Attributes, NVRAM_ATTRIBUTES["GUID"]):
             self.guid = self.data[offset:offset + 16]
@@ -323,15 +352,14 @@ class NVARVariableStore(FirmwareVariableStore):
         if not self.valid_header:
             return False
 
-        var_offset = self.data
+        view = memoryview(self.data)
         total_size = 0
-        while len(var_offset) > 4:
-            nvar = NVARVariable(var_offset)
+        while len(self.data) - total_size > 4:
+            nvar = NVARVariable(view[total_size:])
             if not nvar.process():
                 break
             total_size += nvar.size
             self.variables.append(nvar)
-            var_offset = var_offset[nvar.size:]
 
         # Scope data to just the parsed variables
         self.data = self.data[:total_size]
@@ -389,6 +417,7 @@ class EfiSection(FirmwareObject):
         if self.data is None:
             return False
 
+        view = memoryview(self.data)
         subsection_offset = 0
         status = True
         while subsection_offset < len(self.data):
@@ -399,7 +428,7 @@ class EfiSection(FirmwareObject):
 
             try:
                 subsection = FirmwareFileSystemSection(
-                    self.data[subsection_offset:],
+                    view[subsection_offset:],
                     self.guid
                 )
             except struct.error as e:
@@ -479,6 +508,7 @@ class CompressedSection(EfiSection):
         self.attrs = {
             "decompressed_size": self.decompressed_size, "type": self.type}
 
+    @limit_nesting(False)
     def process(self):
         dlog(self, sguid(self.guid))
         def bf_decompress(data):
@@ -637,6 +667,7 @@ class GuidDefinedSection(EfiSection):
     def objects(self):
         return self.subsections
 
+    @limit_nesting(False)
     def process(self):
         dlog(self, sguid(self.guid))
         def parse_volume():
@@ -675,7 +706,7 @@ class GuidDefinedSection(EfiSection):
                 dlog(self, sguid(self.guid), 'error, invalid AMD zlib section header')
                 return False
             try:
-                data = zlib.decompress(compressed_data)
+                data = zlib_decompress(compressed_data)
                 if data:
                     self.subtype = 0
                     self.data = data
@@ -688,7 +719,8 @@ class GuidDefinedSection(EfiSection):
                 dlog(self, sguid(self.guid), 'zlib error: %s' % str(err))
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["GZIP_COMPRESSED_QC"]:
             try:
-                data = gzip.decompress(self.preamble + self.data)
+                data = zlib_decompress(
+                    self.preamble + self.data, wbits=16 + zlib.MAX_WBITS)
                 if data:
                     self.subtype = 0
                     self.data = data
@@ -807,11 +839,12 @@ class FirmwareFileSystemSection(EfiSection):
             self.valid_header = False
             return
 
-        self._data = data[:self.size]
+        # data may be a memoryview of the remaining sections; copy this one.
+        self._data = bytes(data[:self.size])
         if self.large_header:
-            self.data = data[0x8:self.size]
+            self.data = self._data[0x8:]
         else:
-            self.data = data[0x4:self.size]
+            self.data = self._data[0x4:]
         self.name = None
 
     @property
@@ -823,6 +856,7 @@ class FirmwareFileSystemSection(EfiSection):
         self._data = data
         self.data = data[0x4:]
 
+    @limit_nesting(False)
     def process(self):
         # section types, see PI spec v1.7 Errata A Volume 3, 2.1.5.1, table 3-4
         dlog(self, sguid(self.guid))
@@ -1019,9 +1053,10 @@ class FirmwareFile(FirmwareObject):
         }
         self.attrs["type_name"] = _get_file_type(self.type)[0]
 
-        # The size includes the header bytes.
-        self._data = data[:self.size]
-        self.data = data[self._HEADER_SIZE:self.size]
+        # The size includes the header bytes. data may be a memoryview of the
+        # rest of the file system, so copy only this file.
+        self._data = bytes(data[:self.size])
+        self.data = self._data[self._HEADER_SIZE:]
         self.raw_blobs = []
         self.sections = []
 
@@ -1072,10 +1107,12 @@ class FirmwareFile(FirmwareObject):
             self.raw_blobs.append(raw)
             return True
 
-        section_data = self.data
+        view = memoryview(self.data)
+        section_offset = 0
         self.sections = []
-        while len(section_data) >= 4:
-            file_section = FirmwareFileSystemSection(section_data, self.guid)
+        while len(self.data) - section_offset >= 4:
+            file_section = FirmwareFileSystemSection(
+                view[section_offset:], self.guid)
             if not file_section.valid_header:
                 dlog(self, sguid(self.guid), 'Invalid section header')
                 return False
@@ -1088,7 +1125,7 @@ class FirmwareFile(FirmwareObject):
             status = file_section.process() and status
             self.sections.append(file_section)
 
-            section_data = section_data[(file_section.size + 3) & (~3):]
+            section_offset += (file_section.size + 3) & (~3)
         return status
 
     def _find_objects(self):
@@ -1289,10 +1326,12 @@ class FirmwareFileSystem(FirmwareObject):
         '''Search for a 24-byte header that does not contain all 0xFF.'''
 
         dlog(self, 'ffs')
-        data = self._data
+        view = memoryview(self._data)
+        offset = 0
         status = True
-        while len(data) >= 24 and data[:24] != (b"\xff" * 24):
-            firmware_file = FirmwareFile(data)
+        while len(self._data) - offset >= 24 and \
+                view[offset:offset + 24] != (b"\xff" * 24):
+            firmware_file = FirmwareFile(view[offset:])
 
             if firmware_file.size < 24:
                 # This is a problem, the file was corrupted.
@@ -1302,8 +1341,9 @@ class FirmwareFileSystem(FirmwareObject):
                 dlog(self, 'ffs', 'Could not parse FF')
                 status = False
             self.files.append(firmware_file)
-            data = data[(firmware_file.size + 7) & (~7):]
+            offset += (firmware_file.size + 7) & (~7)
 
+        data = self._data[offset:]
         if len(data) > 0:
             # There is overflow data
             self.overflow_data = data
@@ -1431,11 +1471,18 @@ class FirmwareVolume(FirmwareObject):
             dlog(self, sguid(self.guid), 'Unrecognized volume GUID')
             return
 
+        # Callers advance past a volume by its size, so a volume smaller than
+        # its own header would never be stepped over.
+        if self.hdrlen < self._HEADER_SIZE or self.size < self.hdrlen:
+            dlog(self, name, 'Invalid header length or volume size')
+            return
+
         self.blocks = []
         self.block_map = ""
 
         try:
-            data = data[:self.size]
+            # data may be a memoryview of a larger image; copy this volume.
+            data = bytes(data[:self.size])
 
             self._data = data
             self.data = data[self.hdrlen:]
@@ -1463,6 +1510,7 @@ class FirmwareVolume(FirmwareObject):
     def objects(self):
         return self.firmware_filesystems or []
 
+    @limit_nesting(False)
     def process(self):
         dlog(self, self.name)
         if self.block_map is None:
@@ -1729,12 +1777,13 @@ class MultiVolumeContainer(FirmwareObject):
         self.objs = [volume] + self.objs
 
     def process(self):
+        view = memoryview(self.data)
         for index in self.indexes:
             start = index - 40
             if start < self.size:
                 # This header is inside the previous volume.
                 continue
-            volume = FirmwareVolume(self.data[start:], index)
+            volume = FirmwareVolume(view[start:], index)
             if volume.process():
                 if start > self.size:
                     self.objs.append(PaddingObject(

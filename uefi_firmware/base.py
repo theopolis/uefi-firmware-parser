@@ -128,7 +128,8 @@ class StructuredObject(object):
         struct_instance = structure()
         struct_size = ctypes.sizeof(struct_instance)
 
-        struct_data = data[:struct_size]
+        # data may be a memoryview over a larger buffer; copy only the header.
+        struct_data = bytes(data[:struct_size])
         struct_length = min(len(struct_data), struct_size)
         ctypes.memmove(
             ctypes.addressof(struct_instance), struct_data, struct_length)

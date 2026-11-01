@@ -5,7 +5,8 @@ import zlib
 
 from .base import FirmwareObject, RawObject, BaseObject, AutoRawObject
 from .uefi import FirmwareVolume
-from .utils import print_error, dump_data, sguid, green, blue
+from .utils import print_error, dump_data, sguid, green, blue, \
+    limit_nesting, zlib_decompress
 
 
 PFS_GUIDS = {
@@ -19,9 +20,10 @@ PFS_GUIDS = {
 def _discover_volumes(data):
     # Assume a series of firmware volumes
     volumes = []
+    view = memoryview(data)
     fv_offset = 0
     while fv_offset < len(data):
-        fv = FirmwareVolume(data[fv_offset:], hex(fv_offset))
+        fv = FirmwareVolume(view[fv_offset:], hex(fv_offset))
         if not fv.valid_header:
             break
         if not fv.process():
@@ -36,7 +38,8 @@ class PFRegion(FirmwareObject):
         self.offset, self.size, self.address, self.name_offset = struct.unpack(
             '<IIQI', header[:20])
         self.header = header
-        self.data = data[:self.size]
+        # data may be a memoryview of the remaining images; copy this one.
+        self.data = bytes(data[:self.size])
 
     @property
     def objects(self):
@@ -113,11 +116,15 @@ class PFHeader(FirmwareObject, BaseObject):
             return False
 
         self.objs = []
+        view = memoryview(self.data)
         data_offset = self.hdr_size
         for i in range(self.image_count):
             region_offset = 0xDC + (i * 20)
+            if region_offset + 20 > len(self.data):
+                # image_count is larger than the region table.
+                break
             entry = PFRegion(self.data[region_offset:region_offset + 20],
-                self.data[data_offset:])
+                view[data_offset:])
             data_offset += entry.size
             if entry.process():
                 self.objs.append(entry)
@@ -225,7 +232,9 @@ class PFSSection(FirmwareObject, BaseObject):
         self.section_objects = []
 
     def process(self):
-        hdr = self.data[:self.HEADER_SIZE]
+        # self.data may be a memoryview of the remaining sections, so copy
+        # each part kept from it.
+        hdr = bytes(self.data[:self.HEADER_SIZE])
         self.uuid = hdr[:0x10]
         self.header = hdr
 
@@ -250,15 +259,18 @@ class PFSSection(FirmwareObject, BaseObject):
 
         # This seems to be a set of 8byte CRCs for each chunk (4 total)
         self.crcs = hdr[0x20 + 0x18:self.HEADER_SIZE]
-        self.section_data = self.data[
-            self.HEADER_SIZE:self.HEADER_SIZE + section_size]
+        self.section_data = bytes(self.data[
+            self.HEADER_SIZE:self.HEADER_SIZE + section_size])
 
         rsa1_offset = self.HEADER_SIZE + section_size
-        self.rsa1 = RawObject(self.data[rsa1_offset:rsa1_offset + rsa1_size])
+        self.rsa1 = RawObject(
+            bytes(self.data[rsa1_offset:rsa1_offset + rsa1_size]))
         pmim_offset = rsa1_offset + rsa1_size
-        self.pmim = RawObject(self.data[pmim_offset:pmim_offset + pmim_size])
+        self.pmim = RawObject(
+            bytes(self.data[pmim_offset:pmim_offset + pmim_size]))
         rsa2_offset = pmim_offset + pmim_size
-        self.rsa2 = RawObject(self.data[rsa2_offset:rsa2_offset + rsa2_size])
+        self.rsa2 = RawObject(
+            bytes(self.data[rsa2_offset:rsa2_offset + rsa2_size]))
 
         # Unknown 8byte variable
         # _u3 = self.data[64+total_chunk_size:64+total_chunk_size+8]
@@ -389,18 +401,18 @@ class PFSFile(FirmwareObject):
         if not self.valid_header:
             return False
 
+        view = memoryview(data)
         chunk_num = 0
-        offset = 16
+        offset = 0
         while True:
-            section = PFSSection(data)
+            section = PFSSection(view[offset:])
             section.process()
             self.sections.append(section)
 
             chunk_num += 1
             offset += section.section_size
-            data = data[section.section_size:]
 
-            if len(data) < 64:
+            if len(data) - offset < 64:
                 break
         return True
 
@@ -458,6 +470,7 @@ class DellUpdateBinary(FirmwareObject):
                 self.pfs_offset = match.start()
                 self.valid_header = True
 
+    @limit_nesting(False)
     def process(self):
         if not self.valid_header:
             return False
@@ -465,7 +478,7 @@ class DellUpdateBinary(FirmwareObject):
             "<I", self.data[self.pfs_offset:self.pfs_offset + 4])
         compressed_offset = self.pfs_offset + self.HDR_SIZE
         try:
-            pfs_data = zlib.decompress(
+            pfs_data = zlib_decompress(
                 self.data[compressed_offset:compressed_offset + compressed_size])
         except zlib.error as err:
             print_error("Cannot decompress Dell PFS: %s" % str(err))
