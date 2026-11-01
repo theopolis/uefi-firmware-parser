@@ -635,7 +635,7 @@ class GuidDefinedSection(EfiSection):
     def process(self):
         dlog(self, sguid(self.guid))
         def parse_volume():
-            fv = FirmwareVolume(self.data)
+            fv = FirmwareVolume(self.data, None)
             if fv.valid_header:
                 fv.process()
                 self.subsections = [fv]
@@ -840,10 +840,10 @@ class FirmwareFileSystemSection(EfiSection):
             self.name = uefi_name(self.data)
 
         elif self.type == 0x17:  # firmware-volume
-            fv = FirmwareVolume(self.data, sguid(self.guid))
+            fv = FirmwareVolume(self.data, None)
             if not fv.valid_header:
                 # Could be a FFSv3 section (Kairos sample)
-                fv = FirmwareVolume(self.data[4:], sguid(self.guid))
+                fv = FirmwareVolume(self.data[4:], None)
             if fv.valid_header:
                 self.parsed_object = fv
 
@@ -855,7 +855,7 @@ class FirmwareFileSystemSection(EfiSection):
             raw_object = True
             if self.data[:10] == b"123456789A":
                 # HP adds a strange header to nested FVs.
-                fv = FirmwareVolume(self.data[12:], sguid(self.guid))
+                fv = FirmwareVolume(self.data[12:], None)
                 self.parsed_object = fv
             else:
                 # For a raw section, we can cheat and assign the parsed object
@@ -1092,7 +1092,7 @@ class FirmwareFile(FirmwareObject):
         status = True
 
         # It may be a firmware volume (Lenovo or HP).
-        fv = FirmwareVolume(self.data, sguid(self.guid))
+        fv = FirmwareVolume(self.data, None)
         if fv.valid_header:
             has_object = True
             status = fv.process() and status
@@ -1680,11 +1680,17 @@ class FirmwareVolume(FirmwareObject):
         if len(self.data) == 0:
             return
 
-        path = safe_path(parent, "volume-%s.fv" % self.name)
-        dump_data(path, self._data)
+        # Combine the offset (if any) with the FvName GUID (if any) so that
+        # a recovery copy and its primary volume do not overwrite each other.
+        parts = [str(self.name)] if self.name is not None else []
+        if hasattr(self, 'fvname'):
+            parts.append(sguid(self.fvname))
+        name = "volume-%s" % "-".join(parts or ["0"])
+
+        dump_data(safe_path(parent, "%s.fv" % name), self._data)
 
         for _ffs in self.firmware_filesystems:
-            _ffs.dump(safe_path(parent, "volume-%s" % self.name))
+            _ffs.dump(safe_path(parent, name))
 
 
 class MultiVolumeContainer(FirmwareObject):

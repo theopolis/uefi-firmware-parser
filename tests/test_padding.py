@@ -97,8 +97,8 @@ class FlashRegionPaddingTest(unittest.TestCase):
             output = os.path.join(temp_dir, "region-bios")
             self.assertEqual(sorted(os.listdir(output)), [
                 "padding-0x1100.raw",
-                "volume-256", "volume-256.fv",
-                "volume-4608", "volume-4608.fv",
+                "volume-0x100", "volume-0x100.fv",
+                "volume-0x1200", "volume-0x1200.fv",
             ])
 
 

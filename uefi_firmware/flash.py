@@ -59,7 +59,7 @@ class FlashRegion(FirmwareObject, BaseObject):
                 fv = None
                 if volume_offset >= padding_offset:
                     fv = FirmwareVolume(
-                        self.data[volume_offset:], volume_offset)
+                        self.data[volume_offset:], hex(volume_offset))
                 if fv is None or not fv.valid_header or \
                         fv.size < FirmwareVolume._HEADER_SIZE:
                     search_offset += volume_index[0] + 8
