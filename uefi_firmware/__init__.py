@@ -155,4 +155,4 @@ try:
 except ImportError:
     __version__ = "0.1.0+unknown"
 __author__ = "UEFI Firmware Parser developers"
-__license__ = "BSD"
+__license__ = "MIT"
