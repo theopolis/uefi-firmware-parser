@@ -1,6 +1,6 @@
 # UEFI Firmware Parser
 
-[![CI status](https://github.com/theopolis/uefi-firmware-parser/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/theopolis/uefi-firmware-parser/actions/workflows/ci.yml)
+[![CI status](https://github.com/theopolis/uefi-firmware-parser/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/theopolis/uefi-firmware-parser/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/uefi_firmware.svg)](https://pypi.org/project/uefi_firmware/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/uefi_firmware.svg)](https://pypi.org/project/uefi_firmware/)
 
@@ -206,7 +206,7 @@ package version comes from the git tag through `setuptools-scm`.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/theopolis/uefi-firmware-parser/blob/master/LICENSE).
+MIT. See [LICENSE](https://github.com/theopolis/uefi-firmware-parser/blob/main/LICENSE).
 
 The bundled Tiano and LZMA compression code in `uefi_firmware/compression` keeps
 its original licenses, which are given in each source file.
