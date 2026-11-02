@@ -93,7 +93,7 @@ class FlashRegion(FirmwareObject, BaseObject):
             section.showinfo(ts="%s  " % ts)
         pass
 
-    def dump(self, parent=""):
+    def dump(self, parent="", index=None):
         dump_data(safe_path(parent, "region-%s.fd" % self.name), self.data)
 
         parent = safe_path(parent, "region-%s" % self.name)

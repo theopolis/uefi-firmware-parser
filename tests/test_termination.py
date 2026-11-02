@@ -156,6 +156,21 @@ class ScanTimeTest(unittest.TestCase):
         self.assertParsesQuickly(section.process)
         self.assertEqual(len(section.subsections), self.COUNT)
 
+    def test_many_blocks_in_volume(self):
+        # The largest block map a 16-bit header length allows, of 1-byte
+        # blocks, in front of 16 MiB of volume data.
+        count = (0xFFFF - FirmwareVolume._HEADER_SIZE) // 8
+        hdrlen = FirmwareVolume._HEADER_SIZE + count * 8
+        size = hdrlen + 16 * 1024 * 1024
+        header = struct.pack(
+            "<16s16sQ4sIHHHsB",
+            b"\x00" * 16, uuid.UUID(FIRMWARE_VOLUME_GUIDS["FFS2"]).bytes_le,
+            size, b"_FVH", 0, hdrlen, 0, 0, b"\x00", 2)
+        volume = FirmwareVolume(
+            (header + struct.pack("<II", 1, 1) * count).ljust(size, b"\xff"))
+        self.assertParsesQuickly(volume.process, seconds=1)
+        self.assertEqual(len(volume.firmware_filesystems), count)
+
     def test_many_volume_candidates_in_flash_region(self):
         # An 8-byte aligned '_FVH' every 256 bytes, none a valid volume.
         chunk = b"\x00" * 248 + b"_FVH" + b"\x00" * 4

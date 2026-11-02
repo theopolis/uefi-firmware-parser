@@ -423,16 +423,17 @@ class EfiSection(FirmwareObject):
         while subsection_offset < len(self.data):
             if subsection_offset % 4:
                 subsection_offset += 4 - (subsection_offset % 4)
-            if subsection_offset >= len(self.data):
+            if len(self.data) - subsection_offset < 4:
+                # No room for a section header; FirmwareFile.process also
+                # stops here.
                 break
 
-            try:
-                subsection = FirmwareFileSystemSection(
-                    view[subsection_offset:],
-                    self.guid
-                )
-            except struct.error as e:
-                dlog(self, 'subsections', 'Exception: %s' % (str(e)))
+            subsection = FirmwareFileSystemSection(
+                view[subsection_offset:],
+                self.guid
+            )
+            if not subsection.valid_header:
+                dlog(self, 'subsections', 'Invalid section header')
                 return False
             if subsection.size == 0:
                 break
@@ -657,7 +658,9 @@ class GuidDefinedSection(EfiSection):
         # including the common header, which was already stripped before passing
         # data here. Subtract it from the offset to get the correct data_start
         common_header_size = 8 if large_header else 4
-        data_start = self.offset - common_header_size
+        # An offset inside this header would give an empty or negative
+        # preamble, and a negative start slices from the end of the data.
+        data_start = max(self.offset - common_header_size, 20)
         self.preamble = data[20:data_start]
         self.data = data[data_start:]
         self.attrs = {"attrs": self.attr_mask}
@@ -817,6 +820,10 @@ class FirmwareFileSystemSection(EfiSection):
     parsed_object = None
     '''For object sections, keep track of each.'''
 
+    # The fixed headers of the compression, GUID-defined, version and
+    # free-form GUID section bodies.
+    _MIN_BODY_SIZE = {0x01: 5, 0x02: 20, 0x14: 2, 0x18: 16}
+
     def __init__(self, data, guid):
         self.guid = guid
         header = data[:0x4]
@@ -862,6 +869,13 @@ class FirmwareFileSystemSection(EfiSection):
         dlog(self, sguid(self.guid))
         self.parsed_object = None
         raw_object = False
+        self.attrs = {"type": self.type, "size": self.size}
+        self.attrs["type_name"] = _get_section_type(self.type)[0]
+
+        if len(self.data) < self._MIN_BODY_SIZE.get(self.type, 0):
+            print_error("Error: section type 0x%02x is too short (%d bytes)." % (
+                self.type, len(self.data)))
+            return False
 
         if self.type == 0x01:  # compression
             compressed_section = CompressedSection(self.data, self.guid)
@@ -903,9 +917,6 @@ class FirmwareFileSystemSection(EfiSection):
                 raw.process()
                 if raw.object is not None:
                     self.parsed_object = raw.object
-
-        self.attrs = {"type": self.type, "size": self.size}
-        self.attrs["type_name"] = _get_section_type(self.type)[0]
 
         if self.parsed_object is None:
             return True
@@ -1386,7 +1397,7 @@ class FirmwareFileSystem(FirmwareObject):
             res.append(firmware_file.to_dict())
         return res
 
-    def dump(self, parent=""):
+    def dump(self, parent="", index=None):
         dump_data(os.path.join(parent, "filesystem.ffs"), self._data)
 
         seen = {}
@@ -1519,24 +1530,23 @@ class FirmwareVolume(FirmwareObject):
 
         self.blocks = []
 
-        block_data = self.block_map
-        while len(block_data) > 0:
-            block = block_data[:8]
-
-            block_size, block_length = struct.unpack("<II", block)
+        # A trailing partial entry (the header length is not a multiple of 8
+        # past the fixed header) is ignored.
+        for block_offset in range(0, len(self.block_map) - 7, 8):
+            block_size, block_length = struct.unpack_from(
+                "<II", self.block_map, block_offset)
             if (block_size, block_length) == (0, 0):
                 '''The block map ends with a (0, 0) block.'''
                 break
 
             self.blocks.append((block_size, block_length))
-            block_data = block_data[8:]
 
         if len(self.blocks) == 0:
             '''No block in the volume? This is a problem.'''
             dlog(self, self.name, 'No blocks discovered')
             return False
 
-        data = self.data
+        data_offset = 0
         self.firmware_filesystems = []
         self.raw_objects = []
         status = True
@@ -1549,13 +1559,17 @@ class FirmwareVolume(FirmwareObject):
             FIRMWARE_VOLUME_GUIDS["PFH2"],
         ]
         for block in self.blocks:
+            # Slice by offset; dropping each block from the front of the data
+            # copied the rest of the volume once per block.
+            block_end = data_offset + block[0] * block[1]
+            block_data = self.data[data_offset:block_end]
+            data_offset = block_end
             if sguid(self.guid) in ffs_guids:
                 # FIXME: there may only be a single FFS, which is the FV body
                 # see https://uefi.org/sites/default/files/resources/PI_Spec_1_7_A_final_May1.pdf
                 # Volume 3, section 2.1.2
                 # and https://edk2-docs.gitbook.io/edk-ii-build-specification/2_design_discussion/22_uefipi_firmware_images
-                firmware_filesystem = FirmwareFileSystem(
-                    data[:block[0] * block[1]])
+                firmware_filesystem = FirmwareFileSystem(block_data)
                 ffs_status = firmware_filesystem.process()
                 if not ffs_status:
                     dlog(self, self.name, 'Could not parse FFS')
@@ -1563,11 +1577,9 @@ class FirmwareVolume(FirmwareObject):
                 self.firmware_filesystems.append(firmware_filesystem)
             elif sguid(self.guid) == FIRMWARE_VOLUME_GUIDS["NVRAM_EVSA"]:
                 # If this is an NVRAM volume, there are no FFS/FFs.
-                self.raw_objects.append(
-                    NVARVariableStore(data[:block[0] * block[1]]))
+                self.raw_objects.append(NVARVariableStore(block_data))
             else:
-                self.raw_objects.append(data[:block[0] * block[1]])
-            data = data[block[0] * block[1]:]
+                self.raw_objects.append(block_data)
         return status
 
     def build(self, generate_checksum=False, debug=False):
@@ -1855,7 +1867,7 @@ class FirmwareCapsule(FirmwareObject):
 
         try:
             self.parse_capsule_header(data[16:])
-        except:
+        except struct.error:
             self.valid_header = False
             return
 
@@ -1937,6 +1949,10 @@ class FirmwareCapsule(FirmwareObject):
         return [self.capsule_body]
 
     def process(self):
+        if not self.valid_header:
+            # The capsule GUID matched but its header is truncated.
+            return False
+
         # Copy the EOH to capsule into a preamble
         self.preamble = self.data[:self.offsets["capsule_body"]]
         self.parse_sections(None)
@@ -1947,9 +1963,11 @@ class FirmwareCapsule(FirmwareObject):
         fv = FirmwareVolume(self.data[self.offsets["capsule_body"]:])
         if not fv.valid_header:
             # The body could be an offset from the end of the header (Intel
-            # does this).
-            fv = FirmwareVolume(
-                self.data[self.offsets["capsule_body"] - self.header_size:])
+            # does this). A negative offset would slice from the end.
+            body_offset = self.offsets["capsule_body"] - self.header_size
+            if body_offset < 0:
+                return False
+            fv = FirmwareVolume(self.data[body_offset:])
             if not fv.valid_header:
                 return False
 

@@ -29,7 +29,6 @@
 import ctypes
 import struct
 import os
-import array
 
 from .structs.intel_me_structs import *
 from .utils import *
@@ -134,10 +133,15 @@ class MeModule(MeObject):
             return True
 
         if self.structure_type == MeModuleHeader1Type:
-            # It's possible for type 1 to include LZMA compression
-            if self.data[0x50:0x55] == b'\x5D\x00\x00\x80\x00':
+            # It's possible for type 1 to include LZMA compression. The data
+            # starts with a $MOD header holding the uncompressed size, and the
+            # LZMA properties follow it without the size an LZMA header needs.
+            module_file = MeModuleFile(self.data)
+            if module_file.valid_header and \
+                    self.data[0x50:0x55] == b'\x5D\x00\x00\x80\x00':
                 raw_data = self.data[0x50:0x55]
-                raw_data += struct.pack("<Q", self.structure.UncompressedSize)
+                raw_data += struct.pack(
+                    "<Q", module_file.structure.UncompressedSize)
                 raw_data += self.data[0x55:]
                 self.data = raw_data
         return True
@@ -163,7 +167,7 @@ class MeModule(MeObject):
             guid, self.attrs["version"], self.attrs["module_size"]), end=' ')
         self.show_compression()
 
-    def dump(self, parent=""):
+    def dump(self, parent="", index=None):
         self.dump_module(parent)
 
 
@@ -210,6 +214,8 @@ class MeVariableModule(MeObject):
 
     def process(self):
         if self.tag == b'$UDC':
+            if len(self.data) < self.type.udc_length:
+                return False
             subtag, _hash, name, offset, size = struct.unpack(
                 self.type.udc_format, self.data[:self.type.udc_length])
             self.add_update(subtag, name, offset, size)
@@ -217,14 +223,11 @@ class MeVariableModule(MeObject):
             # SKU is not handled
             self.values = [0, 0]
             return True
-        if self.size == 3:
-            values = [struct.unpack("<I", self.data[:4])[0]]
-        if self.size == 4:
-            values = struct.unpack("<II", self.data[:8])[0]
-        else:
-            values = array.array("I", self.data)
 
-        self.values = values
+        # The body is a list of 32-bit values. Truncated data may end
+        # part-way through one, which is dropped.
+        count = len(self.data) // 4
+        self.values = list(struct.unpack("<%dI" % count, self.data[:count * 4]))
         return True
 
     def showinfo(self, ts='', index=None):
@@ -239,9 +242,11 @@ class MeVariableModule(MeObject):
 
 
 class MeModuleFile(MeObject):
+    '''The $MOD header that starts the data of a module in a $MAN manifest.'''
+
+    size = ctypes.sizeof(MeModuleFileHeader1Type)
 
     def __init__(self, data):
-        self.size = 0
         tag = data[:4]
 
         self.valid_header = True
@@ -250,9 +255,7 @@ class MeModuleFile(MeObject):
             return
 
         self.parse_structure(data, MeModuleFileHeader1Type)
-        self.name = self.structure.Name.rstrip('\0')
-        self.size = self.structure.Size
-        pass
+        self.name = self.structure.Name.rstrip(b'\0')
 
 
 class MeLLUT(MeObject):
@@ -291,7 +294,7 @@ class MeLLUT(MeObject):
             ts, blue("LLUT"),
             self.chunkcount, self.chunksize, self.start, self.size, self.decompression_base))
 
-    def dump(self, parent='PART'):
+    def dump(self, parent='PART', index=None):
         # print "Debug: relative (%d) absolute start (%d) len (%d)." % (
         #    self.offset, self.start, len(self.data))
         dump_data("%s.llut.table" % parent, self.lut_data)
@@ -420,27 +423,11 @@ class MeManifestHeader(MeObject):
             # module.size))
             if not module.process():
                 return False
-            if module.tag == b'$MCP':
+            if module.tag == b'$MCP' and len(module.values) >= 2:
                 # The end of a manifest partition is stored in MCP
                 self.partition_end = module.values[0] + module.values[1]
             self.variable_modules.append(module)
             module_offset += module.size
-        return True
-
-    def _parse_module_files(self):
-        file_offset = self.structure.Size * 4
-        view = memoryview(self.data)
-        # print "Debug: looking for module files at (%08X)." % file_offset
-        while True:
-            module_file = MeModuleFile(view[file_offset:])
-            if not module_file.valid_header or module_file.size <= 0:
-                break
-            if module_file.name in module_map:
-                # A module file header corresponds to the module header
-                self.module_map[module_file.name].file = module_file
-            # print "Debug: found module file (%s) size (%d)." %
-            # (module_file.name, module_file.size)
-            file_offset += module_file.size
         return True
 
     def process(self):
@@ -463,8 +450,6 @@ class MeManifestHeader(MeObject):
         if self.header_type == MeModuleHeader2Type:
             if not self._parse_variable_mods(self.module_offset):
                 return False
-        if not self._parse_module_files():
-            return False
 
         # Parse optional huffman LLUT.
         huffman_offset = self.huffman_offset - self.partition_offset
@@ -478,7 +463,7 @@ class MeManifestHeader(MeObject):
         #    huffman_llut.size + huffman_offset, self.partition_end)
         return True
 
-    def dump(self, parent=""):
+    def dump(self, parent="", index=None):
         #huffman_end = self.huffman_llut.size + self.huffman_llut.start
         for module in self.modules:
             # if module.compression == COMP_TYPE_HUFFMAN:
@@ -535,7 +520,7 @@ class CPDEntry(MeObject):
             self.structure.Flags), end=' ')
         self.show_compression()
 
-    def dump(self, parent):
+    def dump(self, parent, index=None):
         if self.compression == COMP_TYPE_LZMA:
             # There is an odd state to check for that includes an additional
             # \x00\x00\x00 after the initial LZMA header block.
@@ -583,7 +568,7 @@ class CPDManifestHeader(MeObject):
         for entry in self.modules:
             entry.showinfo("%s  " % ts)
 
-    def dump(self, parent):
+    def dump(self, parent, index=None):
         for entry in self.modules:
             entry.dump(parent)
 
@@ -644,7 +629,7 @@ class PartitionEntry(MeObject):
         if self.manifest is not None:
             self.manifest.showinfo("%s  " % ts)
 
-    def dump(self, parent=""):
+    def dump(self, parent="", index=None):
         if self.has_content:
             dump_data(safe_path(
                 parent, "%s.partition" % utf8_decode_safe(self.structure.Name)),
@@ -696,7 +681,7 @@ class MeContainer(MeObject):
         for partition in self.partitions:
             partition.showinfo("  %s" % ts)
 
-    def dump(self, parent=""):
+    def dump(self, parent="", index=None):
         dump_data(os.path.join(parent, "me-container.me"), self.data)
         for partition in self.partitions:
             partition.dump(os.path.join(parent, "partitions"))

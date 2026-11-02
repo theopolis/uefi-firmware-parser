@@ -386,6 +386,10 @@ class PFSFile(FirmwareObject):
 
         footer_offset = self.size + 0x10
         footer = self.data[footer_offset:footer_offset + 0x10]
+        if len(footer) < 0x10:
+            print_error("Data is too short for the footer at 0x%x." % (
+                footer_offset))
+            return False
         # Footer size is a repeated body size.
         footer_size, _u2, footer_magic = struct.unpack("<II8s", footer)
         if footer_magic != self.PFS_FOOTER:
@@ -404,16 +408,13 @@ class PFSFile(FirmwareObject):
         view = memoryview(data)
         chunk_num = 0
         offset = 0
-        while True:
+        while len(data) - offset >= PFSSection.HEADER_SIZE:
             section = PFSSection(view[offset:])
             section.process()
             self.sections.append(section)
 
             chunk_num += 1
             offset += section.section_size
-
-            if len(data) - offset < 64:
-                break
         return True
 
     @property

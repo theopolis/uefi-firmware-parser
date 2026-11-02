@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 from datetime import datetime
 
 from uefi_firmware.uefi import *
@@ -79,6 +80,53 @@ def parse_firmware_volume(data, name=0, to_json=False):
         generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
         path = os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name))
         dump_data(path, generator.output)
+
+
+def _process_file(file_name, input_data):
+    '''Parse, show and extract one input file, returning its exit code.'''
+    if args.depex:
+        depex = parse_depex(input_data)
+        for op in depex:
+            if 'guid' in op:
+                if 'name' in op and op['name'] is not None:
+                    print("{} {} ({})".format(op['op'], op['guid'], op['name']))
+                else:
+                    print("{} {}".format(op['op'], op['guid']))
+            else:
+                print("{}".format(op['op']))
+        return 0
+
+    if args.superbrute:
+        superbrute_search(input_data)
+        logging.info("%s scanned in %s", FILENAME, str(datetime.now() - START))
+        return 0
+
+    if args.brute:
+        brute_search_volumes(input_data, to_json=args.json)
+        return 0
+
+    parser = AutoParser(input_data, search=True)
+    if args.test:
+        print("%s: %s" % (file_name, red(parser.type())))
+        return 0
+
+    if parser.type() == 'unknown':
+        print("Error: cannot parse %s, could not detect firmware type." % (file_name))
+        return 2
+
+    firmware = parser.parse()
+    if firmware is None:
+        print("Error: cannot parse %s, the %s could not be processed." % (
+            file_name, parser.type()))
+        return 3
+
+    if args.json:
+        res = firmware.to_dict()
+        print(json.dumps(res))
+        return 0
+
+    _process_show_extract(firmware)
+    return 0
 
 
 if __name__ == "__main__":
@@ -158,45 +206,15 @@ if __name__ == "__main__":
             errcode = max(errcode, 1)
             continue
 
-        if args.depex:
-            depex = parse_depex(input_data)
-            for op in depex:
-                if 'guid' in op:
-                    if 'name' in op and op['name'] is not None:
-                        print("{} {} ({})".format(op['op'], op['guid'], op['name']))
-                    else:
-                        print("{} {}".format(op['op'], op['guid']))
-                else:
-                    print("{}".format(op['op']))
-            continue
-
-        if args.superbrute:
-            superbrute_search(input_data)
-            logging.info("%s scanned in %s", FILENAME, str(datetime.now() - START))
-            continue
-
-        if args.brute:
-            brute_search_volumes(input_data, to_json=args.json)
-            continue
-
-        parser = AutoParser(input_data, search=True)
-        if args.test:
-            print("%s: %s" % (file_name, red(parser.type())))
-            continue
-
-        if parser.type() == 'unknown':
-            print("Error: cannot parse %s, could not detect firmware type." % (file_name))
-            errcode = max(errcode, 2)
-            continue
-
-        firmware = parser.parse()
-
-        if args.json:
-            res = firmware.to_dict()
-            print(json.dumps(res))
-            continue
-
-        _process_show_extract(firmware)
+        try:
+            errcode = max(errcode, _process_file(file_name, input_data))
+        except Exception as e:
+            # Report the failure and continue with the remaining files.
+            print("Error: cannot parse %s (%s: %s)." % (
+                file_name, type(e).__name__, str(e)))
+            if args.verbose:
+                traceback.print_exc()
+            errcode = max(errcode, 3)
 
     if errcode:
         sys.exit(errcode)
