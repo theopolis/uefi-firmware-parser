@@ -105,6 +105,23 @@ class VolumeDumpNameTest(unittest.TestCase):
             self.assertEqual(sorted(os.listdir(temp_dir)), [
                 "volume-0", "volume-0.fv"])
 
+    def test_volumes_in_a_raw_file_are_named_by_offset(self):
+        # Each volume found by searching a raw file was named "0".
+        body = b"\x00" * 0x10 + make_volume(size=0x200) + \
+            make_volume(size=0x200)
+        ffs = FirmwareFileSystem(
+            make_file(0x01, uuid.UUID(FILE_GUID).bytes_le, body))
+        self.assertTrue(ffs.process())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ffs.dump(temp_dir)
+
+            file_dir = os.path.join(temp_dir, "file-%s" % FILE_GUID)
+            volumes = [name for name in os.listdir(file_dir)
+                       if name.endswith(".fv")]
+            self.assertEqual(
+                sorted(volumes), ["volume-16.fv", "volume-528.fv"])
+
     def test_volume_names_stay_inside_parent(self):
         # FvName is read from the image, so it must not be able to steer the
         # output path even when its bytes spell out a traversal.

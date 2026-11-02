@@ -1,13 +1,18 @@
+import contextlib
+import io
 import os
 import struct
 import tempfile
 import unittest
 import uuid
 
+from uefi_firmware import MultiObject
+from uefi_firmware.me import MeContainer
+from uefi_firmware.structs.intel_me_structs import MePartitionTable
 from uefi_firmware.structs.uefi_structs import FIRMWARE_VOLUME_GUIDS
 from uefi_firmware.uefi import (
-    CompressedSection, EfiSection, FirmwareVolume, FreeformGuidSection,
-    VersionSection)
+    CompressedSection, EfiSection, FirmwareFileSystemSection, FirmwareVolume,
+    FreeformGuidSection, VersionSection)
 
 FILE_GUID = uuid.UUID("9e21fd93-9c72-4c15-8c4b-e77f1db2d792").bytes_le
 SECRET = b"bytes-from-image-A" * 4
@@ -86,6 +91,47 @@ class SharedSubsectionsTest(unittest.TestCase):
         for section in sections:
             self.assertEqual(len(section.subsections), 1)
         self.assertEqual(len(EfiSection.subsections), 0)
+
+
+class DepexTest(unittest.TestCase):
+
+    def showinfo(self, body):
+        section = FirmwareFileSystemSection(make_section(0x13, body), FILE_GUID)
+        self.assertTrue(section.process())
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            section.showinfo()
+        return [line.strip() for line in output.getvalue().splitlines()[1:]]
+
+    def test_opcodes(self):
+        guid = uuid.UUID("01234567-89ab-4def-8123-456789abcdef")
+        lines = self.showinfo(
+            b"\x01" + guid.bytes_le + b"\x06\x07\x03\x09\x08\xee")
+        # The GUID's bytes were shown as opcodes, and FALSE as "07?".
+        self.assertEqual(lines, [
+            "AFTER %s" % guid, "TRUE", "FALSE", "AND", "SOR", "END", "ee?"])
+
+
+class RawSectionTest(unittest.TestCase):
+
+    def test_object_followed_by_other_data(self):
+        # AutoParser returns a MultiObject, which has no process().
+        section = FirmwareFileSystemSection(
+            make_section(0x19, make_volume(b"") + b"trailer"), FILE_GUID)
+        self.assertTrue(section.process())
+        self.assertIsInstance(section.parsed_object, MultiObject)
+
+    def test_object_is_processed_once(self):
+        # Processing an ME container twice listed each partition twice.
+        table = MePartitionTable()
+        table.Magic = b"$FPT"
+        table.Entries = 1
+        entry = b"FTPR" + b"\x00" * 4 + struct.pack("<II", 0x50, 0x10)
+        body = bytes(table) + entry.ljust(0x20, b"\x00") + b"\x00" * 0x10
+        section = FirmwareFileSystemSection(make_section(0x19, body), FILE_GUID)
+        self.assertTrue(section.process())
+        self.assertIsInstance(section.parsed_object, MeContainer)
+        self.assertEqual(len(section.parsed_object.partitions), 1)
 
 
 if __name__ == '__main__':

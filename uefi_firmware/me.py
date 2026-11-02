@@ -64,8 +64,11 @@ class MeObject(StructuredObject, FirmwareObject):
         else:
             print("")
 
-    def dump_module(self, parent):
+    def dump_module(self, parent, duplicate=0):
         name = safe_path_component(self.name)
+        if duplicate > 0:
+            # Keep each module that repeats an earlier module's name.
+            name += "-%d" % duplicate
         if self.compression == COMP_TYPE_LZMA:
             dump_data(safe_path(parent, "%s.module.lzma" % name), self.data)
             try:
@@ -167,8 +170,8 @@ class MeModule(MeObject):
             guid, self.attrs["version"], self.attrs["module_size"]), end=' ')
         self.show_compression()
 
-    def dump(self, parent="", index=None):
-        self.dump_module(parent)
+    def dump(self, parent="", index=None, duplicate=0):
+        self.dump_module(parent, duplicate)
 
 
 class MeVariableModule(MeObject):
@@ -283,8 +286,12 @@ class MeLLUT(MeObject):
         self.chunksize = self.structure.ChunkSize
         self.decompression_base = self.structure.DecompBase
 
-        self.data = data[
-            self.start - relative_offset:self.start - relative_offset + self.size]
+        data_offset = self.start - relative_offset
+        if data_offset < 0:
+            # The data cannot start before this table.
+            self.valid_header = False
+            data_offset = 0
+        self.data = data[data_offset:data_offset + self.size]
         # The huffman look up table is stored following the header data.
         self.lut_data = data[
             self.structure_size:self.structure_size + self.chunkcount * 4]
@@ -451,8 +458,10 @@ class MeManifestHeader(MeObject):
             if not self._parse_variable_mods(self.module_offset):
                 return False
 
-        # Parse optional huffman LLUT.
+        # Parse the huffman LLUT, if a huffman module gave its offset.
         huffman_offset = self.huffman_offset - self.partition_offset
+        if huffman_offset < 0:
+            return True
         huffman_llut = MeLLUT(
             self.data[huffman_offset:], huffman_offset + self.absolute_offset)
         if huffman_llut.valid_header:
@@ -465,6 +474,7 @@ class MeManifestHeader(MeObject):
 
     def dump(self, parent="", index=None):
         #huffman_end = self.huffman_llut.size + self.huffman_llut.start
+        seen = {}
         for module in self.modules:
             # if module.compression == COMP_TYPE_HUFFMAN:
                 # print "Huffman module data: %r %08X/%08X" % (
@@ -472,7 +482,8 @@ class MeManifestHeader(MeObject):
             # else:
                 #huffman_end = (min(huffman_end, module.structure.Offset))
                 # print "Debug: decrementing huffman to %d" % huffman_end
-            module.dump(parent)
+            module.dump(parent, duplicate=seen.get(module.name, 0))
+            seen[module.name] = seen.get(module.name, 0) + 1
         if self.huffman_llut is not None:
             self.huffman_llut.dump(
                 safe_path(
@@ -480,32 +491,33 @@ class MeManifestHeader(MeObject):
 
 
 class CPDEntry(MeObject):
+    # The entry's offset field holds the offset in bits 0-24 and flags above.
+    OFFSET_MASK = 0x01FFFFFF
+    HUFFMAN_FLAG = 0x02000000
 
     def __init__(self, data, header_offset):
         self.parse_structure(
             data[header_offset:header_offset + MeCpdEntryType.size],
             MeCpdEntryType)
         self.valid_header = False
-        if self.structure.Offset > len(data):
-            # This is invalid, offset (start) out of bounds
-            return
-        end = self.structure.Offset + self.structure.Size
+        self.offset = self.structure.Offset & self.OFFSET_MASK
+        end = self.offset + self.structure.Size
         if end > len(data):
             # This is invalid, end of data out of bounds
             return
         self.valid_header = True
-        self.data = data[self.structure.Offset:end]
+        self.data = data[self.offset:end]
 
     def process(self):
         if not self.valid_header:
             return False
         self.name = self.structure.Name.rstrip(b'\0')
 
-        # Not sure why the placement of data determines compression type.
+        # The manifest (.man) and metadata (.met) entries are not compressed.
         compression = self.structure.Offset >> 24
-        if self.name.find(".met") > 0:
+        if self.name.endswith((".man", ".met")):
             self.compression = COMP_TYPE_NOT_COMPRESSED
-        elif compression == 0x02:
+        elif self.structure.Offset & self.HUFFMAN_FLAG:
             self.compression = COMP_TYPE_HUFFMAN
         elif compression == 0x00:
             self.compression = COMP_TYPE_LZMA
@@ -516,17 +528,17 @@ class CPDEntry(MeObject):
     def showinfo(self, ts='', index=None):
         print("%s%s name= %s offset= 0x%x size= 0x%x (%d bytes) flags= 0x%x" % (
             ts, blue("ME CDP Entry"), purple(self.name),
-            self.structure.Offset, self.structure.Size, self.structure.Size,
+            self.offset, self.structure.Size, self.structure.Size,
             self.structure.Flags), end=' ')
         self.show_compression()
 
-    def dump(self, parent, index=None):
+    def dump(self, parent, index=None, duplicate=0):
         if self.compression == COMP_TYPE_LZMA:
             # There is an odd state to check for that includes an additional
             # \x00\x00\x00 after the initial LZMA header block.
             if self.data[0x0e:0x11] == b'\x00\x00\x00':
                 self.data = self.data[:0x0e] + self.data[0x11:]
-        self.dump_module(parent)
+        self.dump_module(parent, duplicate)
 
 
 class CPDManifestHeader(MeObject):
@@ -550,9 +562,12 @@ class CPDManifestHeader(MeObject):
         return self.modules
 
     def process(self):
-        offset = MeCpdHeaderType.size
-        for i in range(self.structure.NumModules - 1):
-            offset += MeCpdEntryType.size
+        # The third byte of the flags is the header length, 0x10 in version 1
+        # headers and 0x14 in version 2.
+        header_length = max((self.structure.Flags >> 16) & 0xFF,
+                            MeCpdHeaderType.size)
+        for i in range(self.structure.NumModules):
+            offset = header_length + i * MeCpdEntryType.size
             if offset + MeCpdEntryType.size > len(self.data):
                 # NumModules is larger than the entry table.
                 break
@@ -569,8 +584,10 @@ class CPDManifestHeader(MeObject):
             entry.showinfo("%s  " % ts)
 
     def dump(self, parent, index=None):
+        seen = {}
         for entry in self.modules:
-            entry.dump(parent)
+            entry.dump(parent, duplicate=seen.get(entry.name, 0))
+            seen[entry.name] = seen.get(entry.name, 0) + 1
 
 
 class PartitionEntry(MeObject):
@@ -601,7 +618,6 @@ class PartitionEntry(MeObject):
             # This partition is invalid
             self.has_content = False
         self.data = data[self.structure.Offset:partition_end]
-        self.size = len(data)
 
     @property
     def objects(self):
@@ -629,21 +645,24 @@ class PartitionEntry(MeObject):
         if self.manifest is not None:
             self.manifest.showinfo("%s  " % ts)
 
-    def dump(self, parent="", index=None):
+    def dump(self, parent="", index=None, duplicate=0):
+        name = utf8_decode_safe(self.structure.Name)
+        if duplicate > 0:
+            # Keep each partition that repeats an earlier partition's name.
+            name += "-%d" % duplicate
         if self.has_content:
-            dump_data(safe_path(
-                parent, "%s.partition" % utf8_decode_safe(self.structure.Name)),
-                self.data)
+            dump_data(safe_path(parent, "%s.partition" % name), self.data)
         if self.manifest is not None:
-            self.manifest.dump(
-                safe_path(parent, utf8_decode_safe(self.structure.Name)))
+            self.manifest.dump(safe_path(parent, name))
 
 class MeContainer(MeObject):
 
     def __init__(self, data):
         self.partitions = []
         self.data = data
-        self.size = len(ME_HEADER)
+        # The partition table does not describe the whole region: data that
+        # no entry points to often follows the last partition. Claim it all.
+        self.size = len(data)
 
         self.valid_header = False
         if data[0x0:len(ME_HEADER)] == ME_HEADER:
@@ -668,7 +687,6 @@ class MeContainer(MeObject):
                 break
             entry = PartitionEntry(self.data, offset)
             if entry.process():
-                self.size += entry.size
                 self.partitions.append(entry)
         return True
 
@@ -683,5 +701,9 @@ class MeContainer(MeObject):
 
     def dump(self, parent="", index=None):
         dump_data(os.path.join(parent, "me-container.me"), self.data)
+        seen = {}
         for partition in self.partitions:
-            partition.dump(os.path.join(parent, "partitions"))
+            name = utf8_decode_safe(partition.structure.Name)
+            partition.dump(os.path.join(parent, "partitions"),
+                           duplicate=seen.get(name, 0))
+            seen[name] = seen.get(name, 0) + 1

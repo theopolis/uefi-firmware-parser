@@ -338,8 +338,12 @@ class PFSSection(FirmwareObject, BaseObject):
             sub_object.showinfo("%s  " % ts)
         pass
 
-    def dump(self, parent="", index=None):
-        path = os.path.join(parent, "%s" % sguid(self.uuid))
+    def dump(self, parent="", index=None, duplicate=0):
+        name = sguid(self.uuid)
+        if duplicate > 0:
+            # Keep each section that repeats an earlier section's GUID.
+            name += "-%d" % duplicate
+        path = os.path.join(parent, name)
         dump_data("%s.data" % path, self.section_data)
 
         # Instead of calling dump on each chunk RawObject, dump with a better
@@ -351,7 +355,7 @@ class PFSSection(FirmwareObject, BaseObject):
         if len(self.rsa2.data) > 0:
             dump_data("%s.rsa2" % path, self.rsa2.data)
 
-        path = os.path.join(parent, "section-%s" % sguid(self.uuid))
+        path = os.path.join(parent, "section-%s" % name)
         for sub_object in self.section_objects:
             sub_object.dump(path)
         pass
@@ -374,17 +378,19 @@ class PFSFile(FirmwareObject):
             return False
 
         header = self.data[:0x10]
-        magic, spec, size = struct.unpack("<8sII", header)
+        magic, spec, body_size = struct.unpack("<8sII", header)
 
         self.spec = spec
-        self.size = size
+        self.body_size = body_size
+        # The header and footer are 0x10 bytes each.
+        self.size = body_size + 0x20
 
         if magic != self.PFS_HEADER:
             print_error(
                 "Data does not contain the header magic (%s)." % self.PFS_HEADER)
             return False
 
-        footer_offset = self.size + 0x10
+        footer_offset = self.body_size + 0x10
         footer = self.data[footer_offset:footer_offset + 0x10]
         if len(footer) < 0x10:
             print_error("Data is too short for the footer at 0x%x." % (
@@ -397,13 +403,15 @@ class PFSFile(FirmwareObject):
                 "Data does not container the footer magic (%s)." % self.PFS_FOOTER)
             return False
 
+        # Keep only this PFS, the caller parses any data that follows.
+        self.data = self.data[:self.size]
         return True
 
     def process(self):
         '''Chunks are assumed to contain a chunk header.'''
-        data = self.data[16:-16]
         if not self.valid_header:
             return False
+        data = self.data[0x10:0x10 + self.body_size]
 
         view = memoryview(data)
         chunk_num = 0
@@ -431,18 +439,24 @@ class PFSFile(FirmwareObject):
     def showinfo(self, ts='', index=None):
         print("%s%s spec 0x%x size 0x%x (%d bytes)" % (
             ts, blue("DellPFS:"),
-            self.spec, self.size, self.size
+            self.spec, self.body_size, self.body_size
         ))
         for section in self.sections:
             section.showinfo("%s  " % ts)
 
     def dump(self, parent='', index=None):
-        path = os.path.join(parent, "pfsobject.pfs")
-        dump_data(path, self.data)
+        name = "pfsobject"
+        if index:
+            # Another PFS may come first in the same file.
+            name += "-%d" % index
+        dump_data(os.path.join(parent, "%s.pfs" % name), self.data)
 
-        path = os.path.join(parent, "pfsobject")
+        path = os.path.join(parent, name)
+        seen = {}
         for section in self.sections:
-            section.dump(path)
+            guid = sguid(section.uuid)
+            section.dump(path, duplicate=seen.get(guid, 0))
+            seen[guid] = seen.get(guid, 0) + 1
 
 
 class DellUpdateBinary(FirmwareObject):

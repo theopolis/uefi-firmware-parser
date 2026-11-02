@@ -182,7 +182,8 @@ def find_volumes(data, process=True):
         volume_start = magic - (8 + 16 * 2)
         if volume_start < raw_start:
             continue
-        fv = FirmwareVolume(view[volume_start:])
+        # Name each volume by its offset, so they dump to different paths.
+        fv = FirmwareVolume(view[volume_start:], volume_start)
         if not fv.valid_header:
             continue
         if volume_start > raw_start:
@@ -243,13 +244,18 @@ class NVARVariable(FirmwareVariable):
         return True
 
     def _get_name(self, data, is_ascii=False):
-        tail = b"\x00" if is_ascii else b"\x00\x00"
-        size = data.find(tail)
-        if not is_ascii:
-            name = uefi_name(data[:size])
-        else:
-            name = data[:size]
-        return (name, size + len(tail))
+        if is_ascii:
+            size = data.find(b"\x00")
+            if size < 0:
+                return (None, 0)
+            return (data[:size], size + 1)
+
+        # The UTF-16 terminator is a zero code unit. Search only at even
+        # offsets, or the high byte of the last character would match.
+        for size in range(0, len(data) - 1, 2):
+            if data[size:size + 2] == b"\x00\x00":
+                return (uefi_name(data[:size]), size + 2)
+        return (None, 0)
 
     def __init__(self, data):
         self.subsections = []
@@ -290,9 +296,8 @@ class NVARVariable(FirmwareVariable):
             self.data[offset:],
             bit_set(self.structure.Attributes, NVRAM_ATTRIBUTES["DESC_ASCII"])
         )
-        if var_name is not None:
-            self.name = var_name
-            offset += var_name_size
+        self.name = var_name
+        offset += var_name_size
 
         # The variable's meta-data is the value.
         self.data_offset = offset
@@ -912,11 +917,12 @@ class FirmwareFileSystemSection(EfiSection):
                 self.parsed_object = fv
             else:
                 # For a raw section, we can cheat and assign the parsed object
-                # as the AutoRawObject's managed object
+                # as the AutoRawObject's managed object. AutoParser has
+                # already processed it.
                 raw = AutoRawObject(self.data)
-                raw.process()
-                if raw.object is not None:
+                if raw.process():
                     self.parsed_object = raw.object
+                return True
 
         if self.parsed_object is None:
             return True
@@ -970,32 +976,16 @@ class FirmwareFileSystemSection(EfiSection):
             print ("%s  Version: %s BuildNum: %d" % (ts, self.name, self.build_number))
         # DXE, PEI and SMM DEPEX sections
         if self.type == 0x13 or self.type == 0x1b or self.type == 0x1c:
-            offset = 0
-            while offset < len(self.data):
-                opcode = ord(self.data[offset:offset+1])
-                offset = offset + 1
-                if opcode == 0x02:
-                    guid = self.data[offset:offset+16]
-                    guid_name = get_guid_name(guid)
-                    offset = offset + 16
-                    if guid_name is not None:
-                        print ("%s  PUSH %s (%s)" % (ts, guid_name, sguid(guid)))
-                    else:
-                        print ("%s  PUSH %s" % (ts, sguid(guid)))
-                elif opcode == 0x03:
-                    print ("%s  AND" % (ts))
-                elif opcode == 0x04:
-                    print ("%s  OR" % (ts))
-                elif opcode == 0x05:
-                    print ("%s  NOT" % (ts))
-                elif opcode == 0x06:
-                    print ("%s  TRUE" % (ts))
-                elif opcode == 0x06:
-                    print ("%s  FALSE" % (ts))
-                elif opcode == 0x08:
-                    print ("%s  END" % (ts))
+            for op in parse_depex(self.data):
+                if not isinstance(op['op'], str):
+                    print ("%s  %02x?" % (ts, op['op']))
+                elif 'guid' not in op:
+                    print ("%s  %s" % (ts, op['op']))
+                elif op['name'] is not None:
+                    print ("%s  %s %s (%s)" % (
+                        ts, op['op'], op['name'], op['guid']))
                 else:
-                    print ("%s  %02x?" % (ts, opcode))
+                    print ("%s  %s %s" % (ts, op['op'], op['guid']))
 
         if self.parsed_object is not None:
             '''If this is a specific object, show that object's info.'''
@@ -1041,9 +1031,12 @@ class FirmwareFile(FirmwareObject):
         UINT8: Attributes
         UINT8: Size[3]
         UINT8: State
+        UINT64: ExtendedSize (large files only)
     };
     '''
-    _HEADER_SIZE = 0x18  # 24 byte header, always
+    _HEADER_SIZE = 0x18
+    _LARGE_HEADER_SIZE = 0x20
+    _ATTRIB_LARGE_FILE = 0x01
 
     def __init__(self, data):
         header = data[:self._HEADER_SIZE]
@@ -1056,6 +1049,16 @@ class FirmwareFile(FirmwareObject):
             print_error("Error: invalid FirmwareFile header.")
             raise e
 
+        # A file of 16 MiB or more sets the large file attribute and a size
+        # of 0, and stores its size in a 64-bit ExtendedSize field.
+        self.header_size = self._HEADER_SIZE
+        self.large_file = bool(self.attributes & self._ATTRIB_LARGE_FILE) and \
+            self.size == 0 and len(data) >= self._LARGE_HEADER_SIZE
+        if self.large_file:
+            self.header_size = self._LARGE_HEADER_SIZE
+            self.size, = struct.unpack(
+                "<Q", data[self._HEADER_SIZE:self._LARGE_HEADER_SIZE])
+
         self.attrs = {
             "size": self.size,
             "type": self.type,
@@ -1067,7 +1070,7 @@ class FirmwareFile(FirmwareObject):
         # The size includes the header bytes. data may be a memoryview of the
         # rest of the file system, so copy only this file.
         self._data = bytes(data[:self.size])
-        self.data = self._data[self._HEADER_SIZE:]
+        self.data = self._data[self.header_size:]
         self.raw_blobs = []
         self.sections = []
 
@@ -1189,9 +1192,9 @@ class FirmwareFile(FirmwareObject):
             data = self.data
 
         if generate_checksum:
-            self.size = len(data) + 24
+            self.size = len(data) + self.header_size
             size = self.size
-            string_size = struct.pack("<I", self.size)
+            string_size = self._header_size_field(size)
             if self.attributes & 0x40 == 0:
                 file = 0xaa
             else:
@@ -1201,12 +1204,12 @@ class FirmwareFile(FirmwareObject):
                 "<16sHBB3sB",
                 self.guid, 0, self.type, self.attributes,
                 string_size[:3], 0
-            )
+            ) + string_size[3:]
             header = calculate_checksum8(header_data)
             self.checksum = (header | (file << 8)) & 0xffff
         else:
             size = self.size
-            trailling_bytes = size - (len(data) + 24)
+            trailling_bytes = size - (len(data) + self.header_size)
             if trailling_bytes < 0:
                 print ("%s adding %s-bytes to GUID: %s" % (
                     red("Warning"),
@@ -1215,14 +1218,20 @@ class FirmwareFile(FirmwareObject):
                 ))
                 size += (trailling_bytes * -1)
 
-            string_size = struct.pack("<I", size)
+            string_size = self._header_size_field(size)
 
         header = struct.pack(
             "<16sHBB3sB",
             self.guid, self.checksum, self.type, self.attributes,
             string_size[:3], self.state
-        )
+        ) + string_size[3:]
         return size, header + data
+
+    def _header_size_field(self, size):
+        '''Return the 3-byte size, followed by the ExtendedSize if large.'''
+        if self.large_file:
+            return b"\x00" * 3 + struct.pack("<Q", size)
+        return struct.pack("<I", size)[:3]
 
     def showinfo(self, ts='', index="N/A"):
         guid_name = get_guid_name(self.guid)
@@ -1344,7 +1353,7 @@ class FirmwareFileSystem(FirmwareObject):
                 view[offset:offset + 24] != (b"\xff" * 24):
             firmware_file = FirmwareFile(view[offset:])
 
-            if firmware_file.size < 24:
+            if firmware_file.size < firmware_file.header_size:
                 # This is a problem, the file was corrupted.
                 break
             ff_status = firmware_file.process()
@@ -2053,14 +2062,16 @@ class FirmwareCapsule(FirmwareObject):
         if len(self.data) == 0:
             return
 
-        path = safe_path(parent, "capsule-%s.cap" % self.name)
-        dump_data(path, self._data)
+        name = "capsule-%s" % self.name
+        if index:
+            # Another capsule may come first in the same file.
+            name += "-%d" % index
+        dump_data(safe_path(parent, "%s.cap" % name), self._data)
 
         if self.capsule_body is not None:
-            self.capsule_body.dump(
-                safe_path(parent, "capsule-%s" % self.name))
+            self.capsule_body.dump(safe_path(parent, name))
         else:
             # Write the raw image data from the capsule.
-            path = safe_path(parent, "capsule-%s.image" % self.name)
+            path = safe_path(parent, "%s.image" % name)
             offset = self.offsets["capsule_body"]
             dump_data(path, self.data[offset:offset + self.image_size])
