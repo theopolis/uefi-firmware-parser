@@ -203,9 +203,11 @@ class AutoRawObject(RawObject):
     '''A RawObject that applies AutoParser logic for embedded object discovery.
     '''
 
-    def __init__(self, data):
+    def __init__(self, data, offset=0):
         self.object = None
         self.data = data
+        # Where data starts in the input file, when that is known.
+        self.offset = offset
 
     @property
     def objects(self):
@@ -215,7 +217,7 @@ class AutoRawObject(RawObject):
 
     def process(self):
         from . import AutoParser
-        parser = AutoParser(self.data)
+        parser = AutoParser(self.data, base=self.offset)
         self.object = parser.parse()
         return self.object is not None
 

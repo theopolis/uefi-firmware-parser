@@ -169,7 +169,9 @@ class ScanTimeTest(unittest.TestCase):
         volume = FirmwareVolume(
             (header + struct.pack("<II", 1, 1) * count).ljust(size, b"\xff"))
         self.assertParsesQuickly(volume.process, seconds=1)
-        self.assertEqual(len(volume.firmware_filesystems), count)
+        # The block map is only geometry; the body is one file system.
+        self.assertEqual(len(volume.blocks), count)
+        self.assertEqual(len(volume.firmware_filesystems), 1)
 
     def test_many_volume_candidates_in_flash_region(self):
         # An 8-byte aligned '_FVH' every 256 bytes, none a valid volume.

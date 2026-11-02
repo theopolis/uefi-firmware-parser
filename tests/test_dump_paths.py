@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import uuid
 
+from uefi_firmware import AutoParser
 from uefi_firmware.flash import FlashRegion
 from uefi_firmware.structs.uefi_structs import FIRMWARE_VOLUME_GUIDS
 from uefi_firmware.uefi import FirmwareFileSystem, FirmwareVolume
@@ -48,6 +49,17 @@ class DumpPathTest(unittest.TestCase):
         self.assertEqual(safe_path_component("/tmp/testing.fv"), "_tmp_testing.fv")
         self.assertEqual(safe_path_component("C:\\tmp\\testing.fv"), "C__tmp_testing.fv")
         self.assertEqual(safe_path_component(".."), "_")
+
+    def test_safe_path_component_avoids_names_windows_treats_specially(self):
+        # Reserved device names, with or without an extension.
+        self.assertEqual(safe_path_component("CON"), "_CON")
+        self.assertEqual(safe_path_component("com1.module"), "_com1.module")
+        self.assertEqual(safe_path_component("COMX.module"), "COMX.module")
+        # Windows drops trailing dots and spaces.
+        self.assertEqual(safe_path_component("kernel. "), "kernel__")
+        self.assertEqual(safe_path_component("..."), "___")
+        # Characters Windows does not allow in a name.
+        self.assertEqual(safe_path_component('a<b>c|d?e*f"g\tz'), "a_b_c_d_e_f_g_z")
 
     def test_safe_path_confines_untrusted_component_to_parent(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -121,6 +133,33 @@ class VolumeDumpNameTest(unittest.TestCase):
                        if name.endswith(".fv")]
             self.assertEqual(
                 sorted(volumes), ["volume-16.fv", "volume-528.fv"])
+
+    def test_volumes_found_one_after_another(self):
+        # Each volume after the first was also named 0.
+        firmware = AutoParser(make_volume() + make_volume()).parse()
+        self.assertEqual(
+            [volume.name for volume in firmware.objects], ["0", "0x1000"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            firmware.dump(temp_dir)
+            self.assertIn("volume-0x1000.fv", os.listdir(temp_dir))
+
+    def test_volumes_in_pfh_regions(self):
+        # Every region dumps to the same folder, and each region's volume
+        # was named 0.
+        entries = struct.pack("<IIQI", 0, 0x1000, 0, 0) + \
+            struct.pack("<IIQI", 0x1000, 0x1000, 0, 0)
+        header = b"$PFH" + struct.pack(
+            "<IIHIHII", 1, 0xDC + len(entries), 0, 0x2000, 0, 2, 0xDC)
+        data = header.ljust(0xDC, b"\x00") + entries + \
+            make_volume() + make_volume()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            AutoParser(data).parse().dump(temp_dir)
+            self.assertEqual(
+                sorted(name for name in os.listdir(
+                    os.path.join(temp_dir, "pfheader")) if name.endswith(".fv")),
+                ["volume-0.fv", "volume-0x1000.fv"])
 
     def test_volume_names_stay_inside_parent(self):
         # FvName is read from the image, so it must not be able to steer the

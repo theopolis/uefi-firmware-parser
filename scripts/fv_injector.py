@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse
+import sys
 
 from uefi_firmware.uefi import *
 from uefi_firmware.utils import dump_data, flatten_firmware_objects
@@ -8,12 +9,12 @@ from uefi_firmware.utils import dump_data, flatten_firmware_objects
 from uefi_firmware.pfs import PFSFile
 
 
-def brute_search(data):
-    volumes = search_firmware_volumes(data)
-
-    for index in volumes:
-        _parse_firmware_volume(data[index - 40:], name=index - 40)
-    pass
+def parse_capsule(data):
+    capsule = FirmwareCapsule(data)
+    if not capsule.valid_header or not capsule.process():
+        print("Error: Cannot parse file (%s) as a firmware capsule." % args.file)
+        return None
+    return capsule
 
 
 def parse_pfs(data):
@@ -49,7 +50,7 @@ def parse_file(data):
                 _print_obj(sub_obj)
 
     ff = FirmwareFile(data)
-    if not ff.process():
+    if ff.size < FirmwareFile._HEADER_SIZE or not ff.process():
         print("[!] Error: Cannot parse FirmwareFile.")
         return None
 
@@ -63,14 +64,16 @@ def parse_file(data):
             "[#] Replace what section: [1-%d]: " % len(obj_references))
         try:
             selection = int(selection)
-            if selection < 1 or selection > len(obj_references):
-                print("[!] Try again...")
-                continue
-            break
-        except:
+        except ValueError:
             print("[!] Try again...")
             continue
-        pass
+        if selection < 1 or selection > len(obj_references):
+            print("[!] Try again...")
+            continue
+        if not hasattr(obj_references[selection - 1], "regen"):
+            print("[!] Only sections can be replaced, try again...")
+            continue
+        break
     return (ff, obj_references, selection)
 
 
@@ -119,6 +122,8 @@ if __name__ == "__main__":
     if args.ff:
         print("[#] Opening firmware file.")
         parsed = parse_file(input_data)
+        if parsed is None:
+            sys.exit(1)
         firmware_file = parsed[0]
         objects = parsed[1]
         index = parsed[2]
@@ -133,26 +138,37 @@ if __name__ == "__main__":
         print("[#] Injected firmware written to %s." % args.output)
         sys.exit(0)
 
-    if args.pfs:
+    if args.guid is None:
+        print("Error: --guid is required unless injecting into a firmware file (-f).")
+        sys.exit(1)
+
+    if args.capsule:
+        print("[#] Opening firmware as a firmware capsule.")
+        parsed = parse_capsule(input_data)
+    elif args.pfs:
         print("[#] Opening firmware as Dell PFS.")
         parsed = parse_pfs(input_data)
     else:
         print("[#] Opening firmware as UEFI firmware volume.")
         parsed = parse_firmware_volume(input_data)
     if parsed is None:
-        sys.exit(0)
+        sys.exit(1)
 
     # Iterate over each file object.
     objects = flatten_firmware_objects(parsed.iterate_objects(True))
     print("[#] Firmware objects parsed.")
+    injected = False
     for firmware_object in objects:
-        if firmware_object["guid"] == args.guid and type(firmware_object["_self"]) == FirmwareFile:
+        if firmware_object["guid"] == args.guid.lower() and type(firmware_object["_self"]) == FirmwareFile:
             print("[#] Injecting (replacing) FirmwareFile %s." % green(args.guid))
-            #firmware_object["_self"].data = injection_data
             firmware_object["_self"].regen(injection_data)
             print("[#] Regenerating firmware children structures (from injection point).")
             firmware_object["_self"].process()
             print("[#] Regeneration complete, child objects parsed.")
+            injected = True
+    if not injected:
+        print("Error: no FirmwareFile with GUID %s was found." % args.guid)
+        sys.exit(1)
     print("[#] Rebuilding complete firmware with injection.")
     output_object = parsed.build()
     print("[#] Rebuild complete, injection successful.")

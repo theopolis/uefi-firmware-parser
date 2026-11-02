@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import sys
 import struct
 import binascii
@@ -93,16 +94,6 @@ def s2aguid(s):
     return aguid(b"".join([bytes.fromhex(part) for part in guid]), True)
 
 
-def a2sguid(a):
-    '''RFC4122 int array GUID as string.'''
-    guid = ""
-    for value in a:
-        value = format(value, 'x')
-        guid += value.zfill(len(value) + len(value) % 2).decode("hex")
-    guid = guid.zfill(len(guid) + len(guid) % 2)
-    return sguid(guid, True)
-
-
 def aguid(b, big=False):
     '''RFC4122 binary GUID as int array.'''
     if len(b) < 16:
@@ -117,20 +108,34 @@ def bit_set(field, bit):
     return (field & bit == bit)
 
 
+# Device names Windows reserves, with or without an extension.
+_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL"} | \
+    {"COM%d" % i for i in range(1, 10)} | {"LPT%d" % i for i in range(1, 10)}
+
+
 def safe_path_component(component):
-    '''Return a filesystem-safe representation of a single path component.'''
+    '''Return a filesystem-safe representation of a single path component.
+
+    The same rules apply on every platform, so an image extracts to the same
+    names everywhere.
+    '''
     if isinstance(component, bytes):
         component = utf8_decode_safe(component)
     else:
         component = str(component)
 
     component = component.replace('\x00', '')
-    for separator in ('/', '\\'):
-        component = component.replace(separator, '_')
-    component = component.replace(':', '_')
+    # Path separators, the drive and stream separator, and the other
+    # characters Windows does not allow in a name.
+    component = re.sub(r'[/\\:*?"<>|\x01-\x1f\x7f]', '_', component)
 
     if component in ('', '.', '..'):
         return '_'
+    # Windows drops trailing dots and spaces, so "a." would name "a".
+    stripped = component.rstrip('. ')
+    component = stripped + '_' * (len(component) - len(stripped))
+    if component.split('.')[0].rstrip(' ').upper() in _RESERVED_NAMES:
+        component = '_' + component
     return component
 
 

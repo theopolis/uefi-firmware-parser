@@ -8,9 +8,12 @@
 # OvmfPkg/OvmfPkgX64.dsc
 
 
+import os
+import re
+
 from ..uefi import FirmwareVolume, FirmwareFile, FirmwareFileSystemSection
 from ..structs.uefi_structs import EFI_FILE_TYPES, EFI_SECTION_TYPES, EFI_COMPRESSION_TYPES
-from ..utils import sguid
+from ..utils import dump_data, sguid
 
 FV_BUFFER = '''
 [FV.FV_{name}]
@@ -61,9 +64,19 @@ SECTION_LEAF_BUFFER = '''\
 {ts}SECTION {type} = {value}
 '''
 
+SECTION_UNSUPPORTED_BUFFER = '''\
+{ts}# Unsupported section: {value}
+'''
+
 
 def oguid(guid):
     return sguid(guid)
+
+
+def fdf_string(value):
+    '''Return value with the characters that would end an FDF string, or
+    start a new line, replaced.'''
+    return re.sub(r'["\\\x00-\x1f\x7f]', "_", "%s" % value)
 
 
 class GeneratorException(Exception):
@@ -87,6 +100,14 @@ class RawSectionGenerator(object):
         pass
 
 
+class UnsupportedSectionGenerator(object):
+
+    def __init__(self, description, ts=''):
+        self.embedded = []
+        self.output = SECTION_UNSUPPORTED_BUFFER.format(
+            ts=ts, value=fdf_string(description))
+
+
 class SectionGenerator(object):
 
     def __init__(self, firmware_section=None, ts=''):
@@ -103,8 +124,18 @@ class SectionGenerator(object):
     def generate_leaf(self, firmware_section):
         template = SECTION_LEAF_BUFFER
         value = firmware_section.path
+        section_type = EFI_SECTION_TYPES.get(
+            firmware_section.type, (None, None, None))[2]
+        if section_type is None:
+            self.output = UnsupportedSectionGenerator(
+                "type 0x%02x" % firmware_section.type, self.ts).output
+            return
 
         if firmware_section.type == 0x17:  # firmware volume
+            if not isinstance(firmware_section.parsed_object, FirmwareVolume):
+                self.output = UnsupportedSectionGenerator(
+                    "volume that could not be parsed", self.ts).output
+                return
             name = oguid(firmware_section.guid).replace("-", "_")
             self.embedded.append(
                 FirmwareVolumeGenerator(firmware_section.parsed_object, name))
@@ -113,55 +144,76 @@ class SectionGenerator(object):
 
         if firmware_section.type in [0x14, 0x15]:
             template = SECTION_STRING_BUFFER
-            value = firmware_section.name
+            value = fdf_string(firmware_section.name)
 
         self.output = template.format(
             ts=self.ts,
-            type=EFI_SECTION_TYPES[firmware_section.type][2],
+            type=section_type,
             value="%s" % value
         )
 
-    def generate_compressed(self, firmware_section):
-        template = SECTION_COMPRESSED_BUFFER
-
-        for subsection in firmware_section.parsed_object.subsections:
-            self.subsections.append(
-                SectionGenerator(subsection, ts="  %s" % self.ts))
+    def _generate_subsections(self, parsed_object):
+        '''Generate each subsection, returning their combined output.'''
+        for subsection in parsed_object.subsections:
+            ts = "  %s" % self.ts
+            if isinstance(subsection, FirmwareFileSystemSection):
+                self.subsections.append(SectionGenerator(subsection, ts=ts))
+            elif isinstance(subsection, FirmwareVolume):
+                # A GUID-defined section may hold a volume, not sections.
+                name = oguid(subsection.fvname if hasattr(subsection, "fvname")
+                             else self.guid).replace("-", "_")
+                generator = SectionGenerator(ts=ts)
+                generator.embedded.append(
+                    FirmwareVolumeGenerator(subsection, name))
+                generator.output = SECTION_LEAF_BUFFER.format(
+                    ts=ts, type="FV_IMAGE", value="FV_%s" % name)
+                self.subsections.append(generator)
+            else:
+                self.subsections.append(UnsupportedSectionGenerator(
+                    "data that could not be parsed", ts))
 
         subsection_output = ""
         for subsection in self.subsections:
             for embedded in subsection.embedded:
                 self.embedded.append(embedded)
             subsection_output += "%s" % subsection.output
+        return subsection_output
+
+    def generate_compressed(self, firmware_section):
+        template = SECTION_COMPRESSED_BUFFER
+        compressed = firmware_section.parsed_object
+        compression = EFI_COMPRESSION_TYPES.get(compressed.type)
+        if compression is None:
+            self.output = UnsupportedSectionGenerator(
+                "compression type 0x%02x" % compressed.type, self.ts).output
+            return
 
         self.output = template.format(
             ts=self.ts,
-            type=EFI_COMPRESSION_TYPES[firmware_section.parsed_object.type],
-            subsections=subsection_output
+            type=compression,
+            subsections=self._generate_subsections(compressed)
         )
 
     def generate_guided(self, firmware_section):
         template = SECTION_GUIDED_BUFFER
-
-        for subsection in firmware_section.parsed_object.subsections:
-            self.subsections.append(
-                SectionGenerator(subsection, ts="  %s" % self.ts))
-
-        subsection_output = ""
-        for subsection in self.subsections:
-            for embedded in subsection.embedded:
-                self.embedded.append(embedded)
-            subsection_output += "%s" % subsection.output
+        guided = firmware_section.parsed_object
 
         self.output = template.format(
             ts=self.ts,
-            guid=oguid(firmware_section.guid),
+            guid=oguid(guided.guid),
             auth="",
-            subsections=subsection_output
+            subsections=self._generate_subsections(guided)
         )
 
     def _generate(self, firmware_section):
-        if firmware_section.type == 0x01:  # compressed
+        self.guid = firmware_section.guid
+        if firmware_section.parsed_object is None and \
+                firmware_section.type in (0x01, 0x02):
+            # The section's data could not be parsed.
+            self.output = UnsupportedSectionGenerator(
+                "type 0x%02x that could not be parsed" % firmware_section.type,
+                self.ts).output
+        elif firmware_section.type == 0x01:  # compressed
             self.generate_compressed(firmware_section)
         elif firmware_section.type == 0x02:  # guided
             self.generate_guided(firmware_section)
@@ -176,7 +228,7 @@ class FirmwareFileGenerator(object):
         self.embedded = []
         self.sections = []
 
-        self.type_label = type
+        self.type_label = type_label
         self.guid_label = guid
         if firmware_file is not None:
             if not isinstance(firmware_file, FirmwareFile):
@@ -194,13 +246,15 @@ class FirmwareFileGenerator(object):
             # Do not add FFS padding files
             return
 
-        self.type_label = EFI_FILE_TYPES[firmware_file.type][2]
+        self.type_label = EFI_FILE_TYPES.get(
+            firmware_file.type, (None, None, "0x%02X" % firmware_file.type))[2]
         self.guid_label = oguid(firmware_file.guid)
 
         if firmware_file.type == 0x01:
-            #self.sections = [RawSectionGenerator(blob) for blob in firmware_file.raw_blobs]
-            self.sections.append(
-                RawSectionGenerator(firmware_file.path, ts='  '))
+            # The file's body, written next to the rest of its dump.
+            path = os.path.join(firmware_file.dump_path, "file.raw")
+            dump_data(path, firmware_file.data)
+            self.sections.append(RawSectionGenerator(path, ts='  '))
         else:
             for section in firmware_file.sections:
                 self.add_section(section)

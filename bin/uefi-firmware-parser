@@ -12,6 +12,7 @@ from datetime import datetime
 from uefi_firmware.uefi import *
 from uefi_firmware.generator import uefi as uefi_generator
 from uefi_firmware import AutoParser
+from uefi_firmware.utils import safe_path
 import uefi_firmware.utils # import nocolor
 
 def _process_show_extract(parsed_object):
@@ -38,12 +39,11 @@ def _process_show_extract(parsed_object):
 
 
 def superbrute_search(data):
+    # Test each offset through a view, copying the data only on a match.
+    view = memoryview(data)
     for i in range(len(data)):
-        # TODO: use memoryview to avoid long memory copy
-        bdata = data[i:]
-        parser = AutoParser(bdata, search=False)
-        if parser.type() != 'unknown':
-            _process_show_extract(parser.parse())
+        if AutoParser(view[i:], search=False).type() != 'unknown':
+            _process_show_extract(AutoParser(data[i:], search=False).parse())
             break
 
 
@@ -51,6 +51,9 @@ def brute_search_volumes(data, to_json=False):
     volumes = search_firmware_volumes(data)
     res = []
     for index in volumes:
+        # The '_FVH' signature is 40 bytes into the volume header.
+        if index < 40:
+            continue
         fv = parse_firmware_volume(data[index - 40:], name=index - 40, to_json=to_json)
         if fv:
             res.append(fv.to_dict())
@@ -75,11 +78,28 @@ def parse_firmware_volume(data, name=0, to_json=False):
     _process_show_extract(firmware_volume)
 
     if args.generate is not None:
-        print("Generating FDF...")
-        firmware_volume.dump(args.generate)
-        generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
-        path = os.path.join(args.generate, "%s-%s.fdf" % (args.generate, name))
-        dump_data(path, generator.output)
+        _generate_fdf(firmware_volume)
+
+
+def _generate_fdf(firmware_volume, folder=None):
+    '''Dump a volume into folder, with an FDF describing it.'''
+    folder = folder or args.generate
+    print("Generating FDF...")
+    firmware_volume.dump(folder)
+    generator = uefi_generator.FirmwareVolumeGenerator(firmware_volume)
+    path = safe_path(folder, "%s.fdf" % firmware_volume.dump_name())
+    dump_data(path, generator.output.encode("utf-8"))
+
+
+def _top_level_volumes(firmware_object):
+    '''Return the volumes in an object that are not inside another volume.'''
+    if isinstance(firmware_object, FirmwareVolume):
+        return [firmware_object]
+    volumes = []
+    for child in getattr(firmware_object, "objects", None) or []:
+        if child is not None:
+            volumes += _top_level_volumes(child)
+    return volumes
 
 
 def _process_file(file_name, input_data):
@@ -126,6 +146,21 @@ def _process_file(file_name, input_data):
         return 0
 
     _process_show_extract(firmware)
+    if args.generate is not None:
+        volumes = _top_level_volumes(firmware)
+        if len(volumes) == 0:
+            print("Error: cannot generate an FDF, %s has no volumes." % (
+                file_name))
+            return 3
+        names = {}
+        for volume in volumes:
+            # Volumes in different regions or sections can share a name.
+            name = volume.dump_name()
+            folder = args.generate
+            if name in names:
+                folder = os.path.join(folder, "%s-%d" % (name, names[name]))
+            names[name] = names.get(name, 0) + 1
+            _generate_fdf(volume, folder)
     return 0
 
 

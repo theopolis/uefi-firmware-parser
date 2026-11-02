@@ -64,6 +64,8 @@ EFI_FILE_TYPES = {
     0x0b: ("firmware volume image",      "vol",         "FV_IMAGE"),
     0x0c: ("combined smm/driver",        "smm.dxe",     "COMBO_SMM_DRIVER"),
     0x0d: ("smm core",                   "smm.core",    "SMM_CORE"),
+    0x0e: ("mm standalone",              "mm",          "MM_STANDALONE"),
+    0x0f: ("mm core standalone",         "mm.core",     "MM_CORE_STANDALONE"),
     # 0xc0: ("oem min"),
     # 0xdf: ("oem max"),
     0xf0: ("ffs padding",                "pad",         "0xf0")
@@ -91,7 +93,7 @@ EFI_SECTION_TYPES = {
 }
 
 EFI_COMPRESSION_TYPES = {
-    0x00: "",
+    0x00: "PI_NONE",
     # 0x01: "EFI_STANDARD_COMPRESSION",
     0x01: "PI_STD",
     # 0x02: "EFI_CUSTOMIZED_COMPRESSION"

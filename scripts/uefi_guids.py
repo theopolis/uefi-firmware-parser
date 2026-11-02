@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse
+import sys
+import uuid
 
 from uefi_firmware.uefi import *
 from uefi_firmware.utils import *
@@ -49,28 +51,31 @@ def list_uefi_guids(base_object):
     guids = {}
 
     for firmware_object in objects:
-        guid = firmware_object["guid"] if "guid" in firmware_object else None
-        if guid is None:
+        guid = firmware_object.get("guid")
+        if not guid:
             continue
-        if firmware_object["guid"] in [v for k, v in FIRMWARE_GUIDED_GUIDS.items()]:
-            guid = firmware_object["parent"]["parent"]["guid"]
+        if guid in FIRMWARE_GUIDED_GUIDS.values():
+            # Report the file that holds a GUID-defined section.
+            file_object = firmware_object.get("parent", {}).get("parent", {})
+            guid = file_object.get("guid")
+            if not guid:
+                continue
 
-        if len(guid) == 0:
-            continue
-        if guid not in list(guids.keys()):
+        if guid not in guids:
             guids[guid] = {"labels": [], "types": []}
 
-        if len(firmware_object["label"]) > 0 and \
-                firmware_object["label"] not in guids[guid]["labels"]:
-            guids[guid]["labels"].append(firmware_object["label"])
-        if firmware_object["type"] not in guids[guid]["types"]:
-            guids[guid]["types"].append(firmware_object["type"])
+        label = firmware_object.get("label")
+        if label and label not in guids[guid]["labels"]:
+            guids[guid]["labels"].append(label)
+        guid_type = firmware_object.get("type")
+        if guid_type and guid_type not in guids[guid]["types"]:
+            guids[guid]["types"].append(guid_type)
 
     guid_list = list(guids.keys())
     guid_list.sort()
 
     for guid in guid_list:
-        guid_name = get_guid_name(s2aguid(guid))
+        guid_name = get_guid_name(uuid.UUID(guid).bytes_le)
 
         label = ""
         if len(guids[guid]["labels"]) >= 1:
@@ -96,39 +101,53 @@ def list_uefi_guids(base_object):
 
 
 def brute_search_volumes(data):
-    volumes = search_firmware_volumes(data)
-    for index in volumes:
-        parse_firmware_volume(data[index - 40:], name=index - 40)
-    pass
+    found = False
+    for index in search_firmware_volumes(data):
+        # The '_FVH' signature is 40 bytes into the volume header.
+        if index < 40:
+            continue
+        found = parse_firmware_volume(data[index - 40:], name=index - 40) or \
+            found
+    return found
 
 
 def brute_search_flash(data):
-    descriptors = search_flash_descriptor(data)
-    for index in descriptors:
-        parse_flash_descriptor(data[index:])
-    pass
+    # The flash signature is 16 bytes into the descriptor.
+    found = False
+    index = data.find(FLASH_HEADER, 0x10)
+    while index >= 0:
+        found = parse_flash_descriptor(data[index - 0x10:]) or found
+        index = data.find(FLASH_HEADER, index + 1)
+    return found
 
 
 def parse_firmware_capsule(data, name=0):
     firmware_capsule = FirmwareCapsule(data, name)
-    if not firmware_capsule.valid_header:
-        return
-    firmware_capsule.process()
-    pass
+    if not firmware_capsule.valid_header or not firmware_capsule.process():
+        print("Error: cannot parse %s as a firmware capsule." % args.file)
+        return False
+    list_uefi_guids(firmware_capsule)
+    return True
 
 
 def parse_firmware_volume(data, name=0):
     firmware_volume = FirmwareVolume(data, name)
-    firmware_volume.process()
+    if not firmware_volume.valid_header or not firmware_volume.process():
+        if not args.brute:
+            print("Error: cannot parse %s as a firmware volume." % args.file)
+        return False
     list_uefi_guids(firmware_volume)
+    return True
 
 
 def parse_flash_descriptor(data):
     flash = FlashDescriptor(data)
-    if not flash.valid_header:
-        return
-    flash.process()
+    if not flash.valid_header or not flash.process():
+        if not args.brute:
+            print("Error: cannot parse %s as a flash descriptor." % args.file)
+        return False
     list_uefi_guids(flash)
+    return True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -162,14 +181,13 @@ if __name__ == "__main__":
 
     if args.brute:
         if args.flash:
-            brute_search_flash(input_data)
+            found = brute_search_flash(input_data)
         else:
-            brute_search_volumes(input_data)
-        sys.exit(1)
-
-    if args.capsule:
-        parse_firmware_capsule(input_data)
+            found = brute_search_volumes(input_data)
+    elif args.capsule:
+        found = parse_firmware_capsule(input_data)
     elif args.flash:
-        parse_flash_descriptor(input_data)
+        found = parse_flash_descriptor(input_data)
     else:
-        parse_firmware_volume(input_data)
+        found = parse_firmware_volume(input_data)
+    sys.exit(0 if found else 1)

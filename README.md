@@ -93,6 +93,9 @@ A few options help with larger jobs:
   convenient when extracting many files at once.
 - `--echo` prints each input filename before parsing, which helps when you grep the
   combined output.
+- `-g FOLDER` dumps each firmware volume into `FOLDER`, with an FDF named after the
+  volume (`volume-0.fdf`, for example) that refers to the dumped files. Sections the
+  generator cannot describe appear in the FDF as comments.
 - If `--test` reports `unknown`, the format checker did not find a known header at
   the start of the file. Try `-b` to search the blob for firmware volume headers, or
   `--superbrute` to try every known format at every byte offset. The latter is slow
@@ -157,6 +160,11 @@ firmware file, or a file within a firmware file system, identified by GUID. It c
 only replace objects; it cannot add or remove them. When injecting into a firmware
 file (`-f`), the script prompts you to choose which section to replace, so this mode
 cannot be scripted yet.
+
+The input is a firmware volume unless you pass `-c` for a capsule or `-p` for a Dell
+PFS. The payload replaces the whole file, so it must include its FFS file header.
+Compressed sections that contain the file are recompressed, and PFS sizes and
+checksums are updated. Signatures are not, so a signed image will no longer verify.
 
 ```sh
 python scripts/fv_injector.py --guid GUID --injection payload.efi -o patched.rom firmware.rom

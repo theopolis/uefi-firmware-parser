@@ -23,16 +23,19 @@ class AutoParser(object):
     the type by applying basic checks for known headers.
     '''
 
-    def __init__(self, data, search=True):
+    def __init__(self, data, search=True, base=0):
         '''Create an AutoParser instance.
 
         Args:
             data (binary): The entire input file contents.
             search (Optional[bool]): Allow brute-force discovery of volumes.
+            base (Optional[int]): The offset of data in the input file, when
+                it follows other objects.
         '''
         self.data_type = 'unknown'
         self.constructor = None
         self.firmware = None
+        self.base = base
         self.offset = 0
 
         if search:
@@ -79,6 +82,11 @@ class AutoParser(object):
             self.firmware = None
             return None
 
+        if self.base > 0 and isinstance(self.firmware, uefi.FirmwareVolume):
+            # Volumes are named by offset, and each one found after the
+            # first would otherwise be named 0 and dump to the same path.
+            self.firmware.name = hex(self.base + self.offset)
+
         objs = [self.firmware]
         size = self.firmware.size
         if size <= 0:
@@ -87,7 +95,8 @@ class AutoParser(object):
             return self.firmware
 
         while size < len(self.data):
-            raw = AutoRawObject(self.data[size:])
+            raw = AutoRawObject(
+                self.data[size:], offset=self.base + self.offset + size)
             if not raw.process() or raw.object.size <= 0:
                 # An object that covers no bytes would be found again here.
                 break

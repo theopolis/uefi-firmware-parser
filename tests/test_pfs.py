@@ -40,6 +40,15 @@ class PFSFileTest(unittest.TestCase):
         self.assertIsInstance(trailer, RawObject)
         self.assertEqual(trailer.data, b"trailing data")
 
+    def test_to_dict(self):
+        # PFS objects had no to_dict, so -j raised AttributeError.
+        pfs_file = PFSFile(make_pfs(make_section(b"payload")))
+        self.assertTrue(pfs_file.process())
+        self.assertEqual(pfs_file.to_dict(), {
+            'spec': 1, 'size': 0x48 + 7, 'sections': [{
+                'guid': str(SECTION_GUID), 'version': '', 'size': 0x48 + 7,
+                'objects': [{'size': 7}]}]})
+
     def test_body_ends_at_the_declared_size(self):
         pfs_file = PFSFile(make_pfs(make_section(b"payload")) + b"\x00" * 0x48)
         self.assertTrue(pfs_file.process())

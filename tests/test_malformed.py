@@ -292,6 +292,14 @@ class CliTest(unittest.TestCase):
         self.assertIn("cannot parse %s (ValueError: boom)" % first, output)
         self.assertIn("Firmware Volume", output)
 
+    def test_superbrute_finds_an_object_after_other_data(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self.write(
+                temp_dir, "blob.bin", b"\x01" * 0x101 + make_volume())
+            code, output = self.run_cli("--superbrute", path)
+        self.assertEqual(code, 0)
+        self.assertIn("Firmware Volume", output)
+
 
 if __name__ == '__main__':
     unittest.main()

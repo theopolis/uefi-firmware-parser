@@ -9,6 +9,18 @@ from .utils import print_error, dump_data, sguid, green, blue, \
     limit_nesting, zlib_decompress
 
 
+def _checksum(data):
+    '''PFS stores each checksum as the CRC32 with its bits inverted.'''
+    return zlib.crc32(data) ^ 0xFFFFFFFF
+
+
+def _object_data(obj):
+    '''Return the bytes an object was parsed from.'''
+    if isinstance(obj, FirmwareVolume):
+        return obj._data
+    return obj.data
+
+
 PFS_GUIDS = {
     "FIRMWARE_VOLUMES": "7ec6c2b0-3fe3-42a0-a316-22dd0517c1e8",
     "INTEL_ME":         "7439ed9e-70d3-4b65-9e33-1963a7ad3c37",
@@ -46,7 +58,8 @@ class PFRegion(FirmwareObject):
         return [self.obj]
 
     def process(self):
-        self.obj = AutoRawObject(self.data)
+        # Regions dump to the same folder, so name their volumes by offset.
+        self.obj = AutoRawObject(self.data, offset=self.offset)
         if not self.obj.process():
             self.obj = RawObject(self.data)
         else:
@@ -204,6 +217,22 @@ class PFSPartitionedSection(FirmwareObject, BaseObject):
     def objects(self):
         return self.section_objects
 
+    def build(self, generate_checksum=False, debug=False):
+        body = b"".join(
+            volume.build(generate_checksum) for volume in self.section_objects)
+        if body != self.section_data[:len(body)]:
+            # The volumes are split across the partitions' chunks.
+            print_error("Error: cannot rebuild a changed partitioned section.")
+        return self.data
+
+    def to_dict(self):
+        return {
+            'guid': sguid(self.uuid),
+            'partitions': self.partitions,
+            'size': len(self.section_data),
+            'objects': [volume.to_dict() for volume in self.section_objects],
+        }
+
     def showinfo(self, ts='', index=None):
         print("%s%s %s partitions %d size 0x%x (%d bytes)" % (
             ts, blue("Dell PFSPartitionedSection:"), green(sguid(self.uuid)),
@@ -319,13 +348,32 @@ class PFSSection(FirmwareObject, BaseObject):
 
     def build(self, generate_checksum=False, debug=False):
         body = b""
+        parsed = 0
         for sub_object in self.section_objects:
             body += sub_object.build(generate_checksum, debug=debug)
-        return self.header + body + \
+            parsed += len(_object_data(sub_object))
+        # Keep any data after the last volume found in the section.
+        body += self.section_data[parsed:]
+
+        header = self.header
+        if body != self.section_data:
+            # Update the data size and its checksum, the third of four.
+            header = bytearray(header)
+            struct.pack_into("<I", header, 0x28, len(body))
+            struct.pack_into("<I", header, 0x40, _checksum(body))
+            header = bytes(header)
+        return header + body + \
             self.rsa1.build(generate_checksum) + \
             self.pmim.build(generate_checksum) + \
             self.rsa2.build(generate_checksum)
-        pass
+
+    def to_dict(self):
+        return {
+            'guid': sguid(self.uuid),
+            'version': self.version,
+            'size': self.section_size,
+            'objects': [obj.to_dict() for obj in self.section_objects],
+        }
 
     def showinfo(self, ts=0, index=None):
         print("%s%s %s spec 0x%02x ts 0x%02x type 0x%02x version %s size 0x%x (%d bytes)" % (
@@ -430,11 +478,30 @@ class PFSFile(FirmwareObject):
         return self.sections
 
     def build(self, generate_checksum=False, debug=False):
+        original = self.data[0x10:-0x10]
         body = b""
+        parsed = 0
         for section in self.sections:
             body += section.build(generate_checksum, debug=debug)
-        return self.data[:16] + body + self.data[-16:]
-        pass
+            parsed += section.section_size
+        # Keep the bytes after the last section, too few for a header.
+        body += original[parsed:]
+        header = self.data[:0x10]
+        footer = self.data[-0x10:]
+        if body != original:
+            # The header and footer hold the body size, and the footer its
+            # checksum.
+            header = header[:0x0C] + struct.pack("<I", len(body))
+            footer = struct.pack("<II", len(body), _checksum(body)) + \
+                footer[0x08:]
+        return header + body + footer
+
+    def to_dict(self):
+        return {
+            'spec': self.spec,
+            'size': self.body_size,
+            'sections': [section.to_dict() for section in self.sections],
+        }
 
     def showinfo(self, ts='', index=None):
         print("%s%s spec 0x%x size 0x%x (%d bytes)" % (
@@ -504,6 +571,13 @@ class DellUpdateBinary(FirmwareObject):
     @property
     def objects(self):
         return [self.pfs]
+
+    def to_dict(self):
+        return {
+            'size': self.size,
+            'pfsOffset': self.pfs_offset,
+            'pfs': self.pfs.to_dict(),
+        }
 
     def showinfo(self, ts='', index=None):
         print("%s%s size 0x%x (%d bytes) PFS offset 0x%x" % (
