@@ -248,14 +248,12 @@ def search_firmware_volumes(data, byte_align=16, limit=None, start=0):
             copying it. Returned offsets are relative to data.
     '''
     potential_volumes = []
-    for aligned in range(start + 32, len(data), byte_align):
-        if data[aligned:aligned + 4] == b'_FVH':
-            potential_volumes.append(aligned)
-            if limit and limit == len(potential_volumes):
-                return potential_volumes
-        magic = data[(aligned + byte_align // 2):(aligned + byte_align // 2 + 4)]
-        if magic == b'_FVH':
-            potential_volumes.append(aligned + byte_align // 2)
+    first = start + 32
+    index = first - 1
+    while (index := data.find(b'_FVH', index + 1)) != -1:
+        # Volumes sit on the alignment, or half way between two alignments.
+        if (index - first) % byte_align in (0, byte_align // 2):
+            potential_volumes.append(index)
             if limit and limit == len(potential_volumes):
                 return potential_volumes
     return potential_volumes
