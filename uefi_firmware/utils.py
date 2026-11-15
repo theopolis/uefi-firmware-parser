@@ -240,6 +240,9 @@ def zlib_decompress(data, wbits=zlib.MAX_WBITS):
     return output
 
 
+_VOLUME_MAGIC = re.compile(b'_FVH')
+
+
 def search_firmware_volumes(data, byte_align=16, limit=None, start=0):
     '''"Search a blob for '_FVH' magics, related to firmware volume headers.
 
@@ -249,8 +252,10 @@ def search_firmware_volumes(data, byte_align=16, limit=None, start=0):
     '''
     potential_volumes = []
     first = start + 32
-    index = first - 1
-    while (index := data.find(b'_FVH', index + 1)) != -1:
+    # A pattern searches any buffer in place. A memoryview has no find(), and
+    # copying one here would cost a copy for each call.
+    for match in _VOLUME_MAGIC.finditer(data, first):
+        index = match.start()
         # Volumes sit on the alignment, or half way between two alignments.
         if (index - first) % byte_align in (0, byte_align // 2):
             potential_volumes.append(index)

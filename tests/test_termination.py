@@ -118,6 +118,29 @@ class FindVolumesTest(unittest.TestCase):
         self.assertLess(time.monotonic() - start, 2)
 
 
+class BufferInputTest(unittest.TestCase):
+    '''Callers may pass any buffer, not only bytes.'''
+
+    def test_search_accepts_buffers(self):
+        data = b"\x00" * 40 + b"_FVH" + b"\x00" * 36 + b"_FVH" + b"\x00" * 8
+        expected = utils.search_firmware_volumes(data)
+        self.assertEqual(expected, [40, 80])
+        for buffer in (bytearray(data), memoryview(data)):
+            self.assertEqual(utils.search_firmware_volumes(buffer), expected)
+            self.assertEqual(
+                utils.search_firmware_volumes(buffer, limit=1, start=16), [80])
+
+    def test_parse_memoryview_with_trailing_volume(self):
+        # The search for volumes after the first object called find(), which
+        # a memoryview does not have.
+        data = make_volume() + b"\xff" * 64 + make_volume()
+        expected = AutoParser(data).parse()
+        parsed = AutoParser(memoryview(data)).parse()
+        self.assertEqual(
+            [type(obj) for obj in parsed.objects],
+            [type(obj) for obj in expected.objects])
+
+
 class ScanTimeTest(unittest.TestCase):
     '''Loops that copied the rest of their data on every step.
 
