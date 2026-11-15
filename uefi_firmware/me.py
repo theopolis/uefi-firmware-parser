@@ -34,6 +34,7 @@ from .structs.intel_me_structs import *
 from .utils import *
 from uefi_firmware import efi_compressor
 from uefi_firmware.base import FirmwareObject, StructuredObject
+from uefi_firmware.uefi import decompress
 
 MeModulePowerTypes = ["POWER_TYPE_RESERVED",
                       "POWER_TYPE_M0_ONLY", "POWER_TYPE_M3_ONLY", "POWER_TYPE_LIVE"]
@@ -46,6 +47,33 @@ MeModuleTypes = ["DEFAULT", "PRE_ME_KERNEL",
                  "VENOM_TPM", "APPS_QST_DT", "APPS_AMT", "TEST"]
 MeApiTypes = ["API_TYPE_DATA", "API_TYPE_ROMAPI",
               "API_TYPE_KERNEL", "<unknown>"]
+
+# Partitions, modules and CPD entries are found by an offset and a size from
+# the image, and each keeps a copy of its bytes. A crafted table can point
+# every entry at the same bytes, so memory and dump output grow with the
+# square of the input. Real tables overlap a little (an update partition can
+# cover others), so the entries of one table may copy up to this many times
+# the table's data.
+MAX_CLAIMED_RATIO = 4
+
+
+class _ClaimLimit(object):
+    '''Count the bytes the entries of one table copy from its data.'''
+
+    def __init__(self, data, entries):
+        self.limit = MAX_CLAIMED_RATIO * len(data)
+        self.claimed = 0
+        self.entries = entries
+
+    def claim(self, entry_data):
+        '''Return False, after reporting it, if entry_data is over the limit.
+        '''
+        self.claimed += len(entry_data)
+        if self.claimed <= self.limit:
+            return True
+        print_error("Error: ME %s claim more than %d times their data." % (
+            self.entries, MAX_CLAIMED_RATIO))
+        return False
 
 
 class MeObject(StructuredObject, FirmwareObject):
@@ -64,6 +92,23 @@ class MeObject(StructuredObject, FirmwareObject):
         else:
             print("")
 
+    # The LZMA module's data, decompressed when parsed.
+    decompressed = None
+
+    def decompress_module(self):
+        '''Decompress an LZMA module.
+
+        This happens while parsing, as for compressed sections, so it is
+        charged to the parse's decompression budget. Many entries can point
+        at one small stream that claims a large output.
+        '''
+        self.decompressed = None
+        if self.compression != COMP_TYPE_LZMA:
+            return
+        results = decompress([efi_compressor.LzmaDecompress], self.data)
+        if results is not None:
+            self.decompressed = results[1]
+
     def dump_module(self, parent, duplicate=0):
         name = safe_path_component(self.name)
         if duplicate > 0:
@@ -71,12 +116,10 @@ class MeObject(StructuredObject, FirmwareObject):
             name += "-%d" % duplicate
         if self.compression == COMP_TYPE_LZMA:
             dump_data(safe_path(parent, "%s.module.lzma" % name), self.data)
-            try:
-                data = efi_compressor.LzmaDecompress(self.data, len(self.data))
-                dump_data(safe_path(parent, "%s.module" % name), data)
-            except Exception as e:
-                print("Cannot extract (%s), %s" % (self.name, str(e)))
+            if self.decompressed is None:
+                print("Cannot extract (%s), Failed to decompress" % self.name)
                 return
+            dump_data(safe_path(parent, "%s.module" % name), self.decompressed)
         elif self.compression == COMP_TYPE_NOT_COMPRESSED:
             dump_data(safe_path(parent, "%s.module" % name), self.data)
 
@@ -147,6 +190,7 @@ class MeModule(MeObject):
                     "<Q", module_file.structure.UncompressedSize)
                 raw_data += self.data[0x55:]
                 self.data = raw_data
+        self.decompress_module()
         return True
 
     @property
@@ -384,6 +428,7 @@ class MeManifestHeader(MeObject):
         view = memoryview(self.data)
         module_offset = 0
         huffman_offset = 0
+        claims = _ClaimLimit(self.data, "modules")
         for module_index in range(self.structure.NumModules):
             if module_offset >= len(self.data):
                 # NumModules is larger than the module headers present.
@@ -391,6 +436,8 @@ class MeManifestHeader(MeObject):
             module = MeModule(
                 view[module_offset:],
                 self.header_type, module_offset + self.partition_offset)
+            if not claims.claim(module.data):
+                break
             # print "Debug: found me module header (%s) at (%d)." %
             # (module.tag, module_offset)
             if module.compression == COMP_TYPE_HUFFMAN:
@@ -437,6 +484,7 @@ class MeManifestHeader(MeObject):
             module_offset += module.size
         return True
 
+    @limit_nesting(False)
     def process(self):
         self.modules = []
         self.variable_modules = []
@@ -521,8 +569,13 @@ class CPDEntry(MeObject):
             self.compression = COMP_TYPE_HUFFMAN
         elif compression == 0x00:
             self.compression = COMP_TYPE_LZMA
+            # There is an odd state to check for that includes an additional
+            # \x00\x00\x00 after the initial LZMA header block.
+            if self.data[0x0e:0x11] == b'\x00\x00\x00':
+                self.data = self.data[:0x0e] + self.data[0x11:]
         else:
             self.compression = COMP_TYPE_NOT_COMPRESSED
+        self.decompress_module()
         return True
 
     def showinfo(self, ts='', index=None):
@@ -533,11 +586,6 @@ class CPDEntry(MeObject):
         self.show_compression()
 
     def dump(self, parent, index=None, duplicate=0):
-        if self.compression == COMP_TYPE_LZMA:
-            # There is an odd state to check for that includes an additional
-            # \x00\x00\x00 after the initial LZMA header block.
-            if self.data[0x0e:0x11] == b'\x00\x00\x00':
-                self.data = self.data[:0x0e] + self.data[0x11:]
         self.dump_module(parent, duplicate)
 
 
@@ -561,17 +609,21 @@ class CPDManifestHeader(MeObject):
     def objects(self):
         return self.modules
 
+    @limit_nesting(False)
     def process(self):
         # The third byte of the flags is the header length, 0x10 in version 1
         # headers and 0x14 in version 2.
         header_length = max((self.structure.Flags >> 16) & 0xFF,
                             MeCpdHeaderType.size)
+        claims = _ClaimLimit(self.data, "CPD entries")
         for i in range(self.structure.NumModules):
             offset = header_length + i * MeCpdEntryType.size
             if offset + MeCpdEntryType.size > len(self.data):
                 # NumModules is larger than the entry table.
                 break
             entry = CPDEntry(self.data, offset)
+            if entry.valid_header and not claims.claim(entry.data):
+                break
             if entry.process():
                 self.modules.append(entry)
         return True
@@ -676,9 +728,11 @@ class MeContainer(MeObject):
     def objects(self):
         return self.partitions
 
+    @limit_nesting(False)
     def process(self):
         self.parse_structure(self.data, MePartitionTable)
 
+        claims = _ClaimLimit(self.data, "partitions")
         for i in range(self.structure.Entries):
             offset = self.partition_offset + 0x30
             offset += i * PartitionEntry.size
@@ -686,6 +740,9 @@ class MeContainer(MeObject):
                 # Entries is larger than the partition table.
                 break
             entry = PartitionEntry(self.data, offset)
+            # A partition that ends past the data still copies up to the end.
+            if not claims.claim(getattr(entry, "data", b"")):
+                break
             if entry.process():
                 self.partitions.append(entry)
         return True

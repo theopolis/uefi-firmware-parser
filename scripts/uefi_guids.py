@@ -42,7 +42,7 @@ def label_as_guid_name(label):
         return None
     if producer.lower().find(args.generate.lower()) != 0:
         producer = "%s_%s" % (args.generate, producer)
-    return "%s_GUID" % producer.upper().replace(".EFI", "")
+    return printable("%s_GUID" % producer.upper().replace(".EFI", ""))
 
 
 def list_uefi_guids(base_object):
@@ -101,22 +101,34 @@ def list_uefi_guids(base_object):
 
 
 def brute_search_volumes(data):
-    found = False
-    for index in search_firmware_volumes(data):
-        # The '_FVH' signature is 40 bytes into the volume header.
-        if index < 40:
-            continue
-        found = parse_firmware_volume(data[index - 40:], name=index - 40) or \
-            found
-    return found
+    found = []
+    brute_force_volumes(
+        data, lambda volume: found.append(list_uefi_guids(volume)))
+    return len(found) > 0
 
 
+@limit_nesting(False)
 def brute_search_flash(data):
-    # The flash signature is 16 bytes into the descriptor.
+    '''Parse a descriptor at each flash signature, as a single parse.
+
+    Each descriptor holds the rest of the data, so the search stops once the
+    descriptors hold BRUTE_FORCE_RATIO times the data, as for volumes.
+    '''
     found = False
+    view = memoryview(data)
+    remaining = BRUTE_FORCE_RATIO * len(data)
+    # The flash signature is 16 bytes into the descriptor.
     index = data.find(FLASH_HEADER, 0x10)
     while index >= 0:
-        found = parse_flash_descriptor(data[index - 0x10:]) or found
+        start = index - 0x10
+        if FlashDescriptor(view[start:start + 0x20]).valid_header:
+            remaining -= len(data) - start
+            if remaining < 0:
+                print_error(
+                    "Error: stopped searching, the descriptors found hold "
+                    "more than %d times the data." % BRUTE_FORCE_RATIO)
+                break
+            found = parse_flash_descriptor(data[start:]) or found
         index = data.find(FLASH_HEADER, index + 1)
     return found
 

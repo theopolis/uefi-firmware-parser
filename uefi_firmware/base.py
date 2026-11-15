@@ -208,6 +208,8 @@ class AutoRawObject(RawObject):
         self.data = data
         # Where data starts in the input file, when that is known.
         self.offset = offset
+        # The end of a volume in data that failed to process, see AutoParser.
+        self.failed_end = 0
 
     @property
     def objects(self):
@@ -219,6 +221,7 @@ class AutoRawObject(RawObject):
         from . import AutoParser
         parser = AutoParser(self.data, base=self.offset)
         self.object = parser.parse()
+        self.failed_end = parser.failed_end
         return self.object is not None
 
     def showinfo(self, ts='', index=None):

@@ -2,7 +2,9 @@
 quadratic time, or decompressed without bound.'''
 
 import gzip
+import os
 import struct
+import tempfile
 import threading
 import time
 import unittest
@@ -20,7 +22,7 @@ from uefi_firmware.structs.uefi_structs import (
     FIRMWARE_GUIDED_GUIDS, FIRMWARE_VOLUME_GUIDS)
 from uefi_firmware.uefi import (
     CompressedSection, FirmwareFile, FirmwareFileSystem, FirmwareVolume,
-    find_volumes)
+    brute_force_volumes, find_volumes)
 from uefi_firmware.utils import flatten_firmware_objects
 
 FILE_GUID = uuid.UUID("9e21fd93-9c72-4c15-8c4b-e77f1db2d792").bytes_le
@@ -295,6 +297,111 @@ class NestingTest(unittest.TestCase):
             run_with_deadline(self, parser.parse)
 
 
+class BruteForceTest(unittest.TestCase):
+
+    def search(self, data):
+        volumes = []
+        with mock.patch("sys.stderr"):
+            run_with_deadline(
+                self, lambda: brute_force_volumes(data, volumes.append))
+        return volumes
+
+    def test_overlapping_headers_are_bounded(self):
+        # Each header claimed the rest of the data, and each copy and parse
+        # of it took time that grew with the square of the input.
+        header = bytearray(make_volume(size=64))
+        struct.pack_into("<Q", header, 32, 1 << 62)
+        data = bytes(header) * 0x4000
+        copied = []
+        init = FirmwareVolume.__init__
+
+        def counted(volume, *args):
+            init(volume, *args)
+            copied.append(len(getattr(volume, "_data", b"")))
+
+        with mock.patch.object(FirmwareVolume, "__init__", counted):
+            self.search(data)
+        self.assertLessEqual(sum(copied), 17 * len(data))
+
+    def test_volumes_share_one_budget(self):
+        # Each volume started a parse of its own, with a budget of its own.
+        payload = b"\x00" * (512 * 1024)
+        volume = make_volume(make_file(compressed_section(payload)))
+        volume = make_volume(
+            make_file(compressed_section(payload)),
+            size=-(-len(volume) // 16) * 16)
+        with mock.patch.object(utils, "MAX_DECOMPRESSED_BYTES", 1024 * 1024):
+            volumes = self.search(volume * 4)
+        sections = [
+            section for volume in volumes
+            for section in volume.firmware_filesystems[0].files[0].sections
+            if section.parsed_object.data == payload]
+        self.assertEqual(len(volumes), 4)
+        self.assertEqual(len(sections), 2)
+
+    def test_nested_volumes_are_found_on_their_own(self):
+        inner = make_volume()
+        outer = make_volume(make_file(inner, file_type=0x01))
+        volumes = self.search(outer)
+        self.assertEqual([volume.name for volume in volumes],
+                         [0, outer.index(b"_FVH", 41) - 40])
+
+
+class ReparseTest(unittest.TestCase):
+    '''A volume that fails to process was parsed again, with every volume
+    inside it, which doubled the work at each level of nesting.'''
+
+    LEVELS = 12
+
+    def nested(self, separator):
+        '''Each level is a good volume, then a volume that fails after
+        parsing the previous level from a raw section.'''
+        data = b"leaf"
+        for _ in range(self.LEVELS):
+            failing = make_volume(
+                make_file(make_section(0x19, data)) +
+                make_file(make_section(0x01, b"\x00")))
+            data = make_volume() + separator + failing
+        return data
+
+    def count_volume_parses(self, data):
+        calls = []
+        process = FirmwareVolume.process
+
+        def counted(volume):
+            calls.append(volume)
+            return process(volume)
+
+        with mock.patch.object(FirmwareVolume, "process", counted):
+            run_with_deadline(self, AutoParser(data).parse)
+        return len(calls)
+
+    def test_failed_volume_after_another_is_not_parsed_again(self):
+        # The parse of the data after the good volume tried the failing
+        # volume, then MultiVolumeContainer tried it again.
+        calls = self.count_volume_parses(self.nested(b""))
+        # Each level has two volumes. This was 36426 calls.
+        self.assertLessEqual(calls, 4 * self.LEVELS)
+
+    def test_volumes_inside_a_failed_volume_are_not_parsed_again(self):
+        # With other data first, only MultiVolumeContainer finds the failing
+        # volume, and it searched the volumes inside that one again.
+        calls = self.count_volume_parses(self.nested(b"JUNK" * 4))
+        # This was 752 calls.
+        self.assertLessEqual(calls, 4 * self.LEVELS)
+
+    def test_volume_refused_by_the_nesting_limit_is_parsed_nearer_the_top(self):
+        # Hitting the limit is not a failure of the volume: the container
+        # one level up still parses it.
+        with mock.patch.object(utils, "MAX_NESTING_DEPTH", 3):
+            data = make_volume() * 4
+            firmware = AutoParser(data).parse()
+        volumes = [
+            obj for obj in flatten_firmware_objects(firmware.iterate_objects())
+            if isinstance(obj["_self"], FirmwareVolume)]
+        self.assertEqual(len(volumes), 4)
+
+
 class DecompressionBudgetTest(unittest.TestCase):
 
     def setUp(self):
@@ -346,6 +453,37 @@ class DecompressionBudgetTest(unittest.TestCase):
         # A failed GUID-defined section is dropped rather than kept raw.
         too_large = b"\x00" * (2 * 1024 * 1024)
         self.assertIsNone(gzip_section(too_large).parsed_object)
+
+    def test_lzma_modules_are_charged_to_the_parse(self):
+        # CPD entries can all point at one small LZMA stream, and dumping
+        # decompressed each of them without a limit. They are now
+        # decompressed while parsing, within the parse's budget.
+        payload = b"\x00" * (300 * 1024)
+        stream = efi_compressor.LzmaCompress(payload, len(payload))
+        count = 4
+        header = MeCpdHeaderType()
+        header.Tag = b"$CPD"
+        header.NumModules = count
+        header.PartitionName = b"FTPR"
+        table_end = MeCpdHeaderType.size + 0x18 * count
+        table = b"".join(
+            struct.pack("<12sIII", b"mod%d" % i, table_end, len(stream), 0)
+            for i in range(count))
+        cpd = CPDManifestHeader(bytes(header) + table + stream)
+        with mock.patch("sys.stderr"):
+            cpd.process()
+        # The 1 MiB budget holds three of the four 300 KiB modules.
+        decompressed = [
+            entry for entry in cpd.modules if entry.decompressed == payload]
+        self.assertEqual(len(decompressed), 3)
+        # Dumping writes what the parse decompressed, each time.
+        for _ in range(2):
+            with tempfile.TemporaryDirectory() as folder:
+                with mock.patch("sys.stdout"):
+                    cpd.dump(folder)
+                modules = [name for name in os.listdir(folder)
+                           if name.endswith(".module")]
+            self.assertEqual(len(modules), 3)
 
     def test_zlib_decompress_rejects_truncated_stream(self):
         stream = gzip.compress(b"firmware" * 64)

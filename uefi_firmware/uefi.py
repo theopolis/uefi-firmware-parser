@@ -233,6 +233,44 @@ def find_volumes(data, process=True):
         objects.append(RawObject(data[raw_start:]))
     return objects
 
+# A brute-force search parses a volume at every '_FVH' magic, including the
+# volumes inside other volumes, and each header can claim the rest of the
+# data. The search stops once the volumes it parsed hold this many times the
+# size of the data.
+BRUTE_FORCE_RATIO = 16
+
+
+@limit_nesting(None)
+def brute_force_volumes(data, found):
+    '''Parse a volume at each '_FVH' magic in data, as a single parse.
+
+    Unlike find_volumes, volumes inside other volumes are parsed again on
+    their own. The volumes share one decompression budget.
+
+    Args:
+        data (binary): The data to search.
+        found (callable): Called with each volume that processes, named by
+            its offset in data.
+    '''
+    view = memoryview(data)
+    remaining = BRUTE_FORCE_RATIO * len(data)
+    for index in search_firmware_volumes(data):
+        # The '_FVH' signature is 40 bytes into the volume header.
+        if index < 40:
+            continue
+        volume = FirmwareVolume(view[index - 40:], index - 40)
+        if not volume.valid_header:
+            continue
+        remaining -= len(volume._data)
+        if remaining < 0:
+            print_error(
+                "Error: stopped searching, the volumes found hold more than "
+                "%d times the data." % BRUTE_FORCE_RATIO)
+            return
+        if volume.process():
+            found(volume)
+
+
 def calculate_checksum8(data):
     '''Return the byte that makes the 8-bit sum of data and it zero.'''
     return -sum(data) & 0xFF
@@ -1047,7 +1085,8 @@ class FirmwareFileSystemSection(EfiSection):
         if self.type == 0x15 and self.name is not None:
             print ("%s  Name: %s" % (ts, purple(self.name)))
         if self.type == 0x14 and self.name is not None:
-            print ("%s  Version: %s BuildNum: %d" % (ts, self.name, self.build_number))
+            print ("%s  Version: %s BuildNum: %d" % (
+                ts, printable(self.name), self.build_number))
         # DXE, PEI and SMM DEPEX sections
         if self.type == 0x13 or self.type == 0x1b or self.type == 0x1c:
             for op in parse_depex(self.data):
@@ -1850,9 +1889,15 @@ class MultiVolumeContainer(FirmwareObject):
     instead of a UEFIFirmwareVolume.
     '''
 
-    def __init__(self, data):
-        '''Initialize the container with the tail content from a volume.'''
+    def __init__(self, data, start=0):
+        '''Initialize the container with the tail content from a volume.
+
+        Args:
+            start (Optional[int]): Volumes that begin before this offset were
+                already parsed, so they are skipped.
+        '''
         self.data = data
+        self.start = start
         self.indexes = search_firmware_volumes(data)
         self.volumes = []
         # Volumes and the padding before each one, in order.
@@ -1871,12 +1916,22 @@ class MultiVolumeContainer(FirmwareObject):
 
     def process(self):
         view = memoryview(self.data)
+        # Bytes before this offset belong to a volume that was already parsed.
+        parsed_end = self.start
         for index in self.indexes:
             start = index - 40
-            if start < self.size:
-                # This header is inside the previous volume.
+            if start < max(self.size, parsed_end):
+                # This header is inside a previous volume.
                 continue
             volume = FirmwareVolume(view[start:], index)
+            if not volume.valid_header:
+                continue
+            # Processing a volume parses the volumes inside it, even when it
+            # fails. Searching its bytes again would parse them again, which
+            # is exponential in the nesting depth. A volume the nesting limit
+            # refuses is not parsed at all.
+            if not nesting_limit_reached():
+                parsed_end = start + volume.size
             if volume.process():
                 if start > self.size:
                     self.objs.append(PaddingObject(

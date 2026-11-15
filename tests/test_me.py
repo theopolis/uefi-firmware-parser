@@ -1,3 +1,4 @@
+import ctypes
 import os
 import struct
 import tempfile
@@ -8,7 +9,8 @@ from uefi_firmware.me import (
     COMP_TYPE_HUFFMAN, COMP_TYPE_NOT_COMPRESSED, CPDManifestHeader,
     MeContainer, MeLLUT, MeManifestHeader)
 from uefi_firmware.structs.intel_me_structs import (
-    HuffmanLUTHeader, MeManifestHeaderType, MePartitionTable)
+    HuffmanLUTHeader, MeManifestHeaderType, MeModuleHeader2Type,
+    MePartitionTable)
 
 HUFFMAN_FLAG = 0x02000000
 
@@ -125,6 +127,83 @@ class CPDManifestHeaderTest(unittest.TestCase):
                                ("kernel.met-1.module", b"second")):
                 with open(os.path.join(temp_dir, name), "rb") as fh:
                     self.assertEqual(fh.read(), data)
+
+
+class OverlapTest(unittest.TestCase):
+    '''Each partition, module and CPD entry keeps a copy of its bytes, so a
+    table pointing every entry at the same bytes used memory and dump space
+    that grew with the square of the input.'''
+
+    SIZE = 0x8000
+
+    def claimed(self, entries):
+        return sum(len(entry.data) for entry in entries)
+
+    def test_overlapping_partitions(self):
+        count = (self.SIZE - 0x30) // 0x20
+        data = make_fpt([(b"PART", b"")] * count).ljust(self.SIZE, b"\x00")
+        # Point every partition at all of the data after its first byte.
+        table = bytearray(data)
+        for i in range(count):
+            struct.pack_into(
+                "<II", table, 0x30 + i * 0x20 + 8, 1, self.SIZE - 1)
+        container = MeContainer(bytes(table))
+        container.process()
+        self.assertLessEqual(self.claimed(container.partitions), 4 * self.SIZE)
+
+    def test_partitions_ending_past_the_data(self):
+        # These have no content but each still copied the rest of the data.
+        count = (self.SIZE - 0x30) // 0x20
+        data = bytearray(
+            make_fpt([(b"PART", b"")] * count).ljust(self.SIZE, b"\x00"))
+        for i in range(count):
+            struct.pack_into("<II", data, 0x30 + i * 0x20 + 8, 1, self.SIZE)
+        container = MeContainer(bytes(data))
+        container.process()
+        self.assertLessEqual(
+            sum(len(getattr(p, "data", b"")) for p in container.partitions),
+            4 * self.SIZE)
+
+    def test_partly_overlapping_partitions_are_kept(self):
+        # An update partition can cover others, as in CSME images.
+        body = b"\x00" * 0x1000
+        data = bytearray(make_fpt([(b"FTPR", body), (b"FTUP", body)]))
+        struct.pack_into("<I", data, 0x30 + 0x20 + 8, 0x70)
+        container = MeContainer(bytes(data))
+        container.process()
+        self.assertEqual(len(container.partitions), 2)
+
+    def test_overlapping_cpd_entries(self):
+        count = 0x400
+        data = make_cpd([(b"mod", b"", 0)] * count).ljust(self.SIZE, b"\x00")
+        table = bytearray(data)
+        for i in range(count):
+            struct.pack_into("<II", table, 0x10 + i * 0x18 + 12, 0, self.SIZE)
+        manifest = CPDManifestHeader(bytes(table))
+        manifest.process()
+        self.assertLessEqual(self.claimed(manifest.modules), 4 * self.SIZE)
+
+    def test_overlapping_modules(self):
+        count = 0x100
+        header = MeManifestHeaderType()
+        header.ModuleType = 4
+        header.HeaderLen = 0xA1
+        header.Tag = b"$MN2"
+        header.NumModules = count
+        start = 0xA1 * 4 + 12
+        modules = b""
+        for i in range(count):
+            # Each module's data starts at its own header and runs to the end.
+            module = MeModuleHeader2Type()
+            module.Tag = b"$MME"
+            module.Offset = start + i * ctypes.sizeof(module)
+            module.Size = self.SIZE
+            modules += bytes(module)
+        data = (bytes(header).ljust(start, b"\x00") + modules).ljust(
+            self.SIZE, b"\x00")
+        manifest = MeManifestHeader(data)
+        manifest.process()
+        self.assertLessEqual(self.claimed(manifest.modules), 4 * self.SIZE)
 
 
 class HuffmanLUTTest(unittest.TestCase):

@@ -10,8 +10,32 @@ import zlib
 
 nocolor = False
 
+# Control characters, which a terminal acts on rather than shows, and the
+# Unicode marks that hide text or reverse its order.
+_UNPRINTABLE = re.compile(
+    '[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]')
+
+
+def printable(text):
+    '''Return text with the characters a terminal would act on written as
+    escapes.
+
+    Names in an image are printed as they are, so without this an image
+    could move the cursor, rewrite earlier lines or set the window title.
+    Values that are not strings are returned unchanged.
+    '''
+    if not isinstance(text, str):
+        return text
+
+    def escape(match):
+        code = ord(match.group())
+        return "\\x%02x" % code if code < 0x100 else "\\u%04x" % code
+    return _UNPRINTABLE.sub(escape, text)
+
+
 def blue(msg):
     '''Return the input string as console-escaped blue.'''
+    msg = printable(msg)
     if nocolor:
         return msg
     else:
@@ -20,6 +44,7 @@ def blue(msg):
 
 def red(msg):
     '''Return the input string as console-escaped red.'''
+    msg = printable(msg)
     if nocolor:
         return msg
     else:
@@ -28,6 +53,7 @@ def red(msg):
 
 def green(msg):
     '''Return the input string as console-escaped green.'''
+    msg = printable(msg)
     if nocolor:
         return msg
     else:
@@ -36,6 +62,7 @@ def green(msg):
 
 def purple(msg):
     '''Return the input string as console-escaped purple.'''
+    msg = printable(msg)
     if nocolor:
         return msg
     else:
@@ -204,6 +231,12 @@ def limit_nesting(on_limit):
                 _parse_state.depth = depth
         return wrapper
     return decorator
+
+
+def nesting_limit_reached():
+    '''Return whether a parse method called now would stop at the nesting
+    limit without doing any work.'''
+    return getattr(_parse_state, "depth", 0) >= MAX_NESTING_DEPTH
 
 
 def reserve_decompression(size):

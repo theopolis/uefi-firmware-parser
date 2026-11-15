@@ -5,7 +5,8 @@ from .uefi import MultiVolumeContainer
 
 from .misc import checker
 from .base import FirmwareObject, RawObject, AutoRawObject
-from .utils import limit_nesting, search_firmware_volumes
+from .utils import limit_nesting, nesting_limit_reached, \
+    search_firmware_volumes
 
 
 class AutoParser(object):
@@ -37,6 +38,9 @@ class AutoParser(object):
         self.firmware = None
         self.base = base
         self.offset = 0
+        # The end of a volume that was found but failed to process. Its bytes,
+        # and any volume inside them, have already been parsed once.
+        self.failed_end = 0
 
         if search:
             self.offset = 0
@@ -77,8 +81,13 @@ class AutoParser(object):
 
         # Instantiate an instance of the firmware object
         self.firmware = self.constructor(self.data)
+        refused = nesting_limit_reached()
         if not self.firmware.process():
-            # Parsing failed, remove the object reference.
+            # Parsing failed, remove the object reference. A volume the
+            # nesting limit refused was not parsed, so a caller nearer the
+            # top may still parse it.
+            if isinstance(self.firmware, uefi.FirmwareVolume) and not refused:
+                self.failed_end = self.offset + self.firmware.size
             self.firmware = None
             return None
 
@@ -94,16 +103,20 @@ class AutoParser(object):
             # again from the same offset.
             return self.firmware
 
+        tried = 0
         while size < len(self.data):
             raw = AutoRawObject(
                 self.data[size:], offset=self.base + self.offset + size)
             if not raw.process() or raw.object.size <= 0:
                 # An object that covers no bytes would be found again here.
+                # Parsing a volume that failed again would double the work
+                # at each level of nesting.
+                tried = raw.failed_end
                 break
             size += raw.object.size
             objs.append(raw.object)
 
-        mfc = MultiVolumeContainer(self.data[size:])
+        mfc = MultiVolumeContainer(self.data[size:], start=tried)
         if mfc.has_indexes():
             # Headers were discovered, attempt to process.
             if mfc.process():

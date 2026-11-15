@@ -4,6 +4,7 @@ parse.'''
 import contextlib
 import inspect
 import io
+import json
 import os
 import runpy
 import struct
@@ -263,6 +264,44 @@ class CliTest(unittest.TestCase):
         with open(path, "wb") as fh:
             fh.write(data)
         return path
+
+    def test_names_cannot_send_terminal_escapes(self):
+        # A name could erase lines, print a fake one and set the title.
+        name = "Setup\x1b[2K\x1b[1A\rFAKE\x1b]0;title\x07"
+        version = "1.0\x1b[2J"
+        sections = make_section(
+            0x15, (name + "\0").encode("utf-16le")) + make_section(
+            0x14, struct.pack("<H", 1) + (version + "\0").encode("utf-16le"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                directory, "names.fv", make_volume(make_file(sections)))
+            # Plain output, so the only escapes would come from the image.
+            code, output = self.run_cli("-p", path)
+        self.assertEqual(code, 0)
+        self.assertNotRegex(output, "[\x00-\x09\x0b-\x1f\x7f-\x9f]")
+        self.assertIn(r"Name: Setup\x1b[2K\x1b[1A\x0dFAKE\x1b]0;title\x07",
+                      output)
+        self.assertIn(r"Version: 1.0\x1b[2J", output)
+
+    def test_printable(self):
+        # ME names are decoded as UTF-8, so they can also hold the marks
+        # that hide text or reverse it.
+        self.assertEqual(utils.printable("a\u202eb\u200bc"), r"a\u202eb\u200bc")
+        self.assertEqual(utils.printable("café \x9b"), "café \\x9b")
+        self.assertEqual(utils.printable(b"\x1b"), b"\x1b")
+
+    def test_json_keeps_names_as_they_are(self):
+        # JSON escapes control characters itself.
+        name = "Setup\x1b[2K"
+        sections = make_section(0x15, (name + "\0").encode("utf-16le"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                directory, "names.fv", make_volume(make_file(sections)))
+            code, output = self.run_cli("-j", path)
+        self.assertEqual(code, 0)
+        self.assertNotIn("\x1b", output)
+        self.assertEqual(
+            json.loads(output)["ffs"][0]["sections"][0]["name"], name)
 
     def test_json_for_a_file_that_fails_to_parse(self):
         with tempfile.TemporaryDirectory() as temp_dir:
