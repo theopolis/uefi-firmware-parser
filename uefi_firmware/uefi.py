@@ -499,8 +499,7 @@ class EfiSection(FirmwareObject):
         subsection_offset = 0
         status = True
         while subsection_offset < len(self.data):
-            if subsection_offset % 4:
-                subsection_offset += 4 - (subsection_offset % 4)
+            subsection_offset = (subsection_offset + 3) & ~3
             if len(self.data) - subsection_offset < 4:
                 # No room for a section header; FirmwareFile.process also
                 # stops here.
@@ -944,8 +943,9 @@ class FirmwareFileSystemSection(EfiSection):
         self.valid_header = True
         self.large_header = False
         try:
-            self.size, self.type = struct.unpack("<3sB", header)
-            self.size = struct.unpack("<I", self.size + b"\x00")[0]
+            packed_header = struct.unpack("<I", header)[0]
+            self.size = packed_header & 0xffffff
+            self.type = packed_header >> 24
 
             # check if ExtendedSize is used (FFSv3 only)
             if self.size == 0xffffff:
@@ -978,11 +978,14 @@ class FirmwareFileSystemSection(EfiSection):
     @limit_nesting(False)
     def process(self):
         # section types, see PI spec v1.7 Errata A Volume 3, 2.1.5.1, table 3-4
-        dlog(self, sguid(self.guid))
+        if logging.getLogger().isEnabledFor(logging.INFO):
+            dlog(self, sguid(self.guid))
         self.parsed_object = None
         raw_object = False
-        self.attrs = {"type": self.type, "size": self.size}
-        self.attrs["type_name"] = _get_section_type(self.type)[0]
+        self.attrs = {
+            "type": self.type, "size": self.size,
+            "type_name": _get_section_type(self.type)[0],
+        }
 
         if len(self.data) < self._MIN_BODY_SIZE.get(self.type, 0):
             print_error("Error: section type 0x%02x is too short (%d bytes)." % (
@@ -1035,8 +1038,9 @@ class FirmwareFileSystemSection(EfiSection):
             return True
         status = self.parsed_object.process()
         if not status:
-            dlog(self, sguid(self.guid), 'Could not parse %s' % (
-                self.parsed_object.__class__.__name__))
+            if logging.getLogger().isEnabledFor(logging.INFO):
+                dlog(self, sguid(self.guid), 'Could not parse %s' % (
+                    self.parsed_object.__class__.__name__))
             # Allow raw objects to fall-back.
             if raw_object:
                 self.parsed_object = RawObject(self.data)
