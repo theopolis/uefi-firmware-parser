@@ -593,7 +593,7 @@ class CompressedSection(EfiSection):
 
     @limit_nesting(False)
     def process(self):
-        dlog(self, sguid(self.guid))
+        dlog(self, guid=self.guid)
         def bf_decompress(data):
             return decompress([
                 efi_compressor.LzmaDecompress,
@@ -708,7 +708,7 @@ class FreeformGuidSection(EfiSection):
         self.data = data[16:]
 
     def process(self):
-        dlog(self, sguid(self.guid))
+        dlog(self, guid=self.guid)
         if sguid(self.guid) == FIRMWARE_FREEFORM_GUIDS["CHAR_GUID"]:
             self.guid_header = self.data[:12]
             self.name = uefi_name(self.data[12:])
@@ -764,7 +764,7 @@ class GuidDefinedSection(EfiSection):
 
     @limit_nesting(False)
     def process(self):
-        dlog(self, sguid(self.guid))
+        dlog(self, guid=self.guid)
         def parse_volume():
             fv = FirmwareVolume(self.data, None)
             if fv.valid_header:
@@ -793,12 +793,12 @@ class GuidDefinedSection(EfiSection):
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["ZLIB_COMPRESSED_AMD"]:
             body = self.preamble + self.data
             if len(body) < 0x100:
-                dlog(self, sguid(self.guid), 'error, invalid AMD zlib section header size')
+                dlog(self, msg='error, invalid AMD zlib section header size', guid=self.guid)
                 return False
             header = EfiAmdZlibSectionHeader.from_buffer_copy(body[:0x100])
             compressed_data = body[0x100:]
             if len(compressed_data) != header.CompressedSize:
-                dlog(self, sguid(self.guid), 'error, invalid AMD zlib section header')
+                dlog(self, msg='error, invalid AMD zlib section header', guid=self.guid)
                 return False
             try:
                 data = zlib_decompress(compressed_data)
@@ -808,10 +808,10 @@ class GuidDefinedSection(EfiSection):
                     self.process_subsections()
                 else:
                     status = False
-                    dlog(self, sguid(self.guid), 'error, empty zlib decompress')
+                    dlog(self, msg='error, empty zlib decompress', guid=self.guid)
             except zlib.error as err:
                 status = False
-                dlog(self, sguid(self.guid), 'zlib error: %s' % str(err))
+                dlog(self, msg='zlib error: %s' % str(err), guid=self.guid)
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["GZIP_COMPRESSED_QC"]:
             try:
                 data = zlib_decompress(
@@ -822,10 +822,10 @@ class GuidDefinedSection(EfiSection):
                     self.process_subsections()
                 else:
                     status = False
-                    dlog(self, sguid(self.guid), 'error, empty gzip decompress')
+                    dlog(self, msg='error, empty gzip decompress', guid=self.guid)
             except Exception as err:
                 status = False
-                dlog(self, sguid(self.guid), 'gzip error: %s' % str(err))
+                dlog(self, msg='gzip error: %s' % str(err), guid=self.guid)
         # Todo: check for processing required attribute
         elif sguid(self.guid) == FIRMWARE_GUIDED_GUIDS["STATIC_GUID"]:
             status = self.process_subsections()
@@ -844,7 +844,7 @@ class GuidDefinedSection(EfiSection):
             # status
             parse_volume()
         if not status:
-            dlog(self, sguid(self.guid), 'Could not parse GUID object')
+            dlog(self, msg='Could not parse GUID object', guid=self.guid)
         return status
 
     def build(self, generate_checksum=False, debug=False):
@@ -1204,9 +1204,9 @@ class FirmwareFile(FirmwareObject):
     def process(self):
         '''Parse the file and file sections if appropriate.'''
 
-        dlog(self, sguid(self.guid))
+        dlog(self, guid=self.guid)
         if self.type == 0xf0:  # ffs padding
-            dlog(self, sguid(self.guid), 'file is padding')
+            dlog(self, msg='file is padding', guid=self.guid)
             return True
 
         status = True
@@ -1220,18 +1220,18 @@ class FirmwareFile(FirmwareObject):
                 status = var_store.process()
                 self.raw_blobs.append(var_store)
                 if not status:
-                    dlog(self, sguid(self.guid), 'Could not parse NVAR')
+                    dlog(self, msg='Could not parse NVAR', guid=self.guid)
             return status
 
         if self.type == 0x01:  # raw file
-            dlog(self, sguid(self.guid), 'file is Raw')
+            dlog(self, msg='file is Raw', guid=self.guid)
             status = self._find_objects()
             if not status:
-                dlog(self, sguid(self.guid), 'Could not find Raw objects')
+                dlog(self, msg='Could not find Raw objects', guid=self.guid)
             return status
 
         if self.type == 0x00:  # unknown
-            dlog(self, sguid(self.guid), 'file is unknown')
+            dlog(self, msg='file is unknown', guid=self.guid)
             raw = AutoRawObject(self.data)
             raw.process()
             self.raw_blobs.append(raw)
@@ -1244,7 +1244,7 @@ class FirmwareFile(FirmwareObject):
             file_section = FirmwareFileSystemSection(
                 view[section_offset:], self.guid)
             if not file_section.valid_header:
-                dlog(self, sguid(self.guid), 'Invalid section header')
+                dlog(self, msg='Invalid section header', guid=self.guid)
                 return False
             if file_section.size <= 0:
                 # This is not expected, something bad happened while parsing.
@@ -1597,7 +1597,7 @@ class FirmwareVolume(FirmwareObject):
             return
 
         if sguid(self.guid) not in list(FIRMWARE_VOLUME_GUIDS.values()):
-            dlog(self, sguid(self.guid), 'Unrecognized volume GUID')
+            dlog(self, msg='Unrecognized volume GUID', guid=self.guid)
             return
 
         # Callers advance past a volume by its size, so a volume smaller than
