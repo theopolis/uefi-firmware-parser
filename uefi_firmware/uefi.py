@@ -104,7 +104,11 @@ def build_sections(sections, original, generate_checksum=False):
     return data
 
 
-def dlog(kls, name, msg=""):
+def dlog(kls, name="", msg="", *, guid=...):
+    if guid is not ...:
+        if not logging.getLogger().isEnabledFor(logging.INFO):
+            return
+        name = sguid(guid)
     logging.info("%s %s %s" % (str(kls.__class__.__name__), name, msg))
 
 
@@ -978,8 +982,7 @@ class FirmwareFileSystemSection(EfiSection):
     @limit_nesting(False)
     def process(self):
         # section types, see PI spec v1.7 Errata A Volume 3, 2.1.5.1, table 3-4
-        if logging.getLogger().isEnabledFor(logging.INFO):
-            dlog(self, sguid(self.guid))
+        dlog(self, guid=self.guid)
         self.parsed_object = None
         raw_object = False
         self.attrs = {
@@ -1038,9 +1041,8 @@ class FirmwareFileSystemSection(EfiSection):
             return True
         status = self.parsed_object.process()
         if not status:
-            if logging.getLogger().isEnabledFor(logging.INFO):
-                dlog(self, sguid(self.guid), 'Could not parse %s' % (
-                    self.parsed_object.__class__.__name__))
+            dlog(self, msg='Could not parse %s' % (
+                self.parsed_object.__class__.__name__), guid=self.guid)
             # Allow raw objects to fall-back.
             if raw_object:
                 self.parsed_object = RawObject(self.data)
